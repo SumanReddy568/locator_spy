@@ -31,15 +31,17 @@ CURRENT_VERSION=$(jq -r '.version' "$MANIFEST_PATH")
 NEW_VERSION=$(increment_version "$CURRENT_VERSION")
 jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$MANIFEST_PATH" > temp.json && mv temp.json "$MANIFEST_PATH"
 
-# Create zip file
-zip -r "$EXTENSION_NAME.zip" ./* -x "*.git*" -x ".github/*" -x "*.sh"
+# Remove old zip if exists
+if [ -f "$EXTENSION_NAME.zip" ]; then
+  git rm "$EXTENSION_NAME.zip"
+fi
+
+# Create new zip file (excluding git and script files)
+zip -r "$EXTENSION_NAME.zip" ./* -x "*.git*" -x ".github/*" -x "*.sh" -x "$EXTENSION_NAME.zip"
 
 # Configure git
 git config --global user.name "GitHub Actions"
 git config --global user.email "actions@github.com"
 
-# Stage changes
-git add "$EXTENSION_NAME.zip" "$MANIFEST_PATH"
-git commit -m "Auto-update: Version $NEW_VERSION [skip ci]"
-
-# Note: The workflow will handle the actual push
+# Commit changes
+git add "$EXTENSION_NAME.zip
