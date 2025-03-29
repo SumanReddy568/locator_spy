@@ -44,4 +44,5 @@ git config --global user.name "GitHub Actions"
 git config --global user.email "actions@github.com"
 
 # Commit changes
-git add "$EXTENSION_NAME.zip
+git add "$EXTENSION_NAME.zip" "$MANIFEST_PATH"
+git commit -m "Auto-update: Version $NEW_VERSION [skip ci]"
