@@ -3,6 +3,8 @@
 # Configuration
 EXTENSION_NAME="locator_spy_extension"
 MANIFEST_PATH="manifest.json"
+PANEL_PATH="./devtools/panel.html"
+CHANGELOG_PATH="CHANGELOG.md"
 
 # Function to increment version number
 increment_version() {
@@ -26,10 +28,34 @@ increment_version() {
   echo "$major.$minor.$patch"
 }
 
+# Get current commit message (excluding [skip ci] if present)
+COMMIT_MESSAGE=$(git log -1 --pretty=%B | sed 's/\[skip ci\]//g' | xargs)
+
 # Update version in manifest
 CURRENT_VERSION=$(jq -r '.version' "$MANIFEST_PATH")
 NEW_VERSION=$(increment_version "$CURRENT_VERSION")
+
+# Update manifest version
 jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$MANIFEST_PATH" > temp.json && mv temp.json "$MANIFEST_PATH"
+
+# Update version in panel.html
+sed -i "s|<div class=\"version-info\">Version [0-9]\+\.[0-9]\+\.[0-9]\+</div>|<div class=\"version-info\">Version $NEW_VERSION</div>|g" "$PANEL_PATH"
+
+# Update changelog
+if [ ! -f "$CHANGELOG_PATH" ]; then
+  echo "# Changelog" > "$CHANGELOG_PATH"
+  echo "" >> "$CHANGELOG_PATH"
+  echo "All notable changes to this project will be documented in this file." >> "$CHANGELOG_PATH"
+  echo "" >> "$CHANGELOG_PATH"
+fi
+
+# Add new version entry to changelog
+{
+  echo "## [$NEW_VERSION] - $(date +%Y-%m-%d)"
+  echo "- $COMMIT_MESSAGE"
+  echo ""
+  cat "$CHANGELOG_PATH"
+} > temp_changelog.md && mv temp_changelog.md "$CHANGELOG_PATH"
 
 # Remove old zip if exists
 if [ -f "$EXTENSION_NAME.zip" ]; then
@@ -44,5 +70,5 @@ git config --global user.name "GitHub Actions"
 git config --global user.email "actions@github.com"
 
 # Commit changes
-git add "$EXTENSION_NAME.zip" "$MANIFEST_PATH"
+git add "$EXTENSION_NAME.zip" "$MANIFEST_PATH" "$PANEL_PATH" "$CHANGELOG_PATH"
 git commit -m "Auto-update: Version $NEW_VERSION [skip ci]"
