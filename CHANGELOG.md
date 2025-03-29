@@ -1,3 +1,6 @@
+## [1.0.6] - 2025-03-29
+- Merge pull request #5 from SumanReddy568/loc_acc_imp improved xpath accuracy
+
 ## [1.0.5] - 2025-03-29
 - Merge pull request #4 from SumanReddy568/dev2 acuracy improve
 
