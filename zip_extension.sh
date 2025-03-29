@@ -38,7 +38,8 @@ zip -r "$EXTENSION_NAME.zip" ./* -x "*.git*" -x ".github/*" -x "*.sh"
 git config --global user.name "GitHub Actions"
 git config --global user.email "actions@github.com"
 
-# Commit and push changes
+# Stage changes
 git add "$EXTENSION_NAME.zip" "$MANIFEST_PATH"
 git commit -m "Auto-update: Version $NEW_VERSION [skip ci]"
-git push
+
+# Note: The workflow will handle the actual push
