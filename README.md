@@ -6,12 +6,12 @@ A Chrome extension that helps developers and QA engineers find reliable locators
 
 ## Features
 
-- 🔍 **Element Inspection**: Hover to find locators
-- 📋 **Multiple Locator Strategies**: CSS, XPath, ID, Class Name
-- 📦 **Auto-Zip Packaging**: GitHub Action auto-packages extension
-- 🔄 **Version Auto-Increment**: Updates with each change
-- 🌓 **Dark/Light Mode**: Comfortable viewing
-- 📋 **Copy to Clipboard**: One-click locator copying
+- 🔍 **Element Inspection**: Hover over elements to find locators.
+- 📋 **Multiple Locator Strategies**: CSS, XPath, ID, Class Name.
+- 📦 **Auto-Zip Packaging**: GitHub Action auto-packages the extension.
+- 🔄 **Version Auto-Increment**: Automatically updates the version with each change.
+- 🌓 **Dark/Light Mode**: Comfortable viewing experience.
+- 📋 **Copy to Clipboard**: One-click locator copying.
 
 ## Installation
 
@@ -19,20 +19,20 @@ A Chrome extension that helps developers and QA engineers find reliable locators
 [![Available in Chrome Web Store](https://developer.chrome.com/webstore/images/ChromeWebStore_Badge_v2_206x58.png)](https://chrome.google.com/webstore/detail/locator-spy/your-extension-id)
 
 ### Manual Installation
-1. Download the latest `locator_spy_extension.zip` from [Releases](https://github.com/SumanReddy568/locator_spy/releases)
-2. Unzip the package
+1. Download the latest `locator_spy_extension.zip` from the [Releases](https://github.com/SumanReddy568/locator_spy/releases) page.
+2. Unzip the package.
 3. In Chrome:
-   - Go to `chrome://extensions`
-   - Enable "Developer mode"
-   - Click "Load unpacked" and select the unzipped folder
+   - Go to `chrome://extensions`.
+   - Enable "Developer mode".
+   - Click "Load unpacked" and select the unzipped folder.
 
 ## Usage
 
-1. Click the extension icon in your toolbar
-2. Activate "Locator Mode"
-3. Hover over page elements
-4. View generated locators in the panel
-5. Click any locator to copy to clipboard
+1. Click the extension icon in your toolbar.
+2. Activate "Locator Mode".
+3. Hover over page elements.
+4. View generated locators in the panel.
+5. Click any locator to copy it to the clipboard.
 
 ![Interface Screenshot](images/screenshot.png)
 
@@ -44,28 +44,33 @@ A Chrome extension that helps developers and QA engineers find reliable locators
 
 ### Build Steps
 ```bash
-# Clone repository
+# Clone the repository
 git clone https://github.com/SumanReddy568/locator_spy.git
 cd locator_spy
+
+# Install dependencies (if applicable)
+npm install
 
 # Create production zip
 chmod +x zip_extension.sh
 ./zip_extension.sh
-Automatic Packaging
-Every merge to main branch:
+```
 
-Auto-increments version in manifest
+### Automatic Packaging
+Every merge to the `main` branch:
+- Auto-increments the version in `manifest.json`.
+- Creates a fresh zip package.
+- Commits changes back to the repository.
 
-Creates fresh zip package
+## Authentication Feature (Optional)
+This extension supports optional Google Sign-In for enhanced functionality. To enable:
+1. Set up Firebase Authentication (free tier).
+2. Follow the instructions in the [Firebase Setup Guide](https://firebase.google.com/docs/auth/web/start).
 
-Commits changes back to repo
-
-Support
+## Support
 For help or feature requests:
+- Open an [Issue](https://github.com/SumanReddy568/locator_spy/issues).
+- Email: your-email@example.com
 
-Open an Issue
-
-Email: your-email@example.com
-
-License
-This project is licensed under the MIT License - see the LICENSE file for details.
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
