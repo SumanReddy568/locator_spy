@@ -1,3 +1,6 @@
+## [1.0.7] - 2025-03-29
+- pannel headder update
+
 ## [1.0.6] - 2025-03-29
 - Merge pull request #5 from SumanReddy568/loc_acc_imp improved xpath accuracy
 
