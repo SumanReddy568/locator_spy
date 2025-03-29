@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Locator Finder</title>
+  <link rel="stylesheet" href="popup.css">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="light-mode">
+  <div class="container">
+    <div class="header">
+      <h1>Locator Spy</h1>
+      <div class="header-controls">
+        <button id="themeToggleBtn" class="icon-btn" title="Toggle Dark Mode">
+          <svg class="theme-icon light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="theme-icon dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+        
+    <div class="controls">
+      <button id="locatorModeBtn" class="btn pulse-animation">
+        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
+        </svg>
+        Locator Mode
+      </button>
+    </div>
+        
+    <div class="results">
+      <div class="section">
+        <h3>Element Locators</h3>
+        <div id="locatorResults">
+          <p class="placeholder">Activate locator mode and hover over elements to see locators</p>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h3>Saved Locators</h3>
+        <div id="savedLocators">
+          <p class="placeholder">No saved locators yet</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="copyNotification" class="copy-notification">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      Copied to clipboard!
+    </div>
+  </div>
+    
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Locator Finder</title>
+  <link rel="stylesheet" href="panel.css">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="light-mode">
+  <div class="container">
+    <div class="header">
+      <h1>Locator Spy</h1>
+      <div class="header-controls">
+        <button id="themeToggleBtn" class="icon-btn" title="Toggle Dark Mode">
+          <svg class="theme-icon light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="theme-icon dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <div class="dropdown">
+          <button id="menuBtn" class="icon-btn" title="Menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="1"></circle>
+              <circle cx="19" cy="12" r="1"></circle>
+              <circle cx="5" cy="12" r="1"></circle>
+            </svg>
+          </button>
+          <div class="dropdown-content">
+            <a href="https://github.com/yourusername/locator-spy" target="_blank" class="dropdown-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+              </svg>
+              GitHub Repository
+            </a>
+            <a href="https://github.com/yourusername/locator-spy/issues/new" target="_blank" class="dropdown-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              Report a Bug
+            </a>
+            <a href="https://github.com/yourusername/locator-spy/issues/new?labels=enhancement" target="_blank" class="dropdown-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              </svg>
+              Request a Feature
+            </a>
+            <div class="version-info">Version 1.0.0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+        
+    <div class="controls">
+      <button id="locatorModeBtn" class="btn pulse-animation">
+        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
+        </svg>
+        Locator Mode
+      </button>
+    </div>
+        
+    <div class="results">
+      <div class="section">
+        <h3>Element Locators</h3>
+        <div id="locatorResults">
+          <p class="placeholder">Activate locator mode and hover over elements to see locators</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="copyNotification" class="copy-notification">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      Copied to clipboard!
+    </div>
+  </div>
+    
+  <script src="panel.js"></script>
+</body>
+</html>
