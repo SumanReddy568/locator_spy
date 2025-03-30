@@ -1,3 +1,6 @@
+## [1.0.8] - 2025-03-30
+- Merge pull request #6 from SumanReddy568/enhace_ziper zipeer change
+
 ## [1.0.7] - 2025-03-29
 - pannel headder update
 
