@@ -115,6 +115,29 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
       
       return true; // Indicate async response
     }
+
+    // Handle activating locator mode
+    if (message.action === 'activateLocatorMode') {
+      try {
+        // Perform the necessary operations for locator mode activation
+        console.log('Activating locator mode:', message.isActive);
+
+        // If asynchronous operations are needed, ensure sendResponse is called
+        if (message.isActive) {
+          // Example: Simulate async operation
+          setTimeout(() => {
+            console.log('Locator mode activated successfully');
+            sendResponse({ success: true });
+          }, 100);
+          return true; // Indicate async response
+        } else {
+          sendResponse({ success: true });
+        }
+      } catch (error) {
+        console.error('Error in locator mode activation:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    }
     
     // For other messages
     if (typeof sendResponse === 'function') {
@@ -130,4 +153,19 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log("Selenium Locator Helper installed");
+});
+
+
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install') {
+    // Open the welcome page on installation
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
+  }
+});
+
+// Set the URL to open when the extension is uninstalled
+chrome.runtime.setUninstallURL(chrome.runtime.getURL('goodbye.html'), function() {
+  if (chrome.runtime.lastError) {
+    console.error('Error setting uninstall URL:', chrome.runtime.lastError.message);
+  }
 });

@@ -283,6 +283,134 @@ if (window.seleniumLocatorHelperInjected) {
         return xpathText;
       }
 
+      // NEW: Generate XPath by name attribute
+      function getXPathByName(el) {
+        const name = el?.getAttribute('name');
+        if (!el || !name) return "";
+
+        const xpath = `//${el.nodeName.toLowerCase()}[@name="${name}"]`;
+
+        // Check if this xpath is unique, if not, add index
+        const matchingElements = document.evaluate(
+          xpath,
+          document,
+          null,
+          XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+          null
+        );
+
+        if (matchingElements.snapshotLength > 1) {
+          // Find the index of our element
+          let elementIndex = -1;
+          for (let i = 0; i < matchingElements.snapshotLength; i++) {
+            if (matchingElements.snapshotItem(i) === el) {
+              elementIndex = i + 1; // XPath indexes start at 1
+              break;
+            }
+          }
+          if (elementIndex > 0) {
+            return `(${xpath})[${elementIndex}]`;
+          }
+        }
+
+        return xpath;
+      }
+
+      // NEW: Generate XPath by link text (for anchor elements)
+      function getXPathByLinkText(el) {
+        if (!el || el.nodeName.toLowerCase() !== 'a') return "";
+        const text = el.textContent?.trim();
+        if (!text) return "";
+
+        // Handle quotes in text
+        let xpathText;
+        if (text.includes('"') && text.includes("'")) {
+          const parts = text
+            .split('"')
+            .map((part) => `concat("${part}", '"')`)
+            .join(",");
+          xpathText = `//a[text()=${parts}]`;
+        } else if (text.includes('"')) {
+          xpathText = `//a[text()='${text}']`;
+        } else {
+          xpathText = `//a[text()="${text}"]`;
+        }
+
+        // Check if this xpath is unique, if not, add index
+        const matchingElements = document.evaluate(
+          xpathText,
+          document,
+          null,
+          XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+          null
+        );
+
+        if (matchingElements.snapshotLength > 1) {
+          // Find the index of our element
+          let elementIndex = -1;
+          for (let i = 0; i < matchingElements.snapshotLength; i++) {
+            if (matchingElements.snapshotItem(i) === el) {
+              elementIndex = i + 1; // XPath indexes start at 1
+              break;
+            }
+          }
+          if (elementIndex > 0) {
+            return `(${xpathText})[${elementIndex}]`;
+          }
+        }
+
+        return xpathText;
+      }
+
+      // NEW: Generate XPath by partial link text (for anchor elements)
+      function getXPathByPartialLinkText(el) {
+        if (!el || el.nodeName.toLowerCase() !== 'a') return "";
+        const text = el.textContent?.trim();
+        if (!text) return "";
+
+        // Use partial text for longer content
+        const partialText = text.length > 15 ? text.substring(0, 15) : text;
+
+        // Handle quotes in text
+        let xpathText;
+        if (partialText.includes('"') && partialText.includes("'")) {
+          const parts = partialText
+            .split('"')
+            .map((part) => `concat("${part}", '"')`)
+            .join(",");
+          xpathText = `//a[contains(text(), ${parts})]`;
+        } else if (partialText.includes('"')) {
+          xpathText = `//a[contains(text(), '${partialText}')]`;
+        } else {
+          xpathText = `//a[contains(text(), "${partialText}")]`;
+        }
+
+        // Check if this xpath is unique, if not, add index
+        const matchingElements = document.evaluate(
+          xpathText,
+          document,
+          null,
+          XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+          null
+        );
+
+        if (matchingElements.snapshotLength > 1) {
+          // Find the index of our element
+          let elementIndex = -1;
+          for (let i = 0; i < matchingElements.snapshotLength; i++) {
+            if (matchingElements.snapshotItem(i) === el) {
+              elementIndex = i + 1; // XPath indexes start at 1
+              break;
+            }
+          }
+          if (elementIndex > 0) {
+            return `(${xpathText})[${elementIndex}]`;
+          }
+        }
+
+        return xpathText;
+      }
+
       // Generate more precise and reliable XPaths
       function getAllXPaths(el) {
         if (!el) return [];
@@ -603,6 +731,10 @@ if (window.seleniumLocatorHelperInjected) {
         relativeXPath: getRelativeXPath(element),
         xpathByText: getXPathByText(element),
         partialTextXPath: getPartialTextXPath(element),
+        // New locator types
+        xpathByName: getXPathByName(element),
+        xpathByLinkText: getXPathByLinkText(element),
+        xpathByPartialLinkText: getXPathByPartialLinkText(element),
         allXPaths: getAllXPaths(element),
         tagName: element.tagName.toLowerCase(),
         id: element.id || null,
@@ -623,6 +755,7 @@ if (window.seleniumLocatorHelperInjected) {
         role: element.getAttribute("role") || null,
       };
     }
+
 
     // Highlight element with a border
     function highlightElement(element) {

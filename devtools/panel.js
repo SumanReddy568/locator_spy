@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', function () {
   const menuBtn = document.getElementById('menuBtn');
   const dropdownContent = document.querySelector('.dropdown-content');
   const copyNotification = document.getElementById('copyNotification');
+  const searchBoxInput = document.querySelector('.search-box input');
+  const expandAllBtn = document.querySelector('.section-actions button[title="Expand All"]');
+  const copyAllBtn = document.querySelector('.section-actions .action-btn[title="Copy All"]');
 
   let isLocatorModeActive = false;
 
@@ -221,9 +224,90 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
+  // Filter locators based on search input
+  searchBoxInput.addEventListener('input', function () {
+    const filterText = this.value.toLowerCase();
+    const locatorItems = document.querySelectorAll('#locatorResults .locator-item');
+    locatorItems.forEach(item => {
+      const locatorTypeElement = item.querySelector('.locator-type');
+      const locatorValueElement = item.querySelector('.locator-value');
+
+      // Add null checks for child elements
+      if (locatorTypeElement && locatorValueElement) {
+        const locatorType = locatorTypeElement.textContent.toLowerCase();
+        const locatorValue = locatorValueElement.textContent.toLowerCase();
+        if (locatorType.includes(filterText) || locatorValue.includes(filterText)) {
+          item.style.display = '';
+        } else {
+          item.style.display = 'none';
+        }
+      }
+    });
+  });
+
+  // Copy all visible locators
+  copyAllBtn.addEventListener('click', function () {
+    const allLocatorTexts = [];
+    const locatorItems = document.querySelectorAll('#locatorResults .locator-item');
+
+    locatorItems.forEach(item => {
+      const locatorTypeElement = item.querySelector('.locator-type');
+      const locatorValueElement = item.querySelector('.locator-value');
+
+      // Only process items that have both type and value elements
+      if (locatorTypeElement && locatorValueElement) {
+        const isHidden = item.style.display === 'none' || window.getComputedStyle(item).display === 'none';
+        const type = locatorTypeElement.textContent.replace(':', '').trim();
+
+        // Skip items that are hidden or only contain header text (like "All XPaths:")
+        if (!isHidden && type !== 'All XPaths') {
+          const value = locatorValueElement.textContent.trim();
+          allLocatorTexts.push(`${type}: ${value}`);
+        }
+      }
+    });
+
+    if (allLocatorTexts.length > 0) {
+      const textToCopy = allLocatorTexts.join('\n\n');
+      copyToClipboard(textToCopy);
+      showCopyNotification('Locators copied to clipboard!');
+    } else {
+      showCopyNotification('No locators available to copy');
+    }
+  });
+  
   // Helper function to copy to clipboard that works in Chrome extensions
-  function copyToClipboard(text, buttonElement) {
-    // Create a temporary textarea element
+  function copyToClipboard(text, buttonElement = null) {
+    if (!text) {
+      showCopyNotification('No locator available to copy');
+      return;
+    }
+
+    // Use the newer navigator.clipboard API when available
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          showCopyNotification('Locator copied to clipboard!');
+          if (buttonElement) {
+            buttonElement.classList.add('copied');
+            setTimeout(() => {
+              buttonElement.classList.remove('copied');
+            }, 1000);
+          }
+        })
+        .catch(err => {
+          console.error('Failed to copy: ', err);
+          // Fall back to the older method
+          fallbackCopyToClipboard(text, buttonElement);
+        });
+    } else {
+      // Use the older method as fallback
+      fallbackCopyToClipboard(text, buttonElement);
+    }
+  }
+
+  // Add this helper function for fallback copying
+  function fallbackCopyToClipboard(text, buttonElement) {
     const textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.setAttribute('readonly', '');
@@ -231,28 +315,33 @@ document.addEventListener('DOMContentLoaded', function () {
     textarea.style.left = '-9999px';
     document.body.appendChild(textarea);
 
-    // Select the text and copy
-    textarea.select();
-    document.execCommand('copy');
+    try {
+      textarea.select();
+      const success = document.execCommand('copy');
+      if (success) {
+        showCopyNotification('Locator copied to clipboard!');
+        if (buttonElement) {
+          buttonElement.classList.add('copied');
+          setTimeout(() => {
+            buttonElement.classList.remove('copied');
+          }, 1000);
+        }
+      } else {
+        showCopyNotification('Failed to copy to clipboard');
+      }
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+      showCopyNotification('Failed to copy to clipboard');
+    } finally {
+      document.body.removeChild(textarea);
+    }
+  }
 
-    // Remove the textarea
-    document.body.removeChild(textarea);
-
-    // Change button text temporarily
-    const originalHTML = buttonElement.innerHTML;
-    buttonElement.innerHTML = `
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="20 6 9 17 4 12"></polyline>
-      </svg>
-      Copied!
-    `;
-
-    // Show global notification
+  // Helper function to show copy notification
+  function showCopyNotification(message) {
+    copyNotification.textContent = message; // Set the notification message
     copyNotification.classList.add('show');
-
-    // Reset after 2 seconds
     setTimeout(() => {
-      buttonElement.innerHTML = originalHTML;
       copyNotification.classList.remove('show');
     }, 2000);
   }

@@ -29,5 +29,11 @@
     "scripting",
     "storage"
   ],
+ "web_accessible_resources": [
+    {
+      "resources": ["welcome.html", "images/icon16.png"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "devtools_page": "devtools/devtools.html"
 }
