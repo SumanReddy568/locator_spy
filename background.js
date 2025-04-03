@@ -162,10 +162,3 @@ chrome.runtime.onInstalled.addListener((details) => {
     chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
   }
 });
-
-// Set the URL to open when the extension is uninstalled
-chrome.runtime.setUninstallURL(chrome.runtime.getURL('goodbye.html'), function() {
-  if (chrome.runtime.lastError) {
-    console.error('Error setting uninstall URL:', chrome.runtime.lastError.message);
-  }
-});
