@@ -1,3 +1,6 @@
+## [1.0.9] - 2025-04-03
+- service worker fix
+
 ## [1.0.7] - 2025-03-30
 - Merge pull request #7 from SumanReddy568/enhace_ziper Enhace ziper
 

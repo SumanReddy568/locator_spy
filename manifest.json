@@ -1,6 +1,6 @@
 {
   "name": "Locator Spy",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Helps find locators for Selenium automation testing",
   "manifest_version": 3,
   "background": {
@@ -29,10 +29,15 @@
     "scripting",
     "storage"
   ],
- "web_accessible_resources": [
+  "web_accessible_resources": [
     {
-      "resources": ["welcome.html", "images/icon16.png"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "welcome.html",
+        "images/icon16.png"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "devtools_page": "devtools/devtools.html"
