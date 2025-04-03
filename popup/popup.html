@@ -4,12 +4,20 @@
   <meta charset="UTF-8">
   <title>Locator Finder</title>
   <link rel="stylesheet" href="popup.css">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body class="light-mode">
   <div class="container">
     <div class="header">
-      <h1>Locator Spy</h1>
+      <div class="logo-title">
+        <svg class="logo" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 18l2-2-4-4-4 4 2 2"></path>
+          <path d="M8 6l-2 2 4 4 4-4-2-2"></path>
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+        </svg>
+        <h1>Locator Spy</h1>
+        <span class="badge">AutoLocator</span>
+      </div>
       <div class="header-controls">
         <button id="themeToggleBtn" class="icon-btn" title="Toggle Dark Mode">
           <svg class="theme-icon light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -27,6 +35,41 @@
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
           </svg>
         </button>
+        <div class="dropdown">
+          <button id="menuBtn" class="icon-btn" title="Menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="1"></circle>
+              <circle cx="19" cy="12" r="1"></circle>
+              <circle cx="5" cy="12" r="1"></circle>
+            </svg>
+          </button>
+          <div class="dropdown-content">
+            <a href="https://github.com/SumanReddy568/locator_spy" target="_blank" class="dropdown-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+              </svg>
+              GitHub Repository
+            </a>
+            <a href="https://github.com/SumanReddy568/locator_spy/issues/new" target="_blank" class="dropdown-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              Report a Bug
+            </a>
+            <a href="https://github.com/SumanReddy568/locator_spy/issues/new?labels=enhancement" target="_blank" class="dropdown-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              </svg>
+              Request a Feature
+            </a>
+            <div class="dropdown-divider"></div>
+            <div class="version-info">
+              <span>Version 1.0.7</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
         
@@ -37,23 +80,59 @@
         </svg>
         Locator Mode
       </button>
+      <button id="refreshBtn" class="btn">
+        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 4v6h-6"></path>
+          <path d="M1 20v-6h6"></path>
+          <path d="M3.51 9a9 9 0 1 1 2.13 9.36L1 20"></path>
+        </svg>
+        Refresh
+      </button>
+      <div class="spacer"></div>
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" placeholder="Filter locators...">
+      </div>
     </div>
         
     <div class="results">
       <div class="section">
-        <h3>Element Locators</h3>
+        <div class="section-header">
+          <h3>Element Locators</h3>
+          <div class="section-actions">
+            <button class="action-btn" title="Copy All">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
         <div id="locatorResults">
           <p class="placeholder">Activate locator mode and hover over elements to see locators</p>
         </div>
       </div>
       
-      <div class="section">
-        <h3>Saved Locators</h3>
+      <!-- <div class="section">
+        <div class="section-header">
+          <h3>Saved Locators</h3>
+          <div class="section-actions">
+            <button class="action-btn" title="Copy All">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
         <div id="savedLocators">
           <p class="placeholder">No saved locators yet</p>
         </div>
       </div>
-    </div>
+    </div> -->
 
     <div id="copyNotification" class="copy-notification">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

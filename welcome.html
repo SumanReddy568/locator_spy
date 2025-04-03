@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'nonce-abc123' 'sha256-BcfGkSUerV1MdzZE3KU46Gtiww/HvDEva2AnbuuBYbE=' http://localhost:* http://127.0.0.1:*;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Welcome to Locator Spy</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -521,7 +522,7 @@
     </div>
   </div>
 
-  <script>
+  <!-- <script nonce="abc123">
     // Fetch GitHub repo stats
     async function fetchGitHubStats() {
       try {
@@ -576,6 +577,6 @@
     // Fetch stats when page loads
     fetchGitHubStats();
     animateSections();
-  </script>
+  </script> -->
 </body>
 </html>

@@ -287,5 +287,5 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Initial load of saved locators
-  loadSavedLocators();
+  // loadSavedLocators(); 
 });
