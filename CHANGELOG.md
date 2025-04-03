@@ -1,3 +1,6 @@
+## [1.0.1] - 2025-04-03
+- verion fix in pop up
+
 ## [1.0.8] - 2025-04-03
 - Merge branch master of https://github.com/SumanReddy568/locator_spy
 
