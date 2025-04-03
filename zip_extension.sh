@@ -6,7 +6,7 @@ MANIFEST_PATH="manifest.json"
 PANEL_PATH="./devtools/panel.html"
 CHANGELOG_PATH="CHANGELOG.md"
 WELCOME_HTML_PATH="welcome.html"
-POPUP_HTML_PATH="popup/popup.html"
+POPUP_HTML_PATH=".popup/popup.html"
 
 # Function to increment version number
 increment_version() {
