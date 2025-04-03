@@ -6,6 +6,7 @@ MANIFEST_PATH="manifest.json"
 PANEL_PATH="./devtools/panel.html"
 CHANGELOG_PATH="CHANGELOG.md"
 WELCOME_HTML_PATH="welcome.html"
+POPUP_HTML_PATH="popup/popup.html"
 
 # Function to increment version number
 increment_version() {
@@ -42,6 +43,7 @@ jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$MANIFEST_PATH" >
 # Update version in panel.html
 sed -i "s|<div class=\"version-info\">Version [0-9]\+\.[0-9]\+\.[0-9]\+</div>|<div class=\"version-info\">Version $NEW_VERSION</div>|g" "$PANEL_PATH"
 sed -i 's|<span class="version-badge">v[0-9]\+\.[0-9]\+\.[0-9]\+</span>|<span class="version-badge">v'$NEW_VERSION'</span>|g' "$WELCOME_HTML_PATH"
+sed -i "s|<div class=\"version-info\">Version [0-9]\+\.[0-9]\+\.[0-9]\+</div>|<div class=\"version-info\">Version $NEW_VERSION</div>|g" "$POPUP_HTML_PATH"
 
 # Update changelog
 if [ ! -f "$CHANGELOG_PATH" ]; then
