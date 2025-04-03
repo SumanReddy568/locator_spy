@@ -57,7 +57,7 @@ fi
 jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$MANIFEST_PATH" > temp.json && mv temp.json "$MANIFEST_PATH"
 
 # Update version in panel.html
-sed -i "s|<div class=\"version-info\">Version [0-9]\+\.[0-9]\+\.[0-9]\+</div>|<div class=\"version-info\">Version $NEW_VERSION</div>|g" "$PANEL_PATH"
+sed -i "s|<div class=\"version-info\">.*<span>Version [0-9]\+\.[0-9]\+\.[0-9]\+</span>.*</div>|<div class=\"version-info\"><span>Version $NEW_VERSION</span></div>|g" "$PANEL_PATH"
 
 # Update version in welcome.html
 sed -i 's|<span class="version-badge">v[0-9]\+\.[0-9]\+\.[0-9]\+</span>|<span class="version-badge">v'$NEW_VERSION'</span>|g' "$WELCOME_HTML_PATH"
