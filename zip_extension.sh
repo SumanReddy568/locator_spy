@@ -38,32 +38,34 @@ COMMIT_MESSAGE=$(git log -1 --pretty=%B | sed 's/\[skip ci\]//g' | xargs)
 CURRENT_VERSION=$(jq -r '.version' "$MANIFEST_PATH")
 NEW_VERSION=$(increment_version "$CURRENT_VERSION")
 
-# Create backlog directory if it doesn't exist
-mkdir -p "$BACKLOG_DIR"
+# Create backlog directory with proper permissions
+mkdir -p "$BACKLOG_DIR" || {
+    echo "Failed to create backlog directory"
+    exit 1
+}
+chmod 755 "$BACKLOG_DIR"
 
-# Handle existing extension and backlog management
-if [ -f "${EXTENSION_NAME}.zip" ]; then
-    # Check if a version with same number exists in backlog
-    BACKLOG_FILE="${BACKLOG_DIR}/${EXTENSION_NAME}_${CURRENT_VERSION}.zip"
-    if [ -f "$BACKLOG_FILE" ]; then
-        echo "Replacing existing backup version: $BACKLOG_FILE"
-        rm -f "$BACKLOG_FILE"
+# Move existing zip files to backlog directory
+find . -maxdepth 1 -name "${EXTENSION_NAME}*.zip" -type f | while read -r file; do
+    if [ -f "$file" ]; then
+        version=$(echo "$file" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
+        backup_path="${BACKLOG_DIR}/$(basename "$file")"
+        
+        echo "Moving $file to $backup_path"
+        if mv "$file" "$backup_path"; then
+            echo "Successfully moved $(basename "$file") to backlog"
+        else
+            echo "Failed to move $(basename "$file") to backlog"
+            exit 1
+        fi
     fi
-    
-    # Move current zip to backlog
-    if mv "${EXTENSION_NAME}.zip" "$BACKLOG_FILE"; then
-        echo "Successfully moved current extension to backlog: $BACKLOG_FILE"
-    else
-        echo "Error moving extension to backlog"
-        exit 1
-    fi
-fi
+done
 
-# Remove any duplicate versions in backlog
+# Clean up duplicates in backlog directory
 find "$BACKLOG_DIR" -name "${EXTENSION_NAME}_*.zip" | while read -r file; do
-    version=$(echo "$file" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
+    version=$(basename "$file" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
     count=$(find "$BACKLOG_DIR" -name "*${version}.zip" | wc -l)
-    if [ "$count" -gt 1 ]; then
+    if [ "$count" -gt 1]; then
         echo "Removing duplicate version: $file"
         rm -f "$file"
     fi
@@ -119,9 +121,21 @@ fi
   cat "$CHANGELOG_PATH"
 } > temp_changelog.md && mv temp_changelog.md "$CHANGELOG_PATH"
 
-# Create new versioned zip file (excluding git and script files)
+# Create new versioned zip file in the root directory
 ZIP_FILENAME="${EXTENSION_NAME}_${NEW_VERSION}.zip"
-zip -r "$ZIP_FILENAME" ./* -x "*.git*" -x ".github/*" -x "*.sh" -x "$EXTENSION_NAME*.zip" -x "$BACKLOG_DIR/*"
+zip -r "$ZIP_FILENAME" ./* -x "*.git*" -x ".github/*" -x "*.sh" -x "${BACKLOG_DIR}/*" -x "${EXTENSION_NAME}*.zip"
+
+# Move the newly created zip to backlog directory
+mv "$ZIP_FILENAME" "${BACKLOG_DIR}/${ZIP_FILENAME}" || {
+    echo "Failed to move new zip to backlog directory"
+    exit 1
+}
+
+# Create a symlink in root directory
+ln -sf "${BACKLOG_DIR}/${ZIP_FILENAME}" "${ZIP_FILENAME}" || {
+    echo "Failed to create symlink"
+    exit 1
+}
 
 # Configure git
 git config --global user.name "GitHub Actions"
