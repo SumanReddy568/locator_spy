@@ -16,7 +16,7 @@ A Chrome extension that helps developers and QA engineers find reliable locators
 ## Installation
 
 ### Chrome Web Store
-[![Available in Chrome Web Store](https://developer.chrome.com/webstore/images/ChromeWebStore_Badge_v2_206x58.png)](https://chrome.google.com/webstore/detail/locator-spy/your-extension-id)
+[![Available in Chrome Web Store](https://chromewebstore.google.com/detail/locator-spy/gpgjidcedjiphbgagldchpcliacmanjf)]
 
 ### Manual Installation
 1. Download the latest `locator_spy_extension.zip` from the [Releases](https://github.com/SumanReddy568/locator_spy/releases) page.
