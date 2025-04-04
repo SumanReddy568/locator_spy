@@ -1,3 +1,6 @@
+## [1.1.0] - 2025-04-04
+- zipper change
+
 ## [1.0.9] - 2025-04-04
 - readme.d changes
 
