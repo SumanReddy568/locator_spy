@@ -1,4 +1,7 @@
 ## [1.0.9] - 2025-04-04
+- zipper fix
+
+## [1.0.9] - 2025-04-04
 - pop up humburger fix, and service worker enhancements
 
 ## [1.0.8] - 2025-04-03
