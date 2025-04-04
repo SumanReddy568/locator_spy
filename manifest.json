@@ -1,6 +1,6 @@
 {
   "name": "Locator Spy",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Helps find locators for Selenium automation testing",
   "manifest_version": 3,
   "background": {
@@ -15,7 +15,7 @@
       "16": "popup/icons/icon16.png",
       "32": "popup/icons/icon32.png",
       "48": "popup/icons/icon48.png",
-      "128": "popup/icons/icon128.png"  
+      "128": "popup/icons/icon128.png"
     }
   },
   "icons": {
