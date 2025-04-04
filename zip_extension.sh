@@ -47,26 +47,50 @@ if [ -d "$BACKLOG_DIR" ]; then
   find "$BACKLOG_DIR" -name "${EXTENSION_NAME}_*.zip" | sort -V | head -n -1 | xargs rm -f
 fi
 
-# Move current zip to backlog if exists (with versioned name)
+# Move current zip to backlog with proper error handling
 if [ -f "${EXTENSION_NAME}.zip" ]; then
-  mv "${EXTENSION_NAME}.zip" "${BACKLOG_DIR}/${EXTENSION_NAME}_${CURRENT_VERSION}.zip"
-  git rm "${EXTENSION_NAME}.zip"
+  BACKUP_NAME="${BACKLOG_DIR}/${EXTENSION_NAME}_${CURRENT_VERSION}.zip"
+  if mv "${EXTENSION_NAME}.zip" "$BACKUP_NAME"; then
+    echo "Moved existing zip to backlog: $BACKUP_NAME"
+  else
+    echo "Error moving existing zip to backlog"
+    exit 1
+  fi
 fi
 
-# Update manifest version
-jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$MANIFEST_PATH" > temp.json && mv temp.json "$MANIFEST_PATH"
+# Update manifest version with error checking
+if ! jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$MANIFEST_PATH" > temp.json; then
+  echo "Error updating manifest version"
+  exit 1
+fi
+mv temp.json "$MANIFEST_PATH"
 
-# Update version in panel.html - match exact version info div structure
-sed -i "s|<div class=\"version-info\"><span>Version [0-9]\.[0-9]\.[0-9]</span></div>|<div class=\"version-info\"><span>Version $NEW_VERSION</span></div>|g" "$PANEL_PATH"
-grep -q "Version $NEW_VERSION" "$PANEL_PATH" || echo "Warning: Version update in panel.html may have failed"
+# Update version in panel.html with proper sed command
+if [ -f "$PANEL_PATH" ]; then
+  sed -i'' -e "s/Version [0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Version ${NEW_VERSION}/g" "$PANEL_PATH"
+  if ! grep -q "Version $NEW_VERSION" "$PANEL_PATH"; then
+    echo "Failed to update version in panel.html"
+    exit 1
+  fi
+fi
 
-# Update version in welcome.html - match exact version badge span structure
-sed -i "s|<span class=\"version-badge\">v[0-9]\.[0-9]\.[0-9]</span>|<span class=\"version-badge\">v$NEW_VERSION</span>|g" "$WELCOME_HTML_PATH"
-grep -q "v$NEW_VERSION" "$WELCOME_HTML_PATH" || echo "Warning: Version update in welcome.html may have failed"
+# Update version in popup.html with proper sed command
+if [ -f "$POPUP_HTML_PATH" ]; then
+  sed -i'' -e "s/Version [0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Version ${NEW_VERSION}/g" "$POPUP_HTML_PATH"
+  if ! grep -q "Version $NEW_VERSION" "$POPUP_HTML_PATH"; then
+    echo "Failed to update version in popup.html"
+    exit 1
+  fi
+fi
 
-# Update version in popup.html - match exact version info div structure
-sed -i "s|<div class=\"version-info\"><span>Version [0-9]\.[0-9]\.[0-9]</span></div>|<div class=\"version-info\"><span>Version $NEW_VERSION</span></div>|g" "$POPUP_HTML_PATH"
-grep -q "Version $NEW_VERSION" "$POPUP_HTML_PATH" || echo "Warning: Version update in popup.html may have failed"
+# Update version in welcome.html with proper sed command
+if [ -f "$WELCOME_HTML_PATH" ]; then
+  sed -i'' -e "s/v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/v${NEW_VERSION}/g" "$WELCOME_HTML_PATH"
+  if ! grep -q "v$NEW_VERSION" "$WELCOME_HTML_PATH"; then
+    echo "Failed to update version in welcome.html"
+    exit 1
+  fi
+fi
 
 # Update changelog
 if [ ! -f "$CHANGELOG_PATH" ]; then
@@ -92,9 +116,18 @@ zip -r "$ZIP_FILENAME" ./* -x "*.git*" -x ".github/*" -x "*.sh" -x "$EXTENSION_N
 git config --global user.name "GitHub Actions"
 git config --global user.email "actions@github.com"
 
-# Commit changes
-git add "$ZIP_FILENAME" "$MANIFEST_PATH" "$PANEL_PATH" "$CHANGELOG_PATH" "$WELCOME_HTML_PATH" "$POPUP_HTML_PATH"
-if [ -d "$BACKLOG_DIR" ]; then
-  git add "$BACKLOG_DIR"
+# Add verification steps before commit
+echo "Verifying version updates..."
+echo "Manifest version: $(jq -r '.version' "$MANIFEST_PATH")"
+echo "Panel version: $(grep 'Version' "$PANEL_PATH" || echo 'Not found')"
+echo "Popup version: $(grep 'Version' "$POPUP_HTML_PATH" || echo 'Not found')"
+echo "Welcome version: $(grep 'v[0-9]' "$WELCOME_HTML_PATH" || echo 'Not found')"
+
+# Commit changes with verification
+if git add "$MANIFEST_PATH" "$PANEL_PATH" "$POPUP_HTML_PATH" "$WELCOME_HTML_PATH" "$CHANGELOG_PATH" "$ZIP_FILENAME" "$BACKLOG_DIR"; then
+  git commit -m "Auto-update: Version $NEW_VERSION [skip ci]"
+  echo "Successfully updated to version $NEW_VERSION"
+else
+  echo "Failed to commit version update"
+  exit 1
 fi
-git commit -m "Auto-update: Version $NEW_VERSION [skip ci]"
