@@ -56,14 +56,17 @@ fi
 # Update manifest version
 jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$MANIFEST_PATH" > temp.json && mv temp.json "$MANIFEST_PATH"
 
-# Update version in panel.html
-sed -i "s|<div class=\"version-info\">.*<span>Version [0-9]\+\.[0-9]\+\.[0-9]\+</span>.*</div>|<div class=\"version-info\"><span>Version $NEW_VERSION</span></div>|g" "$PANEL_PATH"
+# Update version in panel.html - match exact version info div structure
+sed -i "s|<div class=\"version-info\"><span>Version [0-9]\.[0-9]\.[0-9]</span></div>|<div class=\"version-info\"><span>Version $NEW_VERSION</span></div>|g" "$PANEL_PATH"
+grep -q "Version $NEW_VERSION" "$PANEL_PATH" || echo "Warning: Version update in panel.html may have failed"
 
-# Update version in welcome.html
-sed -i 's|<span class="version-badge">v[0-9]\+\.[0-9]\+\.[0-9]\+</span>|<span class="version-badge">v'$NEW_VERSION'</span>|g' "$WELCOME_HTML_PATH"
+# Update version in welcome.html - match exact version badge span structure
+sed -i "s|<span class=\"version-badge\">v[0-9]\.[0-9]\.[0-9]</span>|<span class=\"version-badge\">v$NEW_VERSION</span>|g" "$WELCOME_HTML_PATH"
+grep -q "v$NEW_VERSION" "$WELCOME_HTML_PATH" || echo "Warning: Version update in welcome.html may have failed"
 
-# Update version in popup.html
-sed -i "s|<div class=\"version-info\">.*<span>Version [0-9]\+\.[0-9]\+\.[0-9]\+</span>.*</div>|<div class=\"version-info\"><span>Version $NEW_VERSION</span></div>|g" "$POPUP_HTML_PATH"
+# Update version in popup.html - match exact version info div structure
+sed -i "s|<div class=\"version-info\"><span>Version [0-9]\.[0-9]\.[0-9]</span></div>|<div class=\"version-info\"><span>Version $NEW_VERSION</span></div>|g" "$POPUP_HTML_PATH"
+grep -q "Version $NEW_VERSION" "$POPUP_HTML_PATH" || echo "Warning: Version update in popup.html may have failed"
 
 # Update changelog
 if [ ! -f "$CHANGELOG_PATH" ]; then

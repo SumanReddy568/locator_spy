@@ -2,12 +2,79 @@
 const connections = {};
 let pendingResponses = new Map();
 
+// Keep-alive mechanism
+const KEEP_ALIVE_INTERVAL = 20; // seconds
+
+// Set up periodic alarm
+chrome.alarms.create('keepAlive', { periodInMinutes: 0.5 });
+
+// Listen for alarm
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'keepAlive') {
+    pingConnections();
+  }
+});
+
+// Ping all connections to keep them alive
+function pingConnections() {
+  for (const tabId in connections) {
+    try {
+      connections[tabId].postMessage({ type: 'ping' });
+      console.log('Ping sent to tab:', tabId);
+    } catch (err) {
+      console.warn('Connection to tab lost:', tabId);
+      delete connections[tabId];
+    }
+  }
+}
+
+// Listen for runtime suspend
+chrome.runtime.onSuspend.addListener(() => {
+  console.log('Service worker suspending, attempting to preserve state...');
+  chrome.storage.local.set({ connectionState: connections });
+});
+
+// Handle wake-up
+chrome.runtime.onStartup.addListener(async () => {
+  console.log('Service worker starting up, restoring state...');
+  const state = await chrome.storage.local.get('connectionState');
+  if (state.connectionState) {
+    Object.keys(state.connectionState).forEach(tabId => {
+      chrome.tabs.get(parseInt(tabId), (tab) => {
+        if (chrome.runtime.lastError) {
+          console.log('Tab no longer exists:', tabId);
+          return;
+        }
+        // Re-establish connection if tab still exists
+        chrome.tabs.sendMessage(parseInt(tabId), { action: 'reconnect' });
+      });
+    });
+  }
+});
+
 // Listen for connections from the devtools page
 chrome.runtime.onConnect.addListener(function(port) {
   if (port.name !== "panel-page") return;
   
   console.log("DevTools panel connected");
   
+  // Send immediate ping to establish connection
+  port.postMessage({ type: 'ping' });
+  
+  // Set up periodic ping for this specific connection
+  const pingInterval = setInterval(() => {
+    try {
+      port.postMessage({ type: 'ping' });
+    } catch (err) {
+      clearInterval(pingInterval);
+    }
+  }, KEEP_ALIVE_INTERVAL * 1000);
+  
+  // Clear interval when port disconnects
+  port.onDisconnect.addListener(() => {
+    clearInterval(pingInterval);
+  });
+
   const devToolsListener = async (message, sender, sendResponse) => {
     try {
       // Initialize the connection

@@ -289,3 +289,28 @@ document.addEventListener('DOMContentLoaded', function () {
   // Initial load of saved locators
   // loadSavedLocators(); 
 });
+
+// Dropdown menu functionality
+document.addEventListener('DOMContentLoaded', () => {
+    const menuBtn = document.getElementById('menuBtn');
+    const dropdownMenu = document.getElementById('dropdownMenu');
+
+    menuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdownMenu.classList.toggle('show');
+        menuBtn.setAttribute('aria-expanded', dropdownMenu.classList.contains('show'));
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!menuBtn.contains(e.target)) {
+            dropdownMenu.classList.remove('show');
+            menuBtn.setAttribute('aria-expanded', 'false');
+        }
+    });
+
+    // Prevent dropdown from closing when clicking inside
+    dropdownMenu.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+});

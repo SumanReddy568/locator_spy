@@ -143,40 +143,37 @@ body {
   display: none;
   position: absolute;
   right: 0;
-  top: 38px;
-  background-color: var(--section-bg);
+  top: 100%;
   min-width: 220px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border-radius: var(--border-radius);
-  z-index: 100;
+  background: var(--section-bg);
   border: 1px solid var(--border-color);
-  padding: 6px 0;
+  border-radius: 8px;
+  padding: 8px 0;
+  box-shadow: var(--section-shadow);
+  z-index: 1000;
+  margin-top: 4px;
 }
 
 .dropdown-content.show {
   display: block;
-  animation: fadeIn 0.15s ease-out;
 }
 
 .dropdown-item {
-  color: var(--text-color);
-  padding: 8px 16px;
-  text-decoration: none;
   display: flex;
   align-items: center;
-  gap: 10px;
-  transition: all var(--transition-speed);
-  font-size: 13px;
-  font-weight: 500;
+  gap: 8px;
+  padding: 8px 16px;
+  color: var(--text-color);
+  text-decoration: none;
+  transition: background-color var(--transition-speed);
 }
 
 .dropdown-item:hover {
   background-color: var(--hover-bg);
-  color: var(--primary-dark-color);
 }
 
 .dropdown-item svg {
-  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .dropdown-divider {
