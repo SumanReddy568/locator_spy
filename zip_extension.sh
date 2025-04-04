@@ -41,22 +41,33 @@ NEW_VERSION=$(increment_version "$CURRENT_VERSION")
 # Create backlog directory if it doesn't exist
 mkdir -p "$BACKLOG_DIR"
 
-# Clean up old versions in backlog (keep only latest)
-if [ -d "$BACKLOG_DIR" ]; then
-  # Find all zip files in backlog and sort by version
-  find "$BACKLOG_DIR" -name "${EXTENSION_NAME}_*.zip" | sort -V | head -n -1 | xargs rm -f
+# Handle existing extension and backlog management
+if [ -f "${EXTENSION_NAME}.zip" ]; then
+    # Check if a version with same number exists in backlog
+    BACKLOG_FILE="${BACKLOG_DIR}/${EXTENSION_NAME}_${CURRENT_VERSION}.zip"
+    if [ -f "$BACKLOG_FILE" ]; then
+        echo "Replacing existing backup version: $BACKLOG_FILE"
+        rm -f "$BACKLOG_FILE"
+    fi
+    
+    # Move current zip to backlog
+    if mv "${EXTENSION_NAME}.zip" "$BACKLOG_FILE"; then
+        echo "Successfully moved current extension to backlog: $BACKLOG_FILE"
+    else
+        echo "Error moving extension to backlog"
+        exit 1
+    fi
 fi
 
-# Move current zip to backlog with proper error handling
-if [ -f "${EXTENSION_NAME}.zip" ]; then
-  BACKUP_NAME="${BACKLOG_DIR}/${EXTENSION_NAME}_${CURRENT_VERSION}.zip"
-  if mv "${EXTENSION_NAME}.zip" "$BACKUP_NAME"; then
-    echo "Moved existing zip to backlog: $BACKUP_NAME"
-  else
-    echo "Error moving existing zip to backlog"
-    exit 1
-  fi
-fi
+# Remove any duplicate versions in backlog
+find "$BACKLOG_DIR" -name "${EXTENSION_NAME}_*.zip" | while read -r file; do
+    version=$(echo "$file" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
+    count=$(find "$BACKLOG_DIR" -name "*${version}.zip" | wc -l)
+    if [ "$count" -gt 1 ]; then
+        echo "Removing duplicate version: $file"
+        rm -f "$file"
+    fi
+done
 
 # Update manifest version with error checking
 if ! jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$MANIFEST_PATH" > temp.json; then
