@@ -37,34 +37,45 @@ COMMIT_MESSAGE=$(git log -1 --pretty=%B | sed 's/\[skip ci\]//g' | xargs)
 # Update version in manifest
 CURRENT_VERSION=$(jq -r '.version' "$MANIFEST_PATH")
 NEW_VERSION=$(increment_version "$CURRENT_VERSION")
+NEW_ZIP_FILENAME="${EXTENSION_NAME}_${NEW_VERSION}.zip"
 
-# Create backlog directory with proper permissions
+echo "Preparing to update from version $CURRENT_VERSION to $NEW_VERSION"
+
+# Create backlog directory if it doesn't exist
 mkdir -p "$BACKLOG_DIR"
+echo "Ensuring backlog directory exists: $BACKLOG_DIR"
 
-# First handle any existing files with the NEW_VERSION
-if find . -maxdepth 1 -name "${EXTENSION_NAME}_${NEW_VERSION}.zip" -type f | grep -q .; then
-    echo "Found existing version ${NEW_VERSION} in root, removing it"
-    rm -f "${EXTENSION_NAME}_${NEW_VERSION}.zip"
+# First handle version management:
+# 1. Move any existing version with the NEW_VERSION from root to backlog (safety check)
+# 2. Move all other existing versions from root to backlog
+# 3. Remove any duplicate versions in the backlog
+
+# Step 1: Check if the new version zip already exists (shouldn't happen, but just in case)
+if [ -f "$NEW_ZIP_FILENAME" ]; then
+    echo "Found existing file with new version name: $NEW_ZIP_FILENAME - moving to backlog"
+    mv "$NEW_ZIP_FILENAME" "$BACKLOG_DIR/"
 fi
 
-# Move all old versions to backlog
+# Step 2: Move all existing extension zips to backlog
 find . -maxdepth 1 -name "${EXTENSION_NAME}_*.zip" -type f | while read -r file; do
-    version=$(basename "$file" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
-    if [ "$version" != "$NEW_VERSION" ]; then
-        echo "Moving old version $version to backlog"
-        mv "$file" "${BACKLOG_DIR}/" || {
-            echo "Failed to move $file to backlog"
-            exit 1
-        }
-    fi
+    filename=$(basename "$file")
+    echo "Moving existing extension file to backlog: $filename"
+    mv "$file" "$BACKLOG_DIR/" || {
+        echo "Failed to move $file to backlog"
+        exit 1
+    }
 done
 
-# Clean up duplicates in backlog
-find "$BACKLOG_DIR" -name "${EXTENSION_NAME}_*.zip" | while read -r file; do
+# Step 3: Clean up duplicates in backlog (keep only latest copy of each version)
+echo "Cleaning up duplicate versions in backlog..."
+find "$BACKLOG_DIR" -name "${EXTENSION_NAME}_*.zip" | sort | while read -r file; do
     version=$(basename "$file" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
-    count=$(find "$BACKLOG_DIR" -name "*${version}.zip" | wc -l)
-    if [ "$count" -gt 1 ]; then
-        echo "Removing duplicate version from backlog: $file"
+    # Get most recent file with this version number
+    latest=$(find "$BACKLOG_DIR" -name "*${version}.zip" -type f -printf "%T@ %p\n" | sort -n | tail -1 | cut -d' ' -f2-)
+    
+    # Remove if not the latest
+    if [ "$file" != "$latest" ] && [ -n "$latest" ]; then
+        echo "Removing older duplicate of version $version: $file"
         rm -f "$file"
     fi
 done
@@ -120,19 +131,16 @@ fi
 } > temp_changelog.md && mv temp_changelog.md "$CHANGELOG_PATH"
 
 # Create new zip file in root directory
-ZIP_FILENAME="${EXTENSION_NAME}_${NEW_VERSION}.zip"
-zip -r "$ZIP_FILENAME" ./* -x "*.git*" -x ".github/*" -x "*.sh" -x "${BACKLOG_DIR}/*" -x "${EXTENSION_NAME}*.zip" || {
+echo "Creating new extension version $NEW_VERSION"
+zip -r "$NEW_ZIP_FILENAME" ./* -x "*.git*" -x ".github/*" -x "*.sh" -x "${BACKLOG_DIR}/*" -x "${EXTENSION_NAME}*.zip" || {
     echo "Failed to create new extension zip"
     exit 1
 }
 
-echo "Created new extension version $NEW_VERSION in root directory"
+echo "Successfully created new extension: $NEW_ZIP_FILENAME"
 
-# Create a symlink in root directory
-ln -sf "${BACKLOG_DIR}/${ZIP_FILENAME}" "${ZIP_FILENAME}" || {
-    echo "Failed to create symlink"
-    exit 1
-}
+# No need for symlink - the new version is already in the root directory
+# and old versions are properly archived in backlog
 
 # Configure git
 git config --global user.name "GitHub Actions"
@@ -146,7 +154,7 @@ echo "Popup version: $(grep 'Version' "$POPUP_HTML_PATH" || echo 'Not found')"
 echo "Welcome version: $(grep 'v[0-9]' "$WELCOME_HTML_PATH" || echo 'Not found')"
 
 # Commit changes with verification
-if git add "$MANIFEST_PATH" "$PANEL_PATH" "$POPUP_HTML_PATH" "$WELCOME_HTML_PATH" "$CHANGELOG_PATH" "$ZIP_FILENAME" "$BACKLOG_DIR"; then
+if git add "$MANIFEST_PATH" "$PANEL_PATH" "$POPUP_HTML_PATH" "$WELCOME_HTML_PATH" "$CHANGELOG_PATH" "$NEW_ZIP_FILENAME"; then
   git commit -m "Auto-update: Version $NEW_VERSION [skip ci]"
   echo "Successfully updated to version $NEW_VERSION"
 else
