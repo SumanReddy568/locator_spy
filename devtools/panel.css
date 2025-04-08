@@ -457,6 +457,25 @@ body {
   display: block;
 }
 
+.toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #333;
+}
+
+.toggle-container input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.dark-mode .toggle-container {
+  color: var(--text-light); /* Ensure text is visible in dark mode */
+}
+
 /* Animations */
 @keyframes fadeIn {
   from {

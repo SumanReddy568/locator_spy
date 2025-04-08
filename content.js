@@ -5,12 +5,42 @@ if (window.seleniumLocatorHelperInjected) {
   window.seleniumLocatorHelperInjected = true;
   console.log("Selenium Locator Helper content script loaded");
 
+  function loadBestLocatorPreference(callback) {
+    try {
+      chrome.storage.local.get('isBestLocatorEnabled', (result) => {
+        isBestLocatorEnabled = result.hasOwnProperty('isBestLocatorEnabled') ? result.isBestLocatorEnabled : true;
+        console.log("Loaded best locator preference:", isBestLocatorEnabled);
+
+        // Force immediate banner cleanup if disabled
+        if (!isBestLocatorEnabled) {
+          hideBestLocatorBanner();
+          removeHighlight();
+          if (bestLocatorBanner) {
+            bestLocatorBanner.remove(); // Completely remove the banner element
+            bestLocatorBanner = null;
+          }
+        }
+
+        if (callback && typeof callback === 'function') {
+          callback();
+        }
+      });
+    } catch (error) {
+      console.error("Error loading locator preference:", error);
+      if (callback && typeof callback === 'function') {
+        callback();
+      }
+    }
+  }
+
   // Main functionality wrapped in an IIFE to prevent global scope pollution
   (function () {
     let isLocatorModeActive = false;
     let highlightedElement = null;
     let hoveredElement = null;
     let contextCheckInterval = null;
+    let bestLocatorBanner = null;
+    let isBestLocatorEnabled = true; // Toggle to enable/disable best locator banner
 
     // Wrapper for sending messages with error handling
     function sendMessageToBackground(message, callback) {
@@ -40,6 +70,367 @@ if (window.seleniumLocatorHelperInjected) {
       }
     }
 
+    // Create the best locator banner
+    function createBestLocatorBanner() {
+      if (bestLocatorBanner) return bestLocatorBanner;
+
+      const banner = document.createElement('div');
+      banner.id = 'best-locator-banner';
+      banner.style.position = 'fixed';
+      banner.style.bottom = '20px';
+      banner.style.left = '50%';
+      banner.style.transform = 'translateX(-50%)';
+      banner.style.backgroundColor = '#4285F4';
+      banner.style.color = 'white';
+      banner.style.padding = '12px 20px';
+      banner.style.borderRadius = '8px';
+      banner.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+      banner.style.zIndex = '999999';
+      banner.style.display = 'flex';
+      banner.style.flexDirection = 'column'; // Changed to column layout
+      banner.style.gap = '8px';
+      banner.style.maxWidth = '90%';
+      banner.style.minWidth = '300px';
+      banner.style.fontFamily = 'Arial, sans-serif';
+      banner.style.fontSize = '14px';
+      banner.style.transition = 'all 0.3s ease';
+
+      // Header section with title and close button
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.justifyContent = 'space-between';
+      header.style.alignItems = 'center';
+      header.style.width = '100%';
+
+      const title = document.createElement('div');
+      title.textContent = 'Best Element Locator';
+      title.style.fontWeight = 'bold';
+
+      const closeBtn = document.createElement('button');
+      closeBtn.innerHTML = '&times;';
+      closeBtn.style.background = 'none';
+      closeBtn.style.border = 'none';
+      closeBtn.style.color = 'white';
+      closeBtn.style.fontSize = '18px';
+      closeBtn.style.cursor = 'pointer';
+      closeBtn.style.padding = '0';
+      closeBtn.addEventListener('click', () => {
+        banner.style.display = 'none';
+      });
+
+      header.appendChild(title);
+      header.appendChild(closeBtn);
+
+      // Content section for locator value
+      const content = document.createElement('div');
+      content.style.padding = '6px 8px';
+      content.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+      content.style.borderRadius = '4px';
+      content.style.fontFamily = 'monospace';
+      content.style.fontSize = '13px';
+      content.style.width = '100%';
+      content.style.wordBreak = 'break-all';
+      content.style.boxSizing = 'border-box';
+
+      // Button row
+      const buttonRow = document.createElement('div');
+      buttonRow.style.display = 'flex';
+      buttonRow.style.gap = '8px';
+      buttonRow.style.marginTop = '4px';
+
+      const copyBtn = document.createElement('button');
+      copyBtn.textContent = 'Copy';
+      copyBtn.style.background = 'rgba(255, 255, 255, 0.2)';
+      copyBtn.style.border = 'none';
+      copyBtn.style.color = 'white';
+      copyBtn.style.padding = '4px 12px';
+      copyBtn.style.borderRadius = '4px';
+      copyBtn.style.cursor = 'pointer';
+      copyBtn.style.fontSize = '12px';
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const locatorText = content.textContent.split(': ').pop(); // Extract only the locator value
+        navigator.clipboard.writeText(locatorText).then(() => {
+          copyBtn.textContent = 'Copied!';
+          setTimeout(() => {
+            copyBtn.textContent = 'Copy';
+          }, 2000);
+        });
+      });
+
+      const accuracyMeter = document.createElement('div');
+      accuracyMeter.style.marginLeft = 'auto';
+      accuracyMeter.style.fontSize = '12px';
+      accuracyMeter.textContent = 'Accuracy: ⭐⭐⭐⭐⭐'; // Default value
+
+      buttonRow.appendChild(copyBtn);
+      buttonRow.appendChild(accuracyMeter);
+
+      // Info section (optional, can be shown/hidden)
+      const infoSection = document.createElement('div');
+      infoSection.style.fontSize = '11px';
+      infoSection.style.color = 'rgba(255, 255, 255, 0.8)';
+      infoSection.style.marginTop = '4px';
+      infoSection.style.display = 'none'; // Hidden by default
+
+      // Prevent banner interactions from propagating
+      banner.addEventListener('mouseover', (e) => e.stopPropagation());
+      banner.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault(); // Prevent default click behavior
+      });
+
+      banner.appendChild(header);
+      banner.appendChild(content);
+      banner.appendChild(buttonRow);
+      banner.appendChild(infoSection);
+      document.body.appendChild(banner);
+      bestLocatorBanner = banner;
+      return banner;
+    }
+
+    // Show the best locator banner with improved information
+    function showBestLocator(locatorType, locatorValue, score) {
+      // Early return if feature is disabled
+      if (!isBestLocatorEnabled) {
+        hideBestLocatorBanner();
+        return;
+      }
+
+      const banner = createBestLocatorBanner();
+      const content = banner.querySelector('div:nth-child(2)'); // Content is the second div
+      content.textContent = `${locatorType}: ${locatorValue}`;
+      banner.style.display = 'flex';
+
+      // Update accuracy meter based on score
+      const accuracyMeter = banner.querySelector('div:nth-child(3) div:nth-child(2)'); // Button row -> accuracy meter
+      if (score) {
+        let stars = '';
+        if (score >= 90) {
+          stars = '⭐⭐⭐⭐⭐';
+          accuracyMeter.style.color = '#FFEB3B'; // Yellow for high accuracy
+        } else if (score >= 70) {
+          stars = '⭐⭐⭐⭐';
+          accuracyMeter.style.color = '#FFEB3B';
+        } else if (score >= 50) {
+          stars = '⭐⭐⭐';
+          accuracyMeter.style.color = '#FFFFFF';
+        } else if (score >= 30) {
+          stars = '⭐⭐';
+          accuracyMeter.style.color = '#FFFFFF';
+        } else {
+          stars = '⭐';
+          accuracyMeter.style.color = '#FFFFFF';
+        }
+        accuracyMeter.textContent = `Accuracy: ${stars}`;
+      }
+
+      // Show additional info for certain types
+      const infoSection = banner.querySelector('div:nth-child(4)'); // Info section is the fourth div
+      if (locatorType === 'XPath') {
+        infoSection.textContent = 'XPath may be brittle if page structure changes';
+        infoSection.style.display = 'block';
+      } else if (locatorType === 'ID') {
+        infoSection.textContent = 'ID selectors are typically the most reliable';
+        infoSection.style.display = 'block';
+      } else if (locatorType === 'CSS Selector') {
+        infoSection.textContent = 'CSS selectors balance specificity and readability';
+        infoSection.style.display = 'block';
+      } else {
+        infoSection.style.display = 'none';
+      }
+    }
+
+    // Hide the best locator banner
+    function hideBestLocatorBanner() {
+      if (bestLocatorBanner) {
+        bestLocatorBanner.style.display = 'none';
+      }
+    }
+
+    // Analyze and determine the best locator with improved accuracy
+    function determineBestLocator(locators) {
+      if (!locators) return null;
+
+      // First, test each locator for uniqueness and reliability
+      const testedLocators = [];
+
+      // Test function to check if a locator uniquely identifies an element
+      function testLocatorUniqueness(type, value) {
+        if (!value || value.trim() === '') return false;
+
+        try {
+          let elements = [];
+          if (type.toLowerCase().includes('xpath')) {
+            const result = document.evaluate(
+              value,
+              document,
+              null,
+              XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+              null
+            );
+            for (let i = 0; i < result.snapshotLength; i++) {
+              elements.push(result.snapshotItem(i));
+            }
+          } else if (type.toLowerCase().includes('css')) {
+            elements = Array.from(document.querySelectorAll(value));
+          } else {
+            const selector = type === 'ID' ? `#${value}` : `[${type.toLowerCase()}="${value}"]`;
+            elements = Array.from(document.querySelectorAll(selector));
+          }
+
+          return {
+            isUnique: elements.length === 1,
+            count: elements.length,
+            complexity: value.length,
+            value: value,
+            type: type
+          };
+        } catch (e) {
+          if (e instanceof DOMException) {
+            console.warn(`Error testing locator ${type}: ${value}`, e.message);
+          } else {
+            console.error(`Unexpected error testing locator ${type}: ${value}`, e);
+          }
+          return false;
+        }
+      }
+
+      // Test each locator type
+      if (locators.id) {
+        const test = testLocatorUniqueness('ID', locators.id);
+        if (test && test.isUnique) {
+          testedLocators.push({ ...test, score: 100 }); // ID is highest priority if unique
+        }
+      }
+
+      if (locators.dataTestId) {
+        const test = testLocatorUniqueness('data-testid', locators.dataTestId);
+        if (test && test.isUnique) {
+          testedLocators.push({ ...test, score: 95 }); // data-testid is second highest
+        }
+      }
+
+      if (locators.ariaLabel) {
+        const test = testLocatorUniqueness('aria-label', locators.ariaLabel);
+        if (test && test.isUnique) {
+          testedLocators.push({ ...test, score: 90 });
+        }
+      }
+
+      if (locators.name) {
+        const test = testLocatorUniqueness('name', locators.name);
+        if (test && test.isUnique) {
+          testedLocators.push({ ...test, score: 85 });
+        }
+      }
+
+      if (locators.cssSelector) {
+        const test = testLocatorUniqueness('CSS Selector', locators.cssSelector);
+        if (test) {
+          // Score based on uniqueness and complexity
+          const uniquenessScore = test.isUnique ? 80 : (1 / test.count) * 50;
+          const complexityScore = Math.max(0, 30 - (test.complexity / 10));
+          testedLocators.push({ ...test, score: uniquenessScore + complexityScore });
+        }
+      }
+
+      if (locators.xpathByName) {
+        const test = testLocatorUniqueness('XPath by Name', locators.xpathByName);
+        if (test) {
+          const uniquenessScore = test.isUnique ? 75 : (1 / test.count) * 45;
+          const complexityScore = Math.max(0, 25 - (test.complexity / 10));
+          testedLocators.push({ ...test, score: uniquenessScore + complexityScore });
+        }
+      }
+
+      if (locators.xpathByLinkText && locators.tagName === 'a') {
+        const test = testLocatorUniqueness('XPath by Link Text', locators.xpathByLinkText);
+        if (test) {
+          const uniquenessScore = test.isUnique ? 70 : (1 / test.count) * 40;
+          const complexityScore = Math.max(0, 20 - (test.complexity / 10));
+          testedLocators.push({ ...test, score: uniquenessScore + complexityScore });
+        }
+      }
+
+      if (locators.xpathByPartialLinkText && locators.tagName === 'a') {
+        const test = testLocatorUniqueness('XPath by Partial Link Text', locators.xpathByPartialLinkText);
+        if (test) {
+          const uniquenessScore = test.isUnique ? 65 : (1 / test.count) * 35;
+          const complexityScore = Math.max(0, 15 - (test.complexity / 10));
+          testedLocators.push({ ...test, score: uniquenessScore + complexityScore });
+        }
+      }
+
+      if (locators.relativeXPath) {
+        const test = testLocatorUniqueness('Relative XPath', locators.relativeXPath);
+        if (test) {
+          const uniquenessScore = test.isUnique ? 60 : (1 / test.count) * 30;
+          const complexityScore = Math.max(0, 20 - (test.complexity / 15));
+          testedLocators.push({ ...test, score: uniquenessScore + complexityScore });
+        }
+      }
+
+      // Test more complex XPaths as a last resort
+      if (locators.allXPaths && locators.allXPaths.length) {
+        // Test first few XPaths (most likely to be good)
+        const xpathsToTest = locators.allXPaths.slice(0, 3);
+        for (let i = 0; i < xpathsToTest.length; i++) {
+          const xpath = xpathsToTest[i];
+          const test = testLocatorUniqueness('XPath', xpath);
+          if (test && test.isUnique) {
+            const baseScore = 55 - (i * 5); // Decreasing score for each subsequent XPath
+            const complexityScore = Math.max(0, 20 - (test.complexity / 15));
+            testedLocators.push({ ...test, score: baseScore + complexityScore });
+          }
+        }
+      }
+
+      // Sort by score (highest first)
+      testedLocators.sort((a, b) => b.score - a.score);
+
+      // Return the highest scoring locator
+      if (testedLocators.length > 0) {
+        return {
+          type: testedLocators[0].type,
+          value: testedLocators[0].value,
+          score: testedLocators[0].score.toFixed(1) // Include the score for debugging
+        };
+      }
+
+      // Fallback to original priority-based selection if testing didn't work
+      const priorityOrder = [
+        { key: 'id', type: 'ID' },
+        { key: 'dataTestId', type: 'Data Test ID' },
+        { key: 'ariaLabel', type: 'ARIA Label' },
+        { key: 'cssSelector', type: 'CSS Selector' },
+        { key: 'xpathByName', type: 'XPath by Name' },
+        { key: 'xpathByLinkText', type: 'XPath by Link Text' },
+        { key: 'xpathByPartialLinkText', type: 'XPath by Partial Link Text' },
+        { key: 'relativeXPath', type: 'Relative XPath' },
+        { key: 'absoluteXPath', type: 'Absolute XPath' }
+      ];
+
+      // Find the first available locator in priority order
+      for (const { key, type } of priorityOrder) {
+        if (locators[key] && locators[key].trim()) {
+          return { type, value: locators[key] };
+        }
+      }
+
+      // If no prioritized locator found, try to find a good CSS selector
+      if (locators.cssSelector) {
+        return { type: 'CSS Selector', value: locators.cssSelector };
+      }
+
+      // Fallback to first available XPath
+      if (locators.allXPaths && locators.allXPaths.length > 0) {
+        return { type: 'XPath', value: locators.allXPaths[0] };
+      }
+
+      return null;
+    }
+
     // Function to generate all possible locators for an element
     function generateLocators(element) {
       if (!element || !element.tagName) return {};
@@ -47,64 +438,94 @@ if (window.seleniumLocatorHelperInjected) {
       // Generate CSS selector with improved specificity
       function getCssSelector(el) {
         if (!el || el === document.documentElement) return "";
-        if (el.id) return `#${CSS.escape(el.id)}`;
 
-        let path = [];
-        while (
-          el &&
-          el.nodeType === Node.ELEMENT_NODE &&
-          el !== document.documentElement
-        ) {
+        // 1. Prefer ID selector if available (shortest and most specific)
+        if (el.id) {
+          return `#${CSS.escape(el.id)}`;
+        }
+
+        // 2. Build optimized selector path
+        const path = [];
+        while (el && el.nodeType === Node.ELEMENT_NODE && el !== document.documentElement) {
           let selector = el.nodeName.toLowerCase();
 
-          if (el.id) {
-            path.unshift(`#${CSS.escape(el.id)}`);
-            break;
-          } else {
-            // Add class information for better specificity
-            if (el.className && typeof el.className === "string") {
-              const classes = el.className.trim().split(/\s+/).filter(Boolean);
-              if (classes.length) {
-                selector += classes.map((c) => `.${CSS.escape(c)}`).join("");
+          // 3. Use class if available (but limit to one meaningful class)
+          if (el.className && typeof el.className === "string") {
+            const classes = el.className.trim().split(/\s+/).filter(Boolean);
+            if (classes.length) {
+              // Pick the first class that looks meaningful (not just random characters)
+              const meaningfulClass = classes.find(c => /[a-zA-Z]/.test(c));
+              if (meaningfulClass) {
+                selector += `.${CSS.escape(meaningfulClass)}`;
               }
             }
+          }
 
-            // Add attributes for better uniqueness
-            const uniqueAttributes = [
-              "name",
-              "data-testid",
-              "aria-label",
-              "role",
-            ];
-            for (const attr of uniqueAttributes) {
-              const value = el.getAttribute(attr);
-              if (value) {
-                selector += `[${attr}="${CSS.escape(value)}"]`;
-                break; // One unique attribute is enough
-              }
+          // 4. Add data-testid if available (great for testing)
+          const testId = el.getAttribute('data-testid') ||
+            el.getAttribute('data-test-id') ||
+            el.getAttribute('data-test');
+          if (testId) {
+            selector += `[data-testid="${CSS.escape(testId)}"]`;
+            path.unshift(selector);
+            break; // Stop here since data-testid should be unique
+          }
+
+          // 5. Add name attribute for form elements
+          const name = el.getAttribute('name');
+          if (name && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA')) {
+            selector += `[name="${CSS.escape(name)}"]`;
+            path.unshift(selector);
+            break; // Name should be unique in forms
+          }
+
+          // 6. For other elements, use minimal attributes
+          const attrToCheck = ['aria-label', 'role', 'title', 'alt', 'href', 'src'];
+          for (const attr of attrToCheck) {
+            const value = el.getAttribute(attr);
+            if (value) {
+              selector += `[${attr}="${CSS.escape(value)}"]`;
+              break;
             }
+          }
 
-            // Position among siblings for absolute precision
-            if (el.parentNode && el.parentNode.children) {
-              let siblings = Array.from(el.parentNode.children);
-              let index = siblings.indexOf(el) + 1;
+          // 7. Only use position if absolutely necessary
+          if (el.parentNode) {
+            const siblings = Array.from(el.parentNode.children);
+            const sameTagSiblings = siblings.filter(s => s.tagName === el.tagName);
 
-              // Only add nth-child if we haven't added more specific selectors
-              if (!selector.includes("[") && !selector.includes(".")) {
-                let sameTagSiblings = siblings.filter(
-                  (s) => s.tagName === el.tagName
-                );
-                if (sameTagSiblings.length > 1) {
-                  selector += `:nth-child(${index})`;
-                }
-              }
+            // Only add index if there are siblings with same tag and no unique identifiers
+            if (sameTagSiblings.length > 1 &&
+              selector === el.tagName.toLowerCase() &&
+              !el.className &&
+              !testId &&
+              !name) {
+              const index = siblings.indexOf(el) + 1;
+              selector += `:nth-child(${index})`;
             }
           }
 
           path.unshift(selector);
           el = el.parentNode;
         }
-        return path.join(" > ");
+
+        // 8. Return the shortest possible selector that's still unique
+        const fullPath = path.join(" > ");
+
+        // Try to find the shortest unique combination
+        for (let i = path.length - 1; i >= 0; i--) {
+          const partialPath = path.slice(i).join(" > ");
+          try {
+            const matches = document.querySelectorAll(partialPath);
+            if (matches.length === 1 && matches[0] === el) {
+              return partialPath;
+            }
+          } catch (e) {
+            // Ignore invalid selector errors
+          }
+        }
+
+        return fullPath;
       }
 
       // Generate absolute XPath with improved precision
@@ -778,11 +1199,15 @@ if (window.seleniumLocatorHelperInjected) {
         highlightedElement.style.outlineOffset = "";
         highlightedElement = null;
       }
+      hideBestLocatorBanner();
     }
 
     // Handle mouseover events in locator mode
     function handleMouseOver(event) {
       if (!isLocatorModeActive) return;
+
+      // Always ignore banner events
+      if (event.target.closest('#best-locator-banner')) return;
 
       event.stopPropagation();
       event.preventDefault();
@@ -790,7 +1215,26 @@ if (window.seleniumLocatorHelperInjected) {
       hoveredElement = event.target;
       highlightElement(hoveredElement);
 
+      // Hide banner immediately if feature is disabled
+      if (!isBestLocatorEnabled) {
+        hideBestLocatorBanner();
+        // Still send locators to background for other features
+        sendMessageToBackground({
+          action: "getLocators",
+          locators: generateLocators(hoveredElement),
+        });
+        return;
+      }
+
       const locators = generateLocators(hoveredElement);
+      const bestLocator = determineBestLocator(locators);
+      if (bestLocator) {
+        showBestLocator(bestLocator.type, bestLocator.value);
+      } else {
+        hideBestLocatorBanner();
+      }
+
+      // Send locators to background
       sendMessageToBackground({
         action: "getLocators",
         locators: locators,
@@ -801,12 +1245,28 @@ if (window.seleniumLocatorHelperInjected) {
     function handleClick(event) {
       if (!isLocatorModeActive) return;
 
+      // Always ignore banner events
+      if (event.target.closest('#best-locator-banner')) return;
+
       event.stopPropagation();
       event.preventDefault();
 
       const clickedElement = event.target;
       const locators = generateLocators(clickedElement);
 
+      // Ensure banner is hidden if feature is disabled
+      if (!isBestLocatorEnabled) {
+        hideBestLocatorBanner();
+        removeHighlight();
+      } else {
+        const bestLocator = determineBestLocator(locators);
+        if (bestLocator) {
+          locators.bestLocator = bestLocator;
+          showBestLocator(bestLocator.type, bestLocator.value, bestLocator.score);
+        }
+      }
+
+      // Save locator info and deactivate mode
       sendMessageToBackground({
         action: "saveLocator",
         locators: locators,
@@ -814,18 +1274,60 @@ if (window.seleniumLocatorHelperInjected) {
         timestamp: new Date().toISOString(),
       });
 
-      deactivateLocatorMode();
+      // Deactivate hover events but maintain highlight if banner is shown
+      document.removeEventListener("mouseover", handleMouseOver, true);
+      document.body.style.cursor = "";
+
+      // Signal completion
+      sendMessageToBackground({
+        action: "locatorSelected",
+        keepBannerVisible: isBestLocatorEnabled
+      });
+
+      isLocatorModeActive = false;
+
+      // Auto-clear after delay only if banner is shown
+      if (isBestLocatorEnabled) {
+        setTimeout(() => {
+          if (bestLocatorBanner && bestLocatorBanner.style.display !== 'none') {
+            removeHighlight();
+            hideBestLocatorBanner();
+            if (contextCheckInterval) {
+              clearInterval(contextCheckInterval);
+              contextCheckInterval = null;
+            }
+            sendMessageToBackground({
+              action: "locatorModeDeactivated",
+            });
+          }
+        }, 10000);
+      } else {
+        // Immediate cleanup if banner is disabled
+        removeHighlight();
+        if (contextCheckInterval) {
+          clearInterval(contextCheckInterval);
+          contextCheckInterval = null;
+        }
+        sendMessageToBackground({
+          action: "locatorModeDeactivated",
+        });
+      }
     }
 
     // Activate locator mode
     function activateLocatorMode() {
       if (isLocatorModeActive) return;
 
-      console.log("Activating locator mode");
+      console.log("Activating locator mode, best locator enabled:", isBestLocatorEnabled);
       isLocatorModeActive = true;
       document.addEventListener("mouseover", handleMouseOver, true);
       document.addEventListener("click", handleClick, true);
       document.body.style.cursor = "crosshair";
+
+      // If best locator is disabled, ensure the banner is hidden
+      if (!isBestLocatorEnabled) {
+        hideBestLocatorBanner();
+      }
 
       // Start context validity checks
       if (!contextCheckInterval) {
@@ -842,10 +1344,17 @@ if (window.seleniumLocatorHelperInjected) {
       document.removeEventListener("mouseover", handleMouseOver, true);
       document.removeEventListener("click", handleClick, true);
       document.body.style.cursor = "";
+
+      // Always clean up banner and highlight
       removeHighlight();
+      hideBestLocatorBanner();
+      if (!isBestLocatorEnabled && bestLocatorBanner) {
+        bestLocatorBanner.remove();
+        bestLocatorBanner = null;
+      }
+
       hoveredElement = null;
 
-      // Clear context check interval
       if (contextCheckInterval) {
         clearInterval(contextCheckInterval);
         contextCheckInterval = null;
@@ -860,8 +1369,8 @@ if (window.seleniumLocatorHelperInjected) {
     function checkContextValidity() {
       try {
         if (!chrome.runtime?.id) {
-          console.error("Extension context invalidated");
-          deactivateLocatorMode();
+          console.warn("Extension context invalidated - retrying in 5 seconds");
+          setTimeout(checkContextValidity, 5000); // Retry after 5 seconds
           return;
         }
 
@@ -902,10 +1411,50 @@ if (window.seleniumLocatorHelperInjected) {
             }
           }
 
-          return true;
+          if (request.action === 'toggleBestLocator') {
+            toggleBestLocator(request.enable);
+            sendResponse({ success: true }); // Add response to ensure message is handled
+          }
+
+          return true; // Keep the message channel open for sendResponse
         });
       } catch (error) {
         console.error("Failed to setup message listener:", error);
+      }
+    }
+
+    // Add a function to toggle the best locator banner
+    function toggleBestLocator(enable) {
+      isBestLocatorEnabled = enable;
+      console.log("Best locator toggled:", enable);
+
+      // Always hide banner when disabling
+      if (!enable) {
+        hideBestLocatorBanner();
+        removeHighlight();
+      }
+
+      // Store the setting in local storage
+      try {
+        chrome.storage.local.set({ 'isBestLocatorEnabled': enable }, () => {
+          console.log("Best locator preference saved:", enable);
+
+          // Provide visual feedback (optional)
+          if (isLocatorModeActive) {
+            if (!enable) {
+              hideBestLocatorBanner();
+            } else if (hoveredElement) {
+              // Re-show for current hovered element if feature was just enabled
+              const locators = generateLocators(hoveredElement);
+              const bestLocator = determineBestLocator(locators);
+              if (bestLocator) {
+                showBestLocator(bestLocator.type, bestLocator.value);
+              }
+            }
+          }
+        });
+      } catch (error) {
+        console.error("Error saving locator preference:", error);
       }
     }
 
@@ -915,12 +1464,14 @@ if (window.seleniumLocatorHelperInjected) {
         setupMessageListener();
         checkContextValidity();
 
-        sendMessageToBackground({
-          action: "contentScriptReady",
-          url: window.location.href,
+        // Wait for preferences to load before continuing initialization
+        loadBestLocatorPreference(() => {
+          sendMessageToBackground({
+            action: "contentScriptReady",
+            url: window.location.href,
+          });
+          console.log("Content script initialized successfully with preferences loaded");
         });
-
-        console.log("Content script initialized successfully");
       } catch (error) {
         console.error("Content script initialization failed:", error);
       }

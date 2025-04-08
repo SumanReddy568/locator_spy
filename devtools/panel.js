@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const searchBoxInput = document.querySelector('.search-box input');
   const expandAllBtn = document.querySelector('.section-actions button[title="Expand All"]');
   const copyAllBtn = document.querySelector('.section-actions .action-btn[title="Copy All"]');
+  const bestLocatorToggle = document.getElementById('bestLocatorToggle');
 
   let isLocatorModeActive = false;
 
@@ -113,6 +114,15 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!locators || Object.keys(locators).length === 0) {
       locatorResults.innerHTML = '<p class="placeholder">No locators found for this element</p>';
       return;
+    }
+
+    // Sanitize XPath values
+    if (locators.xpath) {
+      locators.xpath = sanitizeXPath(locators.xpath);
+    }
+    
+    if (locators.allXPaths) {
+      locators.allXPaths = locators.allXPaths.map(xpath => sanitizeXPath(xpath));
     }
 
     let html = '';
@@ -275,7 +285,7 @@ document.addEventListener('DOMContentLoaded', function () {
       showCopyNotification('No locators available to copy');
     }
   });
-  
+
   // Helper function to copy to clipboard that works in Chrome extensions
   function copyToClipboard(text, buttonElement = null) {
     if (!text) {
@@ -355,5 +365,30 @@ document.addEventListener('DOMContentLoaded', function () {
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
   }
-});
 
+  // Add this function near the other helper functions
+  function sanitizeXPath(xpath) {
+    // Remove invalid triple slashes
+    xpath = xpath.replace(/^\/\/\//, '//');
+    
+    // Remove any invalid characters
+    xpath = xpath.replace(/[^\w\s\-\[\]@\(\)\.\/\*='"]/g, '');
+    
+    return xpath;
+  }
+
+  chrome.storage.local.get('isBestLocatorEnabled', (result) => {
+    const isEnabled = result.hasOwnProperty('isBestLocatorEnabled') ? result.isBestLocatorEnabled : true;
+    bestLocatorToggle.checked = isEnabled;
+  });
+  
+  bestLocatorToggle.addEventListener('change', (event) => {
+    const isEnabled = event.target.checked;
+    chrome.storage.local.set({ 'isBestLocatorEnabled': isEnabled });
+    backgroundPageConnection.postMessage({
+      action: 'toggleBestLocator',
+      enable: isEnabled,
+      tabId: chrome.devtools.inspectedWindow.tabId
+    });
+  });
+});

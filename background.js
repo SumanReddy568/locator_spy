@@ -52,6 +52,20 @@ chrome.runtime.onStartup.addListener(async () => {
   }
 });
 
+// Add this helper function near the top
+function isValidXPath(xpath) {
+  try {
+    if (!xpath || typeof xpath !== 'string') return false;
+    // Remove triple slashes
+    xpath = xpath.replace(/^\/\/\//, '//');
+    // Basic XPath validation using regex
+    return /^\/\/.*/.test(xpath) && !/\/\/\//.test(xpath);
+  } catch (e) {
+    console.warn('XPath validation error:', e);
+    return false;
+  }
+}
+
 // Listen for connections from the devtools page
 chrome.runtime.onConnect.addListener(function(port) {
   if (port.name !== "panel-page") return;
@@ -152,6 +166,19 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     
     const tabId = sender.tab.id;
     
+    if (message.action === 'getLocators' && message.locators) {
+      // Validate and clean XPaths
+      if (message.locators.xpath) {
+        if (!isValidXPath(message.locators.xpath)) {
+          delete message.locators.xpath;
+        }
+      }
+      
+      if (message.locators.allXPaths) {
+        message.locators.allXPaths = message.locators.allXPaths.filter(isValidXPath);
+      }
+    }
+    
     // Forward messages to DevTools panel
     if (tabId in connections) {
       console.log("Forwarding message to DevTools panel:", message);
@@ -204,6 +231,15 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
         console.error('Error in locator mode activation:', error);
         sendResponse({ success: false, error: error.message });
       }
+    }
+
+    // Handle toggleBestLocator message
+    if (message.action === 'toggleBestLocator') {
+      chrome.tabs.sendMessage(message.tabId, {
+        action: 'toggleBestLocator',
+        enable: message.enable
+      });
+      return;
     }
     
     // For other messages
