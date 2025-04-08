@@ -1,3 +1,6 @@
+## [1.0.9] - 2025-04-08
+- new enhancement, adding best locator changes
+
 ## [1.0.9] - 2025-04-04
 - new changes
 
