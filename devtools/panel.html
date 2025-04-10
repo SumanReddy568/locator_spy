@@ -64,6 +64,16 @@
               </svg>
               Request a Feature
             </a>
+            <div class="dropdown-item" id="releaseNotesBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <line x1="10" y1="9" x2="8" y2="9"></line>
+              </svg>
+              Release Notes
+            </div>
             <div class="dropdown-divider"></div>
             <div class="version-info">
               <span>Version 1.0.9</span>
@@ -101,7 +111,41 @@
         <span class="toggle-label">Show Best Locator</span>
       </label>
     </div>
+    
+    <!-- New Metrics Panel -->
+    <div class="metrics-panel">
+      <div class="metrics-header">
+        <div class="metrics-title">Performance Metrics</div>
+        <button class="metrics-toggle collapsed">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+      </div>
+      <div class="metrics-content">
+        <div class="metrics-grid">
+          <div class="metric-item">
+            <div class="metric-label">Generation Time</div>
+            <div class="metric-value" id="generationTime">-</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-label">DOM Changes</div>
+            <div class="metric-value" id="domChanges">-</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-label">Network Requests</div>
+            <div class="metric-value" id="networkRequests">-</div>
+          </div>
+        </div>
         
+        <!-- Network Requests List -->
+        <div id="networkRequestsList" style="margin-top: 8px; max-height: 80px; overflow-y: auto;">
+          <div class="metrics-title">Recent Network Activity</div>
+          <div id="requestsContainer"></div>
+        </div>
+      </div>
+    </div>
+    
     <div class="results">
       <div class="section">
         <div class="section-header">
@@ -136,7 +180,49 @@
       Copied to clipboard!
     </div>
   </div>
-    
+
+  <!-- Release Notes Panel -->
+  <div class="release-notes-panel">
+    <div class="release-notes-header">
+      <h3>Release Notes</h3>
+      <button class="close-release-notes">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    <div class="release-notes-content">
+      <div class="release-item latest">
+        <h4>Version 1.1.0 <span class="release-date">April 2025</span><span class="new-badge">New</span></h4>
+        <ul>
+          <li>Added notification system for updates</li>
+          <li>Improved Best Locator feature with accuracy rating</li>
+          <li>Enhanced performance metrics tracking</li>
+          <li>Added hover-based element inspection</li>
+          <li>Improved DOM change detection</li>
+          <li>Added network request tracking</li>
+        </ul>
+      </div>
+      <div class="release-item">
+        <h4>Version 1.0.9<span class="release-date">March 2025</span></h4>
+        <ul>
+          <li>Added network request tracking</li>
+          <li>Improved XPath generation accuracy</li>
+          <li>Fixed CSS selector generation issues</li>
+        </ul>
+      </div>
+      <div class="release-item">
+        <h4>Version 1.0.8<span class="release-date">March 2025</span></h4>
+        <ul>
+          <li>Added dark mode support</li>
+          <li>Improved UI responsiveness</li>
+          <li>Added locator filtering capability</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
   <script src="panel.js"></script>
 </body>
 </html>

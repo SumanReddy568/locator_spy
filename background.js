@@ -257,6 +257,45 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log("Selenium Locator Helper installed");
 });
 
+const CURRENT_VERSION = '1.0.9';
+
+// Function to check and show update notification
+async function checkAndShowUpdateNotification() {
+  const lastVersion = await chrome.storage.local.get('lastVersion');
+  const lastNotificationShown = await chrome.storage.local.get('lastNotificationShown');
+  const now = Date.now();
+
+  if (!lastVersion.lastVersion || lastVersion.lastVersion !== CURRENT_VERSION) {
+    // Show notification for update or new installation
+    chrome.notifications.create('version-update', {
+      type: 'basic',
+      iconUrl: 'popup/icons/icon48.png',
+      title: 'Locator Spy Updated!',
+      message: 'Click here to see what\'s new in version ' + CURRENT_VERSION,
+      priority: 2
+    });
+
+    // Update stored version
+    await chrome.storage.local.set({ 
+      'lastVersion': CURRENT_VERSION,
+      'lastNotificationShown': now
+    });
+  }
+}
+
+// Listen for notification clicks
+chrome.notifications.onClicked.addListener((notificationId) => {
+  if (notificationId === 'version-update') {
+    // Open release notes in a new tab
+    chrome.tabs.create({ url: chrome.runtime.getURL('panel.html?showReleaseNotes=true') });
+  }
+});
+
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install' || details.reason === 'update') {
+    checkAndShowUpdateNotification();
+  }
+});
 
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {

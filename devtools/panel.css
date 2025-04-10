@@ -65,6 +65,7 @@ body {
   flex-direction: column;
   position: relative;
   gap: 12px;
+  overflow: hidden;
 }
 
 .header {
@@ -292,7 +293,7 @@ body {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .section {
@@ -300,11 +301,15 @@ body {
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   flex-grow: 1;
-  overflow: auto;
+  overflow: visible;
   box-shadow: var(--section-shadow);
   transition: all var(--transition-speed);
   display: flex;
   flex-direction: column;
+  margin-bottom: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .section-header {
@@ -350,6 +355,12 @@ body {
   padding: 0;
   flex-grow: 1;
   overflow-y: auto;
+  background: var(--hover-bg);
+  overflow: visible;
+  height: auto;
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
 }
 
 .placeholder {
@@ -363,11 +374,12 @@ body {
 }
 
 .locator-item {
-  padding: 12px 16px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   transition: all var(--transition-speed);
+  background-color: var(--section-bg);
 }
 
 .locator-item:last-child {
@@ -380,7 +392,7 @@ body {
 
 .locator-type {
   font-weight: 600;
-  width: 100px;
+  width: 120px;
   color: var(--text-color);
   font-size: 13px;
   flex-shrink: 0;
@@ -389,12 +401,12 @@ body {
 .locator-value {
   flex-grow: 1;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13px;
   word-break: break-all;
   padding: 0 12px;
   min-width: 0;
   color: var(--text-color);
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .copy-btn {
@@ -667,4 +679,245 @@ body {
     }
   }
   
+}
+
+.locators-table {
+  background: var(--section-bg);
+  padding: 8px 0;
+}
+
+.metrics-panel {
+  margin: 8px 0; /* Reduced from likely 16px or more */
+  padding: 8px; /* Reduced from likely 12px or more */
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-size: 13px;
+  opacity: 0.92;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  width: calc(100% - 32px);
+  align-self: center;
+  flex-shrink: 0; /* Prevent panel from growing */
+  max-height: 36px; /* Height when collapsed */
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.metrics-panel.expanded {
+  max-height: 160px; /* Reduced from 200px */
+  overflow: auto;
+}
+
+.metrics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  padding: 1px 4px; /* Reduced from 2px 4px */
+  min-height: 20px; /* Added to ensure consistent collapsed height */
+}
+
+.metrics-title {
+  font-size: 12px; /* Reduced from 13px */
+  opacity: 0.9;
+}
+
+.metrics-toggle {
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+
+.metrics-toggle.collapsed {
+  transform: rotate(-90deg);
+}
+
+.metrics-content {
+  overflow: hidden;
+  transition: max-height 0.2s ease-out;
+  max-height: 0;
+  margin-top: 4px; /* Reduced from likely 8px */
+  padding: 4px 0; /* Reduced padding */
+}
+
+.metrics-content.expanded {
+  max-height: 120px; /* Reduced from 160px */
+  overflow: auto;
+}
+
+/* Ensure results section gets priority */
+.results {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0; /* Important for flexbox overflow */
+}
+
+.section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* Important for flexbox overflow */
+}
+
+#locatorResults {
+  flex: 1;
+  overflow: auto;
+  min-height: 100px; /* Ensure minimum height */
+}
+
+/* Make metrics grid more compact */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px; /* Reduced from likely 12px or more */
+  margin-bottom: 4px; /* Reduced from likely 8px */
+}
+
+.metric-item {
+  background: var(--section-bg);
+  padding: 2px 4px; /* Reduced from 3px 5px */
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  font-size: 12px; /* Added to make metrics more compact */
+}
+
+.metric-label {
+  color: var(--text-muted);
+  font-size: 11px; /* Reduced size */
+}
+
+.metric-value {
+  font-weight: 500;
+}
+
+#networkRequestsList {
+  margin-top: 4px; /* Reduced from 8px */
+  max-height: 60px; /* Reduced from 80px */
+  overflow-y: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 500px) {
+  .metrics-panel {
+    margin: 6px 12px;
+    width: calc(100% - 24px);
+  }
+  
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+}
+
+.release-notes-panel {
+  position: fixed;
+  top: 0;
+  right: -350px;
+  width: 350px;
+  height: 100%;
+  background: var(--section-bg);
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+  transition: right 0.3s ease;
+  z-index: 1000;
+}
+
+.release-notes-panel.show {
+  right: 0;
+}
+
+.release-notes-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.release-notes-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.close-release-notes {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-release-notes:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+
+.release-notes-content {
+  padding: 16px;
+  overflow-y: auto;
+  height: calc(100% - 60px);
+}
+
+.release-item {
+  margin-bottom: 24px;
+}
+
+.release-item:last-child {
+  margin-bottom: 0;
+}
+
+.release-item h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.release-date {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+.release-item ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.release-item li {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text-color);
+  line-height: 1.5;
+}
+
+.release-item.latest {
+  background: var(--hover-bg);
+  margin: -8px;
+  padding: 8px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.new-badge {
+  background: var(--primary-color);
+  color: white;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 8px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }

@@ -179,6 +179,60 @@ document.addEventListener('DOMContentLoaded', function () {
 
     locatorResults.innerHTML = html;
 
+    // Update metrics panel
+    const metricsPanel = document.querySelector('.metrics-panel');
+    const generationTime = document.getElementById('generationTime');
+    const domChanges = document.getElementById('domChanges');
+    const networkRequests = document.getElementById('networkRequests');
+    const networkList = document.getElementById('networkRequestsList');
+    const requestsContainer = document.getElementById('requestsContainer');
+
+    if (locators._metadata) {
+      metricsPanel.style.display = 'block';
+      
+      // Performance metrics
+      if (locators._metadata.performance) {
+        const duration = locators._metadata.performance.duration?.toFixed(2) || 0;
+        generationTime.textContent = `${duration}ms`;
+      }
+
+      // DOM changes
+      if (locators._metadata.domChanges) {
+        const changes = locators._metadata.domChanges;
+        const totalChanges = (changes.added?.length || 0) + (changes.removed?.length || 0) + (changes.modified?.length || 0);
+        domChanges.textContent = totalChanges > 0 ? `${totalChanges} changes` : 'No changes';
+
+        if (changes.mutations?.length > 0) {
+          console.log('DOM Mutations:', changes.mutations.length);
+        }
+      }
+
+      // Network requests
+      if (locators._metadata.networkRequests) {
+        const requests = locators._metadata.networkRequests;
+        if (Array.isArray(requests) && requests.length > 0) {
+          networkRequests.textContent = `${requests.length} requests`;
+          
+          // Display network requests list
+          networkList.style.display = 'block';
+          requestsContainer.innerHTML = requests.map(req => `
+            <div class="network-request">
+              <div class="request-url">${req.url || 'Unknown URL'}</div>
+              ${req.duration ? `<div class="request-timing">Duration: ${req.duration.toFixed(2)}ms</div>` : ''}
+            </div>
+          `).join('');
+        } else {
+          networkList.style.display = 'none';
+          networkRequests.textContent = '0 requests';
+        }
+      } else {
+        networkList.style.display = 'none';
+        networkRequests.textContent = '0 requests';
+      }
+    } else {
+      metricsPanel.style.display = 'none';
+    }
+
     // Add event listeners to copy buttons
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', function () {
@@ -404,4 +458,86 @@ document.addEventListener('DOMContentLoaded', function () {
       bestLocatorToggle.checked = changes.isBestLocatorEnabled.newValue;
     }
   });
+
+  // Add metrics panel collapse/expand functionality
+  const metricsHeader = document.querySelector('.metrics-header');
+  const metricsToggle = document.querySelector('.metrics-toggle');
+  const metricsContent = document.querySelector('.metrics-content');
+
+  // Start collapsed
+  metricsContent.classList.add('collapsed');
+  metricsToggle.classList.add('collapsed');
+
+  metricsHeader.addEventListener('click', () => {
+    metricsContent.classList.toggle('collapsed');
+    metricsToggle.classList.toggle('collapsed');
+  });
+
+  // Release notes panel functionality
+  const releaseNotesBtn = document.getElementById('releaseNotesBtn');
+  const releaseNotesPanel = document.querySelector('.release-notes-panel');
+  const closeReleaseNotesBtn = document.querySelector('.close-release-notes');
+
+  releaseNotesBtn.addEventListener('click', () => {
+    releaseNotesPanel.classList.add('show');
+    dropdownContent.classList.remove('show');
+  });
+
+  closeReleaseNotesBtn.addEventListener('click', () => {
+    releaseNotesPanel.classList.remove('show');
+  });
+
+  // Close release notes panel when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!releaseNotesPanel.contains(e.target) && 
+        !releaseNotesBtn.contains(e.target) &&
+        releaseNotesPanel.classList.contains('show')) {
+      releaseNotesPanel.classList.remove('show');
+    }
+  });
 });
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Check if opened from notification
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('showReleaseNotes') === 'true') {
+    const releaseNotesPanel = document.querySelector('.release-notes-panel');
+    releaseNotesPanel.classList.add('show');
+  }
+  // Get metrics panel elements
+  const metricsPanel = document.querySelector('.metrics-panel');
+  const metricsHeader = document.querySelector('.metrics-header');
+  const metricsToggle = document.querySelector('.metrics-toggle');
+  const metricsContent = document.querySelector('.metrics-content');
+  
+  // Set initial state - metrics panel visible but collapsed
+  metricsPanel.style.display = 'block';
+  metricsToggle.classList.add('collapsed');
+  
+  // Toggle metrics panel expansion
+  metricsHeader.addEventListener('click', function() {
+    metricsToggle.classList.toggle('collapsed');
+    metricsContent.classList.toggle('expanded');
+    metricsPanel.classList.toggle('expanded');
+  });
+  
+  // Additional functionality to ensure element locator section gets focus
+  const locatorModeBtn = document.getElementById('locatorModeBtn');
+  if (locatorModeBtn) {
+    locatorModeBtn.addEventListener('click', function() {
+      // When locator mode is activated, ensure focus on the results section
+      const locatorResults = document.getElementById('locatorResults');
+      if (locatorResults) {
+        // Ensure metrics panel is collapsed when locator mode is activated
+        metricsToggle.classList.add('collapsed');
+        metricsContent.classList.remove('expanded');
+        metricsPanel.classList.remove('expanded');
+        
+        // Small delay to let UI update before scrolling
+        setTimeout(() => {
+          locatorResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      }
+    });
+  }
+})

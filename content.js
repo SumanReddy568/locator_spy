@@ -35,12 +35,232 @@ if (window.seleniumLocatorHelperInjected) {
 
   // Main functionality wrapped in an IIFE to prevent global scope pollution
   (function () {
+    // Utility Classes
+    class DOMDiffer {
+        constructor() {
+            this.previousDOM = null;
+            this.mutations = [];
+            this.observer = null;
+        }
+
+        startTracking() {
+            this.previousDOM = document.documentElement.cloneNode(true);
+            this.observer = new MutationObserver(mutations => {
+                this.mutations = this.mutations.concat(mutations);
+            });
+            
+            this.observer.observe(document.documentElement, {
+                childList: true,
+                attributes: true,
+                characterData: true,
+                subtree: true
+            });
+        }
+
+        stopTracking() {
+            if (this.observer) {
+                this.observer.disconnect();
+            }
+            return this.getDOMChanges();
+        }
+
+        getDOMChanges() {
+            const changes = {
+                added: [],
+                removed: [],
+                modified: [],
+                mutations: this.mutations
+            };
+
+            if (!this.previousDOM) return changes;
+
+            const currentDOM = document.documentElement;
+            this._compareNodes(this.previousDOM, currentDOM, changes);
+
+            return changes;
+        }
+
+        _compareNodes(oldNode, newNode, changes) {
+            if (!oldNode || !newNode) return;
+
+            if (oldNode.nodeType === Node.ELEMENT_NODE) {
+                const oldAttrs = Array.from(oldNode.attributes || []);
+                const newAttrs = Array.from(newNode.attributes || []);
+                
+                if (oldAttrs.length !== newAttrs.length) {
+                    changes.modified.push({
+                        element: newNode,
+                        type: 'attributes'
+                    });
+                } else {
+                    for (let i = 0; i < oldAttrs.length; i++) {
+                        if (oldAttrs[i].value !== newAttrs[i].value) {
+                            changes.modified.push({
+                                element: newNode,
+                                type: 'attributes'
+                            });
+                            break;
+                        }
+                    }
+                }
+            }
+
+            const oldChildren = Array.from(oldNode.childNodes);
+            const newChildren = Array.from(newNode.childNodes);
+
+            const maxLength = Math.max(oldChildren.length, newChildren.length);
+            for (let i = 0; i < maxLength; i++) {
+                const oldChild = oldChildren[i];
+                const newChild = newChildren[i];
+
+                if (!oldChild && newChild) {
+                    changes.added.push(newChild);
+                } else if (oldChild && !newChild) {
+                    changes.removed.push(oldChild);
+                } else if (oldChild.nodeType === Node.ELEMENT_NODE && newChild.nodeType === Node.ELEMENT_NODE) {
+                    this._compareNodes(oldChild, newChild, changes);
+                }
+            }
+        }
+    }
+
+    class PerformanceTracker {
+        constructor() {
+            this.metrics = new Map();
+            this.marks = new Set();
+        }
+
+        startMeasure(locatorType, locatorValue) {
+            const key = `${locatorType}:${locatorValue}`;
+            const markName = `start_${key}`;
+            
+            performance.mark(markName);
+            this.marks.add(markName);
+            
+            this.metrics.set(key, {
+                start: performance.now(),
+                type: locatorType,
+                value: locatorValue
+            });
+        }
+
+        endMeasure(locatorType, locatorValue) {
+            const key = `${locatorType}:${locatorValue}`;
+            const metric = this.metrics.get(key);
+            const markName = `start_${key}`;
+            
+            if (metric && this.marks.has(markName)) {
+                const measureName = `measure_${key}`;
+                performance.measure(measureName, markName);
+                
+                const measure = performance.getEntriesByName(measureName).pop();
+                metric.duration = measure.duration;
+                
+                // Cleanup
+                performance.clearMarks(markName);
+                performance.clearMeasures(measureName);
+                this.marks.delete(markName);
+                
+                return metric;
+            }
+            return null;
+        }
+
+        getMetrics() {
+            return Array.from(this.metrics.values()).filter(metric => metric.duration !== undefined);
+        }
+
+        clearMetrics() {
+            this.metrics.clear();
+            this.marks.forEach(mark => {
+                performance.clearMarks(mark);
+            });
+            this.marks.clear();
+        }
+    }
+
+    class NetworkRequestMapper {
+        constructor() {
+            this.requests = new Map();
+            this.observer = null;
+            this.startTime = null;
+        }
+
+        startTracking() {
+            this.startTime = performance.now();
+            this.requests.clear();
+
+            this.observer = new PerformanceObserver((list) => {
+                list.getEntries().forEach((entry) => {
+                    if (entry.entryType === 'resource') {
+                        this.requests.set(entry.name, {
+                            url: entry.name,
+                            startTime: entry.startTime,
+                            duration: entry.duration,
+                            initiatorType: entry.initiatorType,
+                            size: entry.transferSize || 0,
+                            protocol: entry.nextHopProtocol || '',
+                            timing: {
+                                dns: entry.domainLookupEnd - entry.domainLookupStart,
+                                tcp: entry.connectEnd - entry.connectStart,
+                                ssl: entry.secureConnectionStart > 0 ? entry.connectEnd - entry.secureConnectionStart : 0,
+                                ttfb: entry.responseStart - entry.requestStart,
+                                download: entry.responseEnd - entry.responseStart
+                            }
+                        });
+                    }
+                });
+            });
+
+            this.observer.observe({ entryTypes: ['resource'] });
+        }
+
+        stopTracking() {
+            if (this.observer) {
+                this.observer.disconnect();
+                this.observer = null;
+            }
+            return Array.from(this.requests.values());
+        }
+
+        mapRequestsToElement(element) {
+            const timestamp = performance.now();
+            const timeWindow = 5000; // Look back 5 seconds
+            const relevantRequests = Array.from(this.requests.values()).filter(request => {
+                const requestTime = this.startTime + request.startTime;
+                return requestTime <= timestamp && requestTime >= (timestamp - timeWindow);
+            });
+
+            // Sort by timestamp
+            return relevantRequests.sort((a, b) => b.startTime - a.startTime);
+        }
+
+        getRequestMetrics() {
+            const requests = Array.from(this.requests.values());
+            return {
+                totalRequests: requests.length,
+                totalSize: requests.reduce((sum, req) => sum + req.size, 0),
+                averageDuration: requests.reduce((sum, req) => sum + req.duration, 0) / requests.length || 0,
+                slowestRequest: requests.reduce((slowest, req) => req.duration > slowest.duration ? req : slowest, { duration: 0 }),
+                byProtocol: requests.reduce((acc, req) => {
+                    acc[req.protocol] = (acc[req.protocol] || 0) + 1;
+                    return acc;
+                }, {})
+            };
+        }
+    }
+
     let isLocatorModeActive = false;
     let highlightedElement = null;
     let hoveredElement = null;
     let contextCheckInterval = null;
     let bestLocatorBanner = null;
-    let isBestLocatorEnabled = true; // Toggle to enable/disable best locator banner
+    let isBestLocatorEnabled = true;
+
+    // Initialize utility instances
+    const domDiffer = new DOMDiffer();
+    const performanceTracker = new PerformanceTracker();
+    const networkMapper = new NetworkRequestMapper();
 
     // Wrapper for sending messages with error handling
     function sendMessageToBackground(message, callback) {
@@ -458,6 +678,11 @@ if (window.seleniumLocatorHelperInjected) {
     // Function to generate all possible locators for an element
     function generateLocators(element) {
       if (!element || !element.tagName) return {};
+
+      // Start performance tracking
+      performanceTracker.startMeasure('generation', 'all');
+      domDiffer.startTracking();
+      networkMapper.startTracking();
 
       // Generate CSS selector with improved specificity
       function getCssSelector(el) {
@@ -1170,6 +1395,12 @@ if (window.seleniumLocatorHelperInjected) {
         return [...new Set(paths.filter(Boolean))];
       }
 
+      // Get DOM changes and network requests
+      const domChanges = domDiffer.stopTracking();
+      const networkRequests = networkMapper.mapRequestsToElement(element);
+      const performanceMetrics = performanceTracker.endMeasure('generation', 'all');
+
+      // Add metrics to the locators object
       return {
         cssSelector: getCssSelector(element),
         absoluteXPath: getAbsoluteXPath(element),
@@ -1198,22 +1429,43 @@ if (window.seleniumLocatorHelperInjected) {
           null,
         ariaLabel: element.getAttribute("aria-label") || null,
         role: element.getAttribute("role") || null,
+        _metadata: {
+          domChanges,
+          networkRequests,
+          performance: performanceMetrics
+        }
       };
     }
 
+    // Debounce function for smoother highlighting
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);   
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
 
-    // Highlight element with a border
+    // Highlight element with a border using transform for better performance
     function highlightElement(element) {
       if (!element || !element.style) return;
+      
+      // Remove previous highlight with RAF
+      requestAnimationFrame(() => {
+        if (highlightedElement) {
+          highlightedElement.style.outline = "";
+          highlightedElement.style.outlineOffset = "";
+        }
 
-      if (highlightedElement) {
-        highlightedElement.style.outline = "";
-        highlightedElement.style.outlineOffset = "";
-      }
-
-      element.style.outline = "2px solid #4285F4";
-      element.style.outlineOffset = "2px";
-      highlightedElement = element;
+        // Add new highlight
+        element.style.outline = "2px solid #4285F4";
+        element.style.outlineOffset = "2px";
+        highlightedElement = element;
+      });
     }
 
     // Remove highlight from element
@@ -1226,9 +1478,12 @@ if (window.seleniumLocatorHelperInjected) {
       hideBestLocatorBanner();
     }
 
-    // Handle mouseover events in locator mode
-    function handleMouseOver(event) {
+    // Handle mouseover events in locator mode with debounce
+    const debouncedMouseOver = debounce((event) => {
       if (!isLocatorModeActive) return;
+      
+      // Ignore if same element
+      if (hoveredElement === event.target) return;
 
       // Always ignore banner events
       if (event.target.closest('#best-locator-banner')) return;
@@ -1263,7 +1518,7 @@ if (window.seleniumLocatorHelperInjected) {
         action: "getLocators",
         locators: locators,
       });
-    }
+    }, 50); // 50ms debounce
 
     // Handle click events in locator mode
     function handleClick(event) {
@@ -1296,6 +1551,13 @@ if (window.seleniumLocatorHelperInjected) {
         locators: locators,
         url: window.location.href,
         timestamp: new Date().toISOString(),
+      });
+
+      // Include metrics in the message to DevTools
+      sendMessageToBackground({
+        action: "getLocators",
+        locators: locators,
+        metadata: locators._metadata
       });
 
       // Deactivate hover events but maintain highlight if banner is shown
@@ -1344,7 +1606,10 @@ if (window.seleniumLocatorHelperInjected) {
 
       console.log("Activating locator mode, best locator enabled:", isBestLocatorEnabled);
       isLocatorModeActive = true;
-      document.addEventListener("mouseover", handleMouseOver, true);
+      document.addEventListener("mouseover", debouncedMouseOver, { 
+        capture: true,
+        passive: false 
+      });
       document.addEventListener("click", handleClick, true);
       document.body.style.cursor = "crosshair";
 
@@ -1365,7 +1630,7 @@ if (window.seleniumLocatorHelperInjected) {
 
       console.log("Deactivating locator mode");
       isLocatorModeActive = false;
-      document.removeEventListener("mouseover", handleMouseOver, true);
+      document.removeEventListener("mouseover", debouncedMouseOver, true);
       document.removeEventListener("click", handleClick, true);
       document.body.style.cursor = "";
 
@@ -1476,6 +1741,7 @@ if (window.seleniumLocatorHelperInjected) {
           sendMessageToBackground({
             action: "contentScriptReady",
             url: window.location.href,
+            iconUrl: chrome.runtime.getURL('popup/icons/icon48.png'),
           });
           console.log("Content script initialized successfully with preferences loaded");
         });

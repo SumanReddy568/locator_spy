@@ -28,13 +28,14 @@
     "activeTab",
     "scripting",
     "storage",
-    "alarms"
+    "alarms",
+    "notifications"
   ],
   "web_accessible_resources": [
     {
       "resources": [
         "welcome.html",
-        "images/icon16.png"
+        "popup/icons/icon16.png"
       ],
       "matches": [
         "<all_urls>"
