@@ -235,9 +235,8 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
 
     // Handle toggleBestLocator message
     if (message.action === 'toggleBestLocator') {
-      chrome.tabs.sendMessage(message.tabId, {
-        action: 'toggleBestLocator',
-        enable: message.enable
+      chrome.storage.local.set({ 'isBestLocatorEnabled': message.enable }, () => {
+        console.log("Best locator setting updated in storage:", message.enable);
       });
       return;
     }

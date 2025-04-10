@@ -379,16 +379,29 @@ document.addEventListener('DOMContentLoaded', function () {
 
   chrome.storage.local.get('isBestLocatorEnabled', (result) => {
     const isEnabled = result.hasOwnProperty('isBestLocatorEnabled') ? result.isBestLocatorEnabled : true;
+    chrome.storage.local.set({ 'isBestLocatorEnabled': isEnabled }); // Ensure default is true
     bestLocatorToggle.checked = isEnabled;
   });
   
   bestLocatorToggle.addEventListener('change', (event) => {
     const isEnabled = event.target.checked;
-    chrome.storage.local.set({ 'isBestLocatorEnabled': isEnabled });
-    backgroundPageConnection.postMessage({
-      action: 'toggleBestLocator',
-      enable: isEnabled,
-      tabId: chrome.devtools.inspectedWindow.tabId
+    chrome.storage.local.set({ 'isBestLocatorEnabled': isEnabled }, () => {
+      console.log("Best locator setting updated in storage:", isEnabled);
+      backgroundPageConnection.postMessage({
+        action: 'toggleBestLocator',
+        enable: isEnabled,
+        tabId: chrome.devtools.inspectedWindow.tabId
+      });
     });
+  });
+
+  chrome.storage.local.get('isBestLocatorEnabled', (result) => {
+    bestLocatorToggle.checked = result.isBestLocatorEnabled ?? true;
+  });
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.isBestLocatorEnabled) {
+      bestLocatorToggle.checked = changes.isBestLocatorEnabled.newValue;
+    }
   });
 });

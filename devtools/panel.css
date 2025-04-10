@@ -461,9 +461,10 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: 'Inter', sans-serif;
-  font-size: 14px;
-  color: #333;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-color);
 }
 
 .toggle-container input[type="checkbox"] {

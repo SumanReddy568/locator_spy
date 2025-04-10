@@ -327,11 +327,9 @@ if (window.seleniumLocatorHelperInjected) {
 
       if (locators.cssSelector) {
         const test = testLocatorUniqueness('CSS Selector', locators.cssSelector);
-        if (test) {
-          // Score based on uniqueness and complexity
-          const uniquenessScore = test.isUnique ? 80 : (1 / test.count) * 50;
-          const complexityScore = Math.max(0, 30 - (test.complexity / 10));
-          testedLocators.push({ ...test, score: uniquenessScore + complexityScore });
+        if (test && test.isUnique) {
+          const score = test.complexity < 100 ? 80 : 0; // Penalize long CSS selectors
+          testedLocators.push({ ...test, score });
         }
       }
 
@@ -388,6 +386,32 @@ if (window.seleniumLocatorHelperInjected) {
 
       // Sort by score (highest first)
       testedLocators.sort((a, b) => b.score - a.score);
+
+      // Adjust star rating based on score
+      if (testedLocators.length > 0) {
+        const bestLocator = testedLocators[0];
+        let stars = 1;
+        if (bestLocator.score >= 90) stars = 5;
+        else if (bestLocator.score >= 70) stars = 4;
+        else if (bestLocator.score >= 50) stars = 3;
+        else if (bestLocator.score >= 30) stars = 2;
+
+        return {
+          type: bestLocator.type,
+          value: bestLocator.value,
+          score: bestLocator.score,
+          stars
+        };
+      }
+
+      // If the best locator is a long CSS selector, fallback to the second-best
+      if (testedLocators.length > 1 && testedLocators[0].type === 'CSS Selector' && testedLocators[0].complexity >= 100) {
+        return {
+          type: testedLocators[1].type,
+          value: testedLocators[1].value,
+          score: testedLocators[1].score
+        };
+      }
 
       // Return the highest scoring locator
       if (testedLocators.length > 0) {
@@ -1369,8 +1393,8 @@ if (window.seleniumLocatorHelperInjected) {
     function checkContextValidity() {
       try {
         if (!chrome.runtime?.id) {
-          console.warn("Extension context invalidated - retrying in 5 seconds");
-          setTimeout(checkContextValidity, 5000); // Retry after 5 seconds
+          console.warn("Extension context invalidated - stopping retries");
+          deactivateLocatorMode(); // Stop locator mode if context is invalid
           return;
         }
 
@@ -1428,34 +1452,17 @@ if (window.seleniumLocatorHelperInjected) {
       isBestLocatorEnabled = enable;
       console.log("Best locator toggled:", enable);
 
-      // Always hide banner when disabling
       if (!enable) {
         hideBestLocatorBanner();
-        removeHighlight();
+        if (bestLocatorBanner) {
+          bestLocatorBanner.remove();
+          bestLocatorBanner = null;
+        }
       }
 
-      // Store the setting in local storage
-      try {
-        chrome.storage.local.set({ 'isBestLocatorEnabled': enable }, () => {
-          console.log("Best locator preference saved:", enable);
-
-          // Provide visual feedback (optional)
-          if (isLocatorModeActive) {
-            if (!enable) {
-              hideBestLocatorBanner();
-            } else if (hoveredElement) {
-              // Re-show for current hovered element if feature was just enabled
-              const locators = generateLocators(hoveredElement);
-              const bestLocator = determineBestLocator(locators);
-              if (bestLocator) {
-                showBestLocator(bestLocator.type, bestLocator.value);
-              }
-            }
-          }
-        });
-      } catch (error) {
-        console.error("Error saving locator preference:", error);
-      }
+      chrome.storage.local.set({ 'isBestLocatorEnabled': enable }, () => {
+        console.log("Best locator preference saved:", enable);
+      });
     }
 
     // Initialize the content script
@@ -1479,5 +1486,37 @@ if (window.seleniumLocatorHelperInjected) {
 
     // Start the content script
     initialize();
+
+    // Listen for storage changes to update the state in real-time
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.isBestLocatorEnabled) {
+        const isEnabled = changes.isBestLocatorEnabled.newValue;
+        isBestLocatorEnabled = isEnabled;
+
+        if (!isEnabled) {
+          hideBestLocatorBanner();
+          if (bestLocatorBanner) {
+            bestLocatorBanner.remove();
+            bestLocatorBanner = null;
+          }
+        }
+      }
+    });
+
+    // Initialize the best locator setting on script load
+    function initializeBestLocatorSetting() {
+      chrome.storage.local.get('isBestLocatorEnabled', (result) => {
+        isBestLocatorEnabled = result.isBestLocatorEnabled ?? true;
+        if (!isBestLocatorEnabled) {
+          hideBestLocatorBanner();
+          if (bestLocatorBanner) {
+            bestLocatorBanner.remove();
+            bestLocatorBanner = null;
+          }
+        }
+      });
+    }
+
+    initializeBestLocatorSetting();
   })();
 }
