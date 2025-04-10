@@ -1,3 +1,6 @@
+## [1.1.0] - 2025-04-10
+- new perfomace feature
+
 ## [1.0.9] - 2025-04-08
 - zipper changes
 
