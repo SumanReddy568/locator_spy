@@ -42,42 +42,28 @@ NEW_ZIP_FILENAME="${EXTENSION_NAME}_${NEW_VERSION}.zip"
 echo "Preparing to update from version $CURRENT_VERSION to $NEW_VERSION"
 
 # Create backlog directory if it doesn't exist
-mkdir -p "$BACKLOG_DIR"
-echo "Ensuring backlog directory exists: $BACKLOG_DIR"
-
-# First handle version management:
-# 1. Move any existing version with the NEW_VERSION from root to backlog (safety check)
-# 2. Move all other existing versions from root to backlog
-# 3. Remove any duplicate versions in the backlog
-
-# Step 1: Check if the new version zip already exists (shouldn't happen, but just in case)
-if [ -f "$NEW_ZIP_FILENAME" ]; then
-    echo "Found existing file with new version name: $NEW_ZIP_FILENAME - moving to backlog"
-    mv "$NEW_ZIP_FILENAME" "$BACKLOG_DIR/"
+if [ ! -d "$BACKLOG_DIR" ]; then
+  mkdir -p "$BACKLOG_DIR"
+  echo "Created backlog directory: $BACKLOG_DIR"
 fi
 
-# Step 2: Move all existing extension zips to backlog
+# Move all existing extension zips to backlog except the new one
 find . -maxdepth 1 -name "${EXTENSION_NAME}_*.zip" -type f | while read -r file; do
-    filename=$(basename "$file")
-    echo "Moving existing extension file to backlog: $filename"
-    mv "$file" "$BACKLOG_DIR/" || {
-        echo "Failed to move $file to backlog"
-        exit 1
-    }
+  if [ "$(basename "$file")" != "$NEW_ZIP_FILENAME" ]; then
+    echo "Moving $file to backlog directory"
+    mv "$file" "$BACKLOG_DIR/"
+  fi
 done
 
-# Step 3: Clean up duplicates in backlog (keep only latest copy of each version)
+# Clean up duplicates in backlog (keep only the latest copy of each version)
 echo "Cleaning up duplicate versions in backlog..."
 find "$BACKLOG_DIR" -name "${EXTENSION_NAME}_*.zip" | sort | while read -r file; do
-    version=$(basename "$file" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
-    # Get most recent file with this version number
-    latest=$(find "$BACKLOG_DIR" -name "*${version}.zip" -type f -printf "%T@ %p\n" | sort -n | tail -1 | cut -d' ' -f2-)
-    
-    # Remove if not the latest
-    if [ "$file" != "$latest" ] && [ -n "$latest" ]; then
-        echo "Removing older duplicate of version $version: $file"
-        rm -f "$file"
-    fi
+  version=$(basename "$file" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
+  latest=$(find "$BACKLOG_DIR" -name "*${version}.zip" -type f -printf "%T@ %p\n" | sort -n | tail -1 | cut -d' ' -f2-)
+  if [ "$file" != "$latest" ] && [ -n "$latest" ]; then
+    echo "Removing older duplicate of version $version: $file"
+    rm -f "$file"
+  fi
 done
 
 # Update manifest version with error checking

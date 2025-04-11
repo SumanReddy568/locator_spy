@@ -6,35 +6,29 @@ class DOMDiffer {
   }
 
   startTracking() {
-    // Use requestAnimationFrame for smoother DOM updates
-    requestAnimationFrame(() => {
-      this.previousDOM = document.documentElement.cloneNode(false); // Shallow clone for better performance
-      this.observer = new MutationObserver(mutations => {
-        // Batch mutations instead of concatenating
-        if (mutations.length > 0) {
-          this.mutations = mutations;
-        }
-      });
-      
-      this.observer.observe(document.documentElement, {
-        childList: true,
-        attributes: true,
-        characterData: true,
-        subtree: true,
-        attributeFilter: ['class', 'style', 'id'] 
-      });
+    this.previousDOM = document.documentElement.cloneNode(true);
+    this.mutations = [];
+    this.observer = new MutationObserver((mutations) => {
+      this.mutations.push(...mutations);
     });
+
+    this.observer.observe(document.documentElement, {
+      childList: true,
+      attributes: true,
+      characterData: true,
+      subtree: true,
+    });
+
+    console.log("DOMDiffer: Tracking started.");
   }
 
   stopTracking() {
     if (this.observer) {
       this.observer.disconnect();
-      const changes = this.getDOMChanges();
-      this.mutations = [];
-      this.previousDOM = null;
-      return changes;
+      console.log("DOMDiffer: Tracking stopped.");
     }
-    return { added: [], removed: [], modified: [], mutations: [] };
+
+    return this.getDOMChanges();
   }
 
   getDOMChanges() {
@@ -42,7 +36,7 @@ class DOMDiffer {
       added: [],
       removed: [],
       modified: [],
-      mutations: this.mutations
+      mutations: this.mutations,
     };
 
     if (!this.previousDOM) return changes;
@@ -57,38 +51,37 @@ class DOMDiffer {
     if (!oldNode || !newNode) return;
 
     if (oldNode.nodeType === Node.ELEMENT_NODE) {
-      // Optimize attribute comparison
-      const relevantAttrs = ['class', 'style', 'id'];
-      const hasChanged = relevantAttrs.some(attr => 
-        oldNode.getAttribute(attr) !== newNode.getAttribute(attr)
-      );
-      
-      if (hasChanged) {
-        changes.modified.push({
-          element: newNode,
-          type: 'attributes'
-        });
+      const oldAttrs = Array.from(oldNode.attributes || []);
+      const newAttrs = Array.from(newNode.attributes || []);
+
+      if (oldAttrs.length !== newAttrs.length) {
+        changes.modified.push({ element: newNode, type: "attributes" });
+      } else {
+        for (let i = 0; i < oldAttrs.length; i++) {
+          if (oldAttrs[i].value !== newAttrs[i].value) {
+            changes.modified.push({ element: newNode, type: "attributes" });
+            break;
+          }
+        }
       }
     }
 
-    // Optimize children comparison using DocumentFragment
-    const fragment = document.createDocumentFragment();
-    const newChildren = Array.from(newNode.children);
-    const oldChildren = Array.from(oldNode.children);
+    const oldChildren = Array.from(oldNode.childNodes);
+    const newChildren = Array.from(newNode.childNodes);
 
-    newChildren.forEach((child, index) => {
-      const oldChild = oldChildren[index];
-      if (!oldChild) {
-        fragment.appendChild(child.cloneNode(true));
-        changes.added.push(child);
-      } else if (child.nodeType === Node.ELEMENT_NODE) {
-        this._compareNodes(oldChild, child, changes);
+    const maxLength = Math.max(oldChildren.length, newChildren.length);
+    for (let i = 0; i < maxLength; i++) {
+      const oldChild = oldChildren[i];
+      const newChild = newChildren[i];
+
+      if (!oldChild && newChild) {
+        changes.added.push(newChild);
+      } else if (oldChild && !newChild) {
+        changes.removed.push(oldChild);
+      } else if (oldChild.nodeType === Node.ELEMENT_NODE && newChild.nodeType === Node.ELEMENT_NODE) {
+        this._compareNodes(oldChild, newChild, changes);
       }
-    });
-
-    oldChildren.slice(newChildren.length).forEach(child => {
-      changes.removed.push(child);
-    });
+    }
   }
 }
 
@@ -129,26 +122,30 @@ class NetworkRequestMapper {
   }
 
   startTracking() {
+    this.requests.clear();
     this.observer = new PerformanceObserver((list) => {
       list.getEntries().forEach((entry) => {
-        if (entry.entryType === 'resource') {
+        if (entry.entryType === "resource") {
           this.requests.set(entry.name, {
             url: entry.name,
             startTime: entry.startTime,
             duration: entry.duration,
-            initiatorType: entry.initiatorType
+            initiatorType: entry.initiatorType,
           });
         }
       });
     });
 
-    this.observer.observe({ entryTypes: ['resource'] });
+    this.observer.observe({ entryTypes: ["resource"] });
+    console.log("NetworkRequestMapper: Tracking started.");
   }
 
   stopTracking() {
     if (this.observer) {
       this.observer.disconnect();
+      console.log("NetworkRequestMapper: Tracking stopped.");
     }
+
     return Array.from(this.requests.values());
   }
 

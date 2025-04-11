@@ -540,4 +540,17 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
-})
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  const scrollDownBtn = document.getElementById("scrollDownBtn");
+  if (scrollDownBtn) {
+    scrollDownBtn.addEventListener("click", () => {
+      const targetSelector = scrollDownBtn.getAttribute("data-target");
+      const targetElement = document.querySelector(targetSelector);
+      if (targetElement) {
+        targetElement.scrollBy({ top: 100, behavior: "smooth" });
+      }
+    });
+  }
+});

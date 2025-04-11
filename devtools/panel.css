@@ -351,6 +351,15 @@ body {
   color: var(--text-color);
 }
 
+.action-btn[title="Scroll Down"] {
+  transform: rotate(0deg);
+  transition: transform 0.2s ease;
+}
+
+.action-btn[title="Scroll Down"]:hover {
+  transform: rotate(180deg);
+}
+
 #locatorResults {
   padding: 0;
   flex-grow: 1;

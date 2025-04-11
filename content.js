@@ -1533,18 +1533,6 @@ if (window.seleniumLocatorHelperInjected) {
       const clickedElement = event.target;
       const locators = generateLocators(clickedElement);
 
-      // Ensure banner is hidden if feature is disabled
-      if (!isBestLocatorEnabled) {
-        hideBestLocatorBanner();
-        removeHighlight();
-      } else {
-        const bestLocator = determineBestLocator(locators);
-        if (bestLocator) {
-          locators.bestLocator = bestLocator;
-          showBestLocator(bestLocator.type, bestLocator.value, bestLocator.score);
-        }
-      }
-
       // Save locator info and deactivate mode
       sendMessageToBackground({
         action: "saveLocator",
@@ -1560,8 +1548,9 @@ if (window.seleniumLocatorHelperInjected) {
         metadata: locators._metadata
       });
 
-      // Deactivate hover events but maintain highlight if banner is shown
-      document.removeEventListener("mouseover", handleMouseOver, true);
+      // Deactivate locator mode but keep the highlight and banner if enabled
+      isLocatorModeActive = false;
+      document.removeEventListener("mouseover", debouncedMouseOver, true);
       document.body.style.cursor = "";
 
       // Signal completion
@@ -1570,33 +1559,63 @@ if (window.seleniumLocatorHelperInjected) {
         keepBannerVisible: isBestLocatorEnabled
       });
 
-      isLocatorModeActive = false;
-
-      // Auto-clear after delay only if banner is shown
-      if (isBestLocatorEnabled) {
-        setTimeout(() => {
-          if (bestLocatorBanner && bestLocatorBanner.style.display !== 'none') {
-            removeHighlight();
-            hideBestLocatorBanner();
-            if (contextCheckInterval) {
-              clearInterval(contextCheckInterval);
-              contextCheckInterval = null;
-            }
-            sendMessageToBackground({
-              action: "locatorModeDeactivated",
-            });
-          }
-        }, 10000);
-      } else {
-        // Immediate cleanup if banner is disabled
+      // Don't remove highlight or banner immediately to allow copying
+      if (!isBestLocatorEnabled) {
+        // If banner is disabled, clean up immediately
         removeHighlight();
-        if (contextCheckInterval) {
-          clearInterval(contextCheckInterval);
-          contextCheckInterval = null;
-        }
+        hideBestLocatorBanner();
+      } else {
+        // Auto-cleanup after delay if banner is enabled
+        setTimeout(() => {
+          removeHighlight();
+          hideBestLocatorBanner();
+          if (contextCheckInterval) {
+            clearInterval(contextCheckInterval);
+            contextCheckInterval = null;
+          }
+          sendMessageToBackground({
+            action: "locatorModeDeactivated",
+          });
+        }, 10000); // 10 seconds delay
+      }
+    }
+
+    // Ensure DOMDiffer starts tracking properly
+    function initializeDomDiffer() {
+      try {
+        domDiffer.startTracking();
+        console.log("DOMDiffer started tracking.");
+      } catch (error) {
+        console.error("Error initializing DOMDiffer:", error);
+      }
+    }
+
+    // Ensure NetworkRequestMapper starts tracking properly
+    function initializeNetworkMapper() {
+      try {
+        networkMapper.startTracking();
+        console.log("NetworkRequestMapper started tracking.");
+      } catch (error) {
+        console.error("Error initializing NetworkRequestMapper:", error);
+      }
+    }
+
+    // Ensure DOM changes and network requests are captured
+    function captureDomAndNetworkChanges() {
+      try {
+        const domChanges = domDiffer.stopTracking();
+        const networkRequests = networkMapper.stopTracking();
+
+        console.log("Captured DOM changes:", domChanges);
+        console.log("Captured network requests:", networkRequests);
+
         sendMessageToBackground({
-          action: "locatorModeDeactivated",
+          action: "captureMetrics",
+          domChanges,
+          networkRequests,
         });
+      } catch (error) {
+        console.error("Error capturing DOM and network changes:", error);
       }
     }
 
@@ -1606,6 +1625,10 @@ if (window.seleniumLocatorHelperInjected) {
 
       console.log("Activating locator mode, best locator enabled:", isBestLocatorEnabled);
       isLocatorModeActive = true;
+
+      initializeDomDiffer();
+      initializeNetworkMapper();
+
       document.addEventListener("mouseover", debouncedMouseOver, { 
         capture: true,
         passive: false 
@@ -1630,6 +1653,9 @@ if (window.seleniumLocatorHelperInjected) {
 
       console.log("Deactivating locator mode");
       isLocatorModeActive = false;
+
+      captureDomAndNetworkChanges();
+
       document.removeEventListener("mouseover", debouncedMouseOver, true);
       document.removeEventListener("click", handleClick, true);
       document.body.style.cursor = "";
