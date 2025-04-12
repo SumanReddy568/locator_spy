@@ -7,7 +7,7 @@ PANEL_PATH="./devtools/panel.html"
 CHANGELOG_PATH="CHANGELOG.md"
 WELCOME_HTML_PATH="welcome.html"
 POPUP_HTML_PATH="./popup/popup.html"
-BACKLOG_DIR="backlogextension"
+EXTENSIONS_DIR="extensions"
 
 # Function to increment version number
 increment_version() {
@@ -41,25 +41,23 @@ NEW_ZIP_FILENAME="${EXTENSION_NAME}_${NEW_VERSION}.zip"
 
 echo "Preparing to update from version $CURRENT_VERSION to $NEW_VERSION"
 
-# Create backlog directory if it doesn't exist
-if [ ! -d "$BACKLOG_DIR" ]; then
-  mkdir -p "$BACKLOG_DIR"
-  echo "Created backlog directory: $BACKLOG_DIR"
+# Create extensions directory if it doesn't exist
+if [ ! -d "$EXTENSIONS_DIR" ]; then
+  mkdir -p "$EXTENSIONS_DIR"
+  echo "Created extensions directory: $EXTENSIONS_DIR"
 fi
 
-# Move all existing extension zips to backlog except the new one
+# Move all existing extension zips to the extensions directory
 find . -maxdepth 1 -name "${EXTENSION_NAME}_*.zip" -type f | while read -r file; do
-  if [ "$(basename "$file")" != "$NEW_ZIP_FILENAME" ]; then
-    echo "Moving $file to backlog directory"
-    mv "$file" "$BACKLOG_DIR/"
-  fi
+  echo "Moving $file to extensions directory"
+  mv "$file" "$EXTENSIONS_DIR/"
 done
 
-# Clean up duplicates in backlog (keep only the latest copy of each version)
-echo "Cleaning up duplicate versions in backlog..."
-find "$BACKLOG_DIR" -name "${EXTENSION_NAME}_*.zip" | sort | while read -r file; do
+# Clean up duplicates in extensions directory (keep only the latest copy of each version)
+echo "Cleaning up duplicate versions in extensions directory..."
+find "$EXTENSIONS_DIR" -name "${EXTENSION_NAME}_*.zip" | sort | while read -r file; do
   version=$(basename "$file" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
-  latest=$(find "$BACKLOG_DIR" -name "*${version}.zip" -type f -printf "%T@ %p\n" | sort -n | tail -1 | cut -d' ' -f2-)
+  latest=$(find "$EXTENSIONS_DIR" -name "*${version}.zip" -type f -printf "%T@ %p\n" | sort -n | tail -1 | cut -d' ' -f2-)
   if [ "$file" != "$latest" ] && [ -n "$latest" ]; then
     echo "Removing older duplicate of version $version: $file"
     rm -f "$file"
@@ -116,14 +114,14 @@ fi
   cat "$CHANGELOG_PATH"
 } > temp_changelog.md && mv temp_changelog.md "$CHANGELOG_PATH"
 
-# Create new zip file in root directory
+# Create new zip file in the extensions directory
 echo "Creating new extension version $NEW_VERSION"
-zip -r "$NEW_ZIP_FILENAME" ./* -x "*.git*" -x ".github/*" -x "*.sh" -x "${BACKLOG_DIR}/*" -x "${EXTENSION_NAME}*.zip" || {
-    echo "Failed to create new extension zip"
-    exit 1
+zip -r "$EXTENSIONS_DIR/$NEW_ZIP_FILENAME" ./* -x "*.git*" -x ".github/*" -x "*.sh" -x "${EXTENSIONS_DIR}/*" || {
+  echo "Failed to create new extension zip"
+  exit 1
 }
 
-echo "Successfully created new extension: $NEW_ZIP_FILENAME"
+echo "Successfully created new extension: $EXTENSIONS_DIR/$NEW_ZIP_FILENAME"
 
 # No need for symlink - the new version is already in the root directory
 # and old versions are properly archived in backlog
@@ -140,7 +138,7 @@ echo "Popup version: $(grep 'Version' "$POPUP_HTML_PATH" || echo 'Not found')"
 echo "Welcome version: $(grep 'v[0-9]' "$WELCOME_HTML_PATH" || echo 'Not found')"
 
 # Commit changes with verification
-if git add "$MANIFEST_PATH" "$PANEL_PATH" "$POPUP_HTML_PATH" "$WELCOME_HTML_PATH" "$CHANGELOG_PATH" "$NEW_ZIP_FILENAME"; then
+if git add "$MANIFEST_PATH" "$PANEL_PATH" "$POPUP_HTML_PATH" "$WELCOME_HTML_PATH" "$CHANGELOG_PATH" "$EXTENSIONS_DIR/$NEW_ZIP_FILENAME"; then
   git commit -m "Auto-update: Version $NEW_VERSION [skip ci]"
   echo "Successfully updated to version $NEW_VERSION"
 else
