@@ -42,27 +42,29 @@ NEW_ZIP_FILENAME="${EXTENSION_NAME}_${NEW_VERSION}.zip"
 echo "Preparing to update from version $CURRENT_VERSION to $NEW_VERSION"
 
 # Create extensions directory if it doesn't exist
-if [ ! -d "$EXTENSIONS_DIR" ]; then
-  mkdir -p "$EXTENSIONS_DIR"
-  echo "Created extensions directory: $EXTENSIONS_DIR"
-fi
+mkdir -p "${EXTENSIONS_DIR}"
+echo "Created or verified extensions directory: ${EXTENSIONS_DIR}"
 
 # Move all existing extension zips to the extensions directory
-find . -maxdepth 1 -name "${EXTENSION_NAME}_*.zip" -type f | while read -r file; do
-  echo "Moving $file to extensions directory"
-  mv "$file" "$EXTENSIONS_DIR/"
-done
+find . -maxdepth 1 -name "${EXTENSION_NAME}_*.zip" -type f -exec mv {} "${EXTENSIONS_DIR}/" \;
 
-# Clean up duplicates in extensions directory (keep only the latest copy of each version)
-echo "Cleaning up duplicate versions in extensions directory..."
-find "$EXTENSIONS_DIR" -name "${EXTENSION_NAME}_*.zip" | sort | while read -r file; do
-  version=$(basename "$file" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
-  latest=$(find "$EXTENSIONS_DIR" -name "*${version}.zip" -type f -printf "%T@ %p\n" | sort -n | tail -1 | cut -d' ' -f2-)
-  if [ "$file" != "$latest" ] && [ -n "$latest" ]; then
-    echo "Removing older duplicate of version $version: $file"
-    rm -f "$file"
+# Remove duplicate versions in extensions directory, keeping only the latest
+cd "${EXTENSIONS_DIR}"
+for version in $(ls ${EXTENSION_NAME}_*.zip 2>/dev/null | sed 's/.*_\([0-9.]*\)\.zip/\1/' | sort -u); do
+  # Get all files for this version
+  files=(${EXTENSION_NAME}_${version}.zip)
+  # Keep only the newest file
+  if [ ${#files[@]} -gt 1 ]; then
+    newest=$(ls -t "${files[@]}" | head -1)
+    for file in "${files[@]}"; do
+      if [ "$file" != "$newest" ]; then
+        rm -f "$file"
+        echo "Removed duplicate version: $file"
+      fi
+    done
   fi
 done
+cd ..
 
 # Update manifest version with error checking
 if ! jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$MANIFEST_PATH" > temp.json; then

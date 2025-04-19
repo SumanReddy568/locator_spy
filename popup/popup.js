@@ -1,28 +1,28 @@
-document.addEventListener('DOMContentLoaded', function () {
-  const locatorModeBtn = document.getElementById('locatorModeBtn');
-  const locatorResults = document.getElementById('locatorResults');
-  const savedLocators = document.getElementById('savedLocators');
-  const themeToggleBtn = document.getElementById('themeToggleBtn');
-  const copyNotification = document.getElementById('copyNotification');
+document.addEventListener("DOMContentLoaded", function () {
+  const locatorModeBtn = document.getElementById("locatorModeBtn");
+  const locatorResults = document.getElementById("locatorResults");
+  const savedLocators = document.getElementById("savedLocators");
+  const themeToggleBtn = document.getElementById("themeToggleBtn");
+  const copyNotification = document.getElementById("copyNotification");
 
   let isLocatorModeActive = false;
 
   // Initialize theme from local storage
-  if (localStorage.getItem('theme') === 'dark') {
-    document.body.classList.add('dark-mode');
-    document.body.classList.remove('light-mode');
+  if (localStorage.getItem("theme") === "dark") {
+    document.body.classList.add("dark-mode");
+    document.body.classList.remove("light-mode");
   } else {
-    document.body.classList.add('light-mode');
-    document.body.classList.remove('dark-mode');
+    document.body.classList.add("light-mode");
+    document.body.classList.remove("dark-mode");
   }
 
   // Toggle locator mode with animation
-  locatorModeBtn.addEventListener('click', function () {
+  locatorModeBtn.addEventListener("click", function () {
     isLocatorModeActive = !isLocatorModeActive;
 
     if (isLocatorModeActive) {
-      locatorModeBtn.classList.add('active-mode');
-      locatorModeBtn.classList.remove('pulse-animation');
+      locatorModeBtn.classList.add("active-mode");
+      locatorModeBtn.classList.remove("pulse-animation");
       locatorModeBtn.innerHTML = `
         <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', function () {
         Locator Mode (Active)
       `;
     } else {
-      locatorModeBtn.classList.remove('active-mode');
+      locatorModeBtn.classList.remove("active-mode");
       locatorModeBtn.innerHTML = `
         <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
@@ -47,17 +47,20 @@ document.addEventListener('DOMContentLoaded', function () {
       chrome.scripting.executeScript(
         {
           target: { tabId: tabId },
-          files: ['content.js']
+          files: ["content.js"],
         },
         () => {
           if (chrome.runtime.lastError) {
-            console.error('Failed to inject content script:', chrome.runtime.lastError.message);
+            console.error(
+              "Failed to inject content script:",
+              chrome.runtime.lastError.message
+            );
           } else {
-            console.log('Content script injected successfully');
+            console.log("Content script injected successfully");
             // Send a message to activate locator mode
             chrome.tabs.sendMessage(tabId, {
-              action: 'activateLocatorMode',
-              isActive: true
+              action: "activateLocatorMode",
+              isActive: true,
             });
           }
         }
@@ -65,49 +68,69 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-      chrome.tabs.sendMessage(tabs[0].id, { action: 'activateLocatorMode' }, function (response) {
-        if (chrome.runtime.lastError) {
-          console.error('Error activating locator mode:', chrome.runtime.lastError.message);
-        } else {
-          console.log('Locator mode activated');
+      chrome.tabs.sendMessage(
+        tabs[0].id,
+        { action: "activateLocatorMode" },
+        function (response) {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "Error activating locator mode:",
+              chrome.runtime.lastError.message
+            );
+          } else {
+            console.log("Locator mode activated");
+          }
         }
-      });
+      );
 
       chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-        chrome.tabs.sendMessage(tabs[0].id, { action: 'ping' }, function (response) {
-          if (chrome.runtime.lastError) {
-            console.error('Content script not available:', chrome.runtime.lastError.message);
-            alert('Please open the DevTools panel or reload the page to activate the extension.');
-          } else {
-            console.log('Content script is available');
+        chrome.tabs.sendMessage(
+          tabs[0].id,
+          { action: "ping" },
+          function (response) {
+            if (chrome.runtime.lastError) {
+              console.error(
+                "Content script not available:",
+                chrome.runtime.lastError.message
+              );
+              alert(
+                "Please open the DevTools panel or reload the page to activate the extension."
+              );
+            } else {
+              console.log("Content script is available");
+            }
           }
-        });
+        );
       });
     });
   });
 
   // Toggle theme
-  themeToggleBtn.addEventListener('click', function () {
-    if (document.body.classList.contains('light-mode')) {
-      document.body.classList.remove('light-mode');
-      document.body.classList.add('dark-mode');
-      localStorage.setItem('theme', 'dark');
+  themeToggleBtn.addEventListener("click", function () {
+    if (document.body.classList.contains("light-mode")) {
+      document.body.classList.remove("light-mode");
+      document.body.classList.add("dark-mode");
+      localStorage.setItem("theme", "dark");
     } else {
-      document.body.classList.remove('dark-mode');
-      document.body.classList.add('light-mode');
-      localStorage.setItem('theme', 'light');
+      document.body.classList.remove("dark-mode");
+      document.body.classList.add("light-mode");
+      localStorage.setItem("theme", "light");
     }
   });
 
   // Listen for messages from content script
-  chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-    if (request.action === 'getLocators') {
+  chrome.runtime.onMessage.addListener(function (
+    request,
+    sender,
+    sendResponse
+  ) {
+    if (request.action === "getLocators") {
       displayLocators(request.locators);
     }
 
-    if (request.action === 'locatorModeDeactivated') {
+    if (request.action === "locatorModeDeactivated") {
       isLocatorModeActive = false;
-      locatorModeBtn.classList.remove('active-mode');
+      locatorModeBtn.classList.remove("active-mode");
       locatorModeBtn.innerHTML = `
         <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
@@ -120,45 +143,55 @@ document.addEventListener('DOMContentLoaded', function () {
   // Display locators in the popup
   function displayLocators(locators) {
     if (!locators || Object.keys(locators).length === 0) {
-      locatorResults.innerHTML = '<p class="placeholder">No locators found for this element</p>';
+      locatorResults.innerHTML =
+        '<p class="placeholder">No locators found for this element</p>';
       return;
     }
 
-    let html = '';
-
-    // Create table structure
+    let html = "";
     html += '<div class="locators-table">';
 
-    // Display CSS Selector
+    // Display high priority locators first
+    if (locators.id) {
+      html += createLocatorItem("ID", locators.id);
+    }
+
+    if (locators.dataTestId) {
+      html += createLocatorItem("Data Test ID", locators.dataTestId);
+    }
+
     if (locators.cssSelector) {
-      html += createLocatorItem('CSS Selector', locators.cssSelector);
+      html += createLocatorItem("CSS Selector", locators.cssSelector);
     }
 
-    // Display XPath
-    if (locators.xpath) {
-      html += createLocatorItem('XPath', locators.xpath);
+    // Display all XPath related locators
+    if (locators.relativeXPath) {
+      html += createLocatorItem("Relative XPath", locators.relativeXPath);
     }
 
-    // Display other locators
-    const otherTypes = [
-      { key: 'id', label: 'ID' },
-      { key: 'className', label: 'Class Name' },
-      { key: 'name', label: 'Name' },
-      { key: 'tagName', label: 'Tag Name' },
-      { key: 'linkText', label: 'Link Text' },
-      { key: 'partialLinkText', label: 'Partial Link Text' }
-    ];
+    if (locators.absoluteXPath) {
+      html += createLocatorItem("Absolute XPath", locators.absoluteXPath);
+    }
 
-    otherTypes.forEach(type => {
-      if (locators[type.key]) {
-        html += createLocatorItem(type.label, locators[type.key]);
-      }
-    });
+    if (locators.xpathByName) {
+      html += createLocatorItem("XPath by Name", locators.xpathByName);
+    }
 
-    // Display All XPaths
+    if (locators.xpathByText) {
+      html += createLocatorItem("XPath by Text", locators.xpathByText);
+    }
+
+    if (locators.partialTextXPath) {
+      html += createLocatorItem(
+        "XPath by Partial Text",
+        locators.partialTextXPath
+      );
+    }
+
+    // Display All XPaths section
     if (locators.allXPaths && locators.allXPaths.length > 0) {
       html += `<div class="locator-item"><span class="locator-type">All XPaths:</span></div>`;
-      locators.allXPaths.forEach(xpath => {
+      locators.allXPaths.forEach((xpath) => {
         html += `
           <div class="locator-item">
             <span class="locator-value">${xpath}</span>
@@ -174,14 +207,30 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    html += '</div>';
+    // Display low priority locators at the bottom
+    if (locators.className) {
+      html += createLocatorItem("Class Name", locators.className);
+    }
 
+    if (locators.tagName) {
+      html += createLocatorItem("Tag Name", locators.tagName);
+    }
+
+    if (locators.linkText) {
+      html += createLocatorItem("Link Text", locators.linkText);
+    }
+
+    if (locators.partialLinkText) {
+      html += createLocatorItem("Partial Link Text", locators.partialLinkText);
+    }
+
+    html += "</div>";
     locatorResults.innerHTML = html;
 
     // Add event listeners to copy buttons
-    document.querySelectorAll('.copy-btn').forEach(btn => {
-      btn.addEventListener('click', function () {
-        const value = this.getAttribute('data-value');
+    document.querySelectorAll(".copy-btn").forEach((btn) => {
+      btn.addEventListener("click", function () {
+        const value = this.getAttribute("data-value");
         copyToClipboard(value, this);
       });
     });
@@ -193,30 +242,115 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="locator-item">
         <span class="locator-type">${type}:</span>
         <span class="locator-value">${value}</span>
-        <button class="copy-btn" data-value="${escapeHtml(value)}">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1-2-2h9a2 2 0 0 1-2 2v1"></path>
-          </svg>
-          Copy
-        </button>
+        <div class="locator-actions">
+          <button class="validate-btn" data-type="${type}" data-value="${escapeHtml(value)}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+            Validate
+          </button>
+          <button class="copy-btn" data-value="${escapeHtml(value)}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1-2-2h9a2 2 0 0 1-2 2v1"></path>
+            </svg>
+            Copy
+          </button>
+        </div>
       </div>
     `;
   }
 
+  // Add event listener for validate buttons
+  document.addEventListener("click", function (e) {
+    if (e.target.closest(".validate-btn")) {
+      const btn = e.target.closest(".validate-btn");
+      const type = btn.dataset.type;
+      const value = btn.dataset.value;
+
+      // Show validating state
+      btn.classList.add("validating");
+      btn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 6v6l4 2"/>
+        </svg>
+        Validating...
+      `;
+
+      chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: "validateLocator",
+          locatorType: type,
+          locatorValue: value,
+        });
+      });
+    }
+  });
+
+  // Add listener for validation results
+  chrome.runtime.onMessage.addListener(function (message) {
+    if (message.action === "validationResult") {
+      const btns = document.querySelectorAll(".validate-btn");
+      btns.forEach((btn) => {
+        if (
+          btn.dataset.type === message.locatorType &&
+          btn.dataset.value === message.locatorValue
+        ) {
+          btn.classList.remove("validating");
+
+          if (message.success) {
+            btn.classList.remove("validation-failed");
+            btn.classList.add("validation-success");
+            btn.innerHTML = `
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              Valid
+            `;
+          } else {
+            btn.classList.remove("validation-success");
+            btn.classList.add("validation-failed");
+            btn.innerHTML = `
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+              Failed
+            `;
+          }
+
+          // Reset after 3 seconds
+          setTimeout(() => {
+            if (!btn.classList.contains("validating")) {
+              btn.classList.remove("validation-success", "validation-failed");
+              btn.innerHTML = `
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 6L9 17l-5-5"/>
+                </svg>
+                Validate
+              `;
+            }
+          }, 3000);
+        }
+      });
+    }
+  });
+
   // Helper function to copy to clipboard
   function copyToClipboard(text, buttonElement) {
     // Create a temporary textarea element
-    const textarea = document.createElement('textarea');
+    const textarea = document.createElement("textarea");
     textarea.value = text;
-    textarea.setAttribute('readonly', '');
-    textarea.style.position = 'absolute';
-    textarea.style.left = '-9999px';
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "absolute";
+    textarea.style.left = "-9999px";
     document.body.appendChild(textarea);
 
     // Select the text and copy
     textarea.select();
-    document.execCommand('copy');
+    document.execCommand("copy");
 
     // Remove the textarea
     document.body.removeChild(textarea);
@@ -231,12 +365,12 @@ document.addEventListener('DOMContentLoaded', function () {
     `;
 
     // Show global notification
-    copyNotification.classList.add('show');
+    copyNotification.classList.add("show");
 
     // Reset after 2 seconds
     setTimeout(() => {
       buttonElement.innerHTML = originalHTML;
-      copyNotification.classList.remove('show');
+      copyNotification.classList.remove("show");
     }, 2000);
   }
 
@@ -252,16 +386,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Load saved locators
   function loadSavedLocators() {
-    chrome.storage.local.get(['savedLocators'], function (result) {
+    chrome.storage.local.get(["savedLocators"], function (result) {
       if (result.savedLocators && result.savedLocators.length > 0) {
-        let html = '';
+        let html = "";
         result.savedLocators.forEach((item, index) => {
           html += `
             <div class="locator-item">
-              <div><strong>${new Date(item.timestamp).toLocaleString()}</strong></div>
+              <div><strong>${new Date(
+                item.timestamp
+              ).toLocaleString()}</strong></div>
               <div>${item.url}</div>
-              <div class="locator-value">${item.locators.cssSelector || item.locators.xpath}</div>
-              <button class="copy-btn" data-value="${escapeHtml(item.locators.cssSelector || item.locators.xpath)}">
+              <div class="locator-value">${
+                item.locators.cssSelector || item.locators.xpath
+              }</div>
+              <button class="copy-btn" data-value="${escapeHtml(
+                item.locators.cssSelector || item.locators.xpath
+              )}">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1-2-2h9a2 2 0 0 1-2 2v1"></path>
@@ -274,43 +414,47 @@ document.addEventListener('DOMContentLoaded', function () {
         savedLocators.innerHTML = html;
 
         // Add event listeners to copy buttons
-        document.querySelectorAll('#savedLocators .copy-btn').forEach(btn => {
-          btn.addEventListener('click', function () {
-            const value = this.getAttribute('data-value');
+        document.querySelectorAll("#savedLocators .copy-btn").forEach((btn) => {
+          btn.addEventListener("click", function () {
+            const value = this.getAttribute("data-value");
             copyToClipboard(value, this);
           });
         });
       } else {
-        savedLocators.innerHTML = '<p class="placeholder">No saved locators yet</p>';
+        savedLocators.innerHTML =
+          '<p class="placeholder">No saved locators yet</p>';
       }
     });
   }
 
   // Initial load of saved locators
-  // loadSavedLocators(); 
+  // loadSavedLocators();
 });
 
 // Dropdown menu functionality
-document.addEventListener('DOMContentLoaded', () => {
-    const menuBtn = document.getElementById('menuBtn');
-    const dropdownMenu = document.getElementById('dropdownMenu');
+document.addEventListener("DOMContentLoaded", () => {
+  const menuBtn = document.getElementById("menuBtn");
+  const dropdownMenu = document.getElementById("dropdownMenu");
 
-    menuBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        dropdownMenu.classList.toggle('show');
-        menuBtn.setAttribute('aria-expanded', dropdownMenu.classList.contains('show'));
-    });
+  menuBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    dropdownMenu.classList.toggle("show");
+    menuBtn.setAttribute(
+      "aria-expanded",
+      dropdownMenu.classList.contains("show")
+    );
+  });
 
-    // Close dropdown when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!menuBtn.contains(e.target)) {
-            dropdownMenu.classList.remove('show');
-            menuBtn.setAttribute('aria-expanded', 'false');
-        }
-    });
+  // Close dropdown when clicking outside
+  document.addEventListener("click", (e) => {
+    if (!menuBtn.contains(e.target)) {
+      dropdownMenu.classList.remove("show");
+      menuBtn.setAttribute("aria-expanded", "false");
+    }
+  });
 
-    // Prevent dropdown from closing when clicking inside
-    dropdownMenu.addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
+  // Prevent dropdown from closing when clicking inside
+  dropdownMenu.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
 });

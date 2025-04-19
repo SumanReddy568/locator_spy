@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+*.zip
+extensions/
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# History files
+.history/
+.history
+*.history
+*/.history/*
+
+# Other
+.DS_Store

@@ -7,8 +7,10 @@ if (window.seleniumLocatorHelperInjected) {
 
   function loadBestLocatorPreference(callback) {
     try {
-      chrome.storage.local.get('isBestLocatorEnabled', (result) => {
-        isBestLocatorEnabled = result.hasOwnProperty('isBestLocatorEnabled') ? result.isBestLocatorEnabled : true;
+      chrome.storage.local.get("isBestLocatorEnabled", (result) => {
+        isBestLocatorEnabled = result.hasOwnProperty("isBestLocatorEnabled")
+          ? result.isBestLocatorEnabled
+          : true;
         console.log("Loaded best locator preference:", isBestLocatorEnabled);
 
         // Force immediate banner cleanup if disabled
@@ -21,13 +23,13 @@ if (window.seleniumLocatorHelperInjected) {
           }
         }
 
-        if (callback && typeof callback === 'function') {
+        if (callback && typeof callback === "function") {
           callback();
         }
       });
     } catch (error) {
       console.error("Error loading locator preference:", error);
-      if (callback && typeof callback === 'function') {
+      if (callback && typeof callback === "function") {
         callback();
       }
     }
@@ -37,217 +39,232 @@ if (window.seleniumLocatorHelperInjected) {
   (function () {
     // Utility Classes
     class DOMDiffer {
-        constructor() {
-            this.previousDOM = null;
-            this.mutations = [];
-            this.observer = null;
+      constructor() {
+        this.previousDOM = null;
+        this.mutations = [];
+        this.observer = null;
+        this.isTracking = false;
+      }
+
+      startTracking() {
+        if (this.isTracking) return;
+
+        this.previousDOM = document.documentElement.cloneNode(true);
+        this.mutations = [];
+
+        this.observer = new MutationObserver((mutations) => {
+          this.mutations = this.mutations.concat(
+            Array.from(mutations).map((m) => ({
+              type: m.type,
+              target: m.target.nodeName,
+              addedNodes: m.addedNodes.length,
+              removedNodes: m.removedNodes.length,
+              timestamp: Date.now(),
+            }))
+          );
+        });
+
+        this.observer.observe(document.documentElement, {
+          childList: true,
+          attributes: true,
+          characterData: true,
+          subtree: true,
+        });
+
+        this.isTracking = true;
+      }
+
+      stopTracking() {
+        if (!this.isTracking)
+          return { added: [], removed: [], modified: [], mutations: [] };
+
+        this.isTracking = false;
+        if (this.observer) {
+          this.observer.disconnect();
         }
 
-        startTracking() {
-            this.previousDOM = document.documentElement.cloneNode(true);
-            this.observer = new MutationObserver(mutations => {
-                this.mutations = this.mutations.concat(mutations);
+        const changes = this.getDOMChanges();
+        this.mutations = [];
+        this.previousDOM = null;
+        return changes;
+      }
+
+      getDOMChanges() {
+        const changes = {
+          added: [],
+          removed: [],
+          modified: [],
+          mutations: this.mutations,
+        };
+
+        if (!this.previousDOM) return changes;
+
+        const currentDOM = document.documentElement;
+        this._compareNodes(this.previousDOM, currentDOM, changes);
+
+        return changes;
+      }
+
+      _compareNodes(oldNode, newNode, changes) {
+        if (!oldNode || !newNode) return;
+
+        if (oldNode.nodeType === Node.ELEMENT_NODE) {
+          const oldAttrs = Array.from(oldNode.attributes || []);
+          const newAttrs = Array.from(newNode.attributes || []);
+
+          if (oldAttrs.length !== newAttrs.length) {
+            changes.modified.push({
+              element: newNode,
+              type: "attributes",
             });
-            
-            this.observer.observe(document.documentElement, {
-                childList: true,
-                attributes: true,
-                characterData: true,
-                subtree: true
-            });
-        }
-
-        stopTracking() {
-            if (this.observer) {
-                this.observer.disconnect();
+          } else {
+            for (let i = 0; i < oldAttrs.length; i++) {
+              if (oldAttrs[i].value !== newAttrs[i].value) {
+                changes.modified.push({
+                  element: newNode,
+                  type: "attributes",
+                });
+                break;
+              }
             }
-            return this.getDOMChanges();
+          }
         }
 
-        getDOMChanges() {
-            const changes = {
-                added: [],
-                removed: [],
-                modified: [],
-                mutations: this.mutations
-            };
+        const oldChildren = Array.from(oldNode.childNodes);
+        const newChildren = Array.from(newNode.childNodes);
 
-            if (!this.previousDOM) return changes;
+        const maxLength = Math.max(oldChildren.length, newChildren.length);
+        for (let i = 0; i < maxLength; i++) {
+          const oldChild = oldChildren[i];
+          const newChild = newChildren[i];
 
-            const currentDOM = document.documentElement;
-            this._compareNodes(this.previousDOM, currentDOM, changes);
-
-            return changes;
+          if (!oldChild && newChild) {
+            changes.added.push(newChild);
+          } else if (oldChild && !newChild) {
+            changes.removed.push(oldChild);
+          } else if (
+            oldChild.nodeType === Node.ELEMENT_NODE &&
+            newChild.nodeType === Node.ELEMENT_NODE
+          ) {
+            this._compareNodes(oldChild, newChild, changes);
+          }
         }
-
-        _compareNodes(oldNode, newNode, changes) {
-            if (!oldNode || !newNode) return;
-
-            if (oldNode.nodeType === Node.ELEMENT_NODE) {
-                const oldAttrs = Array.from(oldNode.attributes || []);
-                const newAttrs = Array.from(newNode.attributes || []);
-                
-                if (oldAttrs.length !== newAttrs.length) {
-                    changes.modified.push({
-                        element: newNode,
-                        type: 'attributes'
-                    });
-                } else {
-                    for (let i = 0; i < oldAttrs.length; i++) {
-                        if (oldAttrs[i].value !== newAttrs[i].value) {
-                            changes.modified.push({
-                                element: newNode,
-                                type: 'attributes'
-                            });
-                            break;
-                        }
-                    }
-                }
-            }
-
-            const oldChildren = Array.from(oldNode.childNodes);
-            const newChildren = Array.from(newNode.childNodes);
-
-            const maxLength = Math.max(oldChildren.length, newChildren.length);
-            for (let i = 0; i < maxLength; i++) {
-                const oldChild = oldChildren[i];
-                const newChild = newChildren[i];
-
-                if (!oldChild && newChild) {
-                    changes.added.push(newChild);
-                } else if (oldChild && !newChild) {
-                    changes.removed.push(oldChild);
-                } else if (oldChild.nodeType === Node.ELEMENT_NODE && newChild.nodeType === Node.ELEMENT_NODE) {
-                    this._compareNodes(oldChild, newChild, changes);
-                }
-            }
-        }
+      }
     }
 
     class PerformanceTracker {
-        constructor() {
-            this.metrics = new Map();
-            this.marks = new Set();
-        }
+      constructor() {
+        this.metrics = new Map();
+        this.marks = new Set();
+      }
 
-        startMeasure(locatorType, locatorValue) {
-            const key = `${locatorType}:${locatorValue}`;
-            const markName = `start_${key}`;
-            
-            performance.mark(markName);
-            this.marks.add(markName);
-            
-            this.metrics.set(key, {
-                start: performance.now(),
-                type: locatorType,
-                value: locatorValue
-            });
-        }
+      startMeasure(locatorType, locatorValue) {
+        const key = `${locatorType}:${locatorValue}`;
+        const markName = `start_${key}`;
 
-        endMeasure(locatorType, locatorValue) {
-            const key = `${locatorType}:${locatorValue}`;
-            const metric = this.metrics.get(key);
-            const markName = `start_${key}`;
-            
-            if (metric && this.marks.has(markName)) {
-                const measureName = `measure_${key}`;
-                performance.measure(measureName, markName);
-                
-                const measure = performance.getEntriesByName(measureName).pop();
-                metric.duration = measure.duration;
-                
-                // Cleanup
-                performance.clearMarks(markName);
-                performance.clearMeasures(measureName);
-                this.marks.delete(markName);
-                
-                return metric;
-            }
-            return null;
-        }
+        performance.mark(markName);
+        this.marks.add(markName);
 
-        getMetrics() {
-            return Array.from(this.metrics.values()).filter(metric => metric.duration !== undefined);
-        }
+        this.metrics.set(key, {
+          start: performance.now(),
+          type: locatorType,
+          value: locatorValue,
+        });
+      }
 
-        clearMetrics() {
-            this.metrics.clear();
-            this.marks.forEach(mark => {
-                performance.clearMarks(mark);
-            });
-            this.marks.clear();
+      endMeasure(locatorType, locatorValue) {
+        const key = `${locatorType}:${locatorValue}`;
+        const metric = this.metrics.get(key);
+        const markName = `start_${key}`;
+
+        if (metric && this.marks.has(markName)) {
+          const measureName = `measure_${key}`;
+          performance.measure(measureName, markName);
+
+          const measure = performance.getEntriesByName(measureName).pop();
+          metric.duration = measure.duration;
+
+          // Cleanup
+          performance.clearMarks(markName);
+          performance.clearMeasures(measureName);
+          this.marks.delete(markName);
+
+          return metric;
         }
+        return null;
+      }
+
+      getMetrics() {
+        return Array.from(this.metrics.values()).filter(
+          (metric) => metric.duration !== undefined
+        );
+      }
+
+      clearMetrics() {
+        this.metrics.clear();
+        this.marks.forEach((mark) => {
+          performance.clearMarks(mark);
+        });
+        this.marks.clear();
+      }
     }
 
     class NetworkRequestMapper {
-        constructor() {
-            this.requests = new Map();
-            this.observer = null;
-            this.startTime = null;
-        }
+      constructor() {
+        this.requests = new Map();
+        this.observer = null;
+        this.startTime = null;
+        this.isTracking = false;
+      }
 
-        startTracking() {
-            this.startTime = performance.now();
-            this.requests.clear();
+      startTracking() {
+        if (this.isTracking) return;
 
-            this.observer = new PerformanceObserver((list) => {
-                list.getEntries().forEach((entry) => {
-                    if (entry.entryType === 'resource') {
-                        this.requests.set(entry.name, {
-                            url: entry.name,
-                            startTime: entry.startTime,
-                            duration: entry.duration,
-                            initiatorType: entry.initiatorType,
-                            size: entry.transferSize || 0,
-                            protocol: entry.nextHopProtocol || '',
-                            timing: {
-                                dns: entry.domainLookupEnd - entry.domainLookupStart,
-                                tcp: entry.connectEnd - entry.connectStart,
-                                ssl: entry.secureConnectionStart > 0 ? entry.connectEnd - entry.secureConnectionStart : 0,
-                                ttfb: entry.responseStart - entry.requestStart,
-                                download: entry.responseEnd - entry.responseStart
-                            }
-                        });
-                    }
+        this.startTime = performance.now();
+        this.requests.clear();
+
+        try {
+          this.observer = new PerformanceObserver((list) => {
+            const entries = list.getEntries();
+            entries.forEach((entry) => {
+              if (entry.entryType === "resource") {
+                this.requests.set(entry.name, {
+                  url: entry.name,
+                  startTime: entry.startTime,
+                  duration: entry.duration,
+                  type: entry.initiatorType,
+                  size: entry.transferSize || 0,
                 });
+              }
             });
+          });
 
-            this.observer.observe({ entryTypes: ['resource'] });
+          this.observer.observe({ entryTypes: ["resource"] });
+          this.isTracking = true;
+        } catch (error) {
+          console.warn("PerformanceObserver not supported:", error);
+        }
+      }
+
+      stopTracking() {
+        if (!this.isTracking) return [];
+
+        this.isTracking = false;
+        if (this.observer) {
+          this.observer.disconnect();
         }
 
-        stopTracking() {
-            if (this.observer) {
-                this.observer.disconnect();
-                this.observer = null;
-            }
-            return Array.from(this.requests.values());
-        }
+        const requests = Array.from(this.requests.values())
+          .filter((req) => req.startTime >= this.startTime)
+          .map((req) => ({
+            ...req,
+            duration: Math.round(req.duration),
+            size: Math.round(req.size / 1024), // Convert to KB
+          }));
 
-        mapRequestsToElement(element) {
-            const timestamp = performance.now();
-            const timeWindow = 5000; // Look back 5 seconds
-            const relevantRequests = Array.from(this.requests.values()).filter(request => {
-                const requestTime = this.startTime + request.startTime;
-                return requestTime <= timestamp && requestTime >= (timestamp - timeWindow);
-            });
-
-            // Sort by timestamp
-            return relevantRequests.sort((a, b) => b.startTime - a.startTime);
-        }
-
-        getRequestMetrics() {
-            const requests = Array.from(this.requests.values());
-            return {
-                totalRequests: requests.length,
-                totalSize: requests.reduce((sum, req) => sum + req.size, 0),
-                averageDuration: requests.reduce((sum, req) => sum + req.duration, 0) / requests.length || 0,
-                slowestRequest: requests.reduce((slowest, req) => req.duration > slowest.duration ? req : slowest, { duration: 0 }),
-                byProtocol: requests.reduce((acc, req) => {
-                    acc[req.protocol] = (acc[req.protocol] || 0) + 1;
-                    return acc;
-                }, {})
-            };
-        }
+        this.requests.clear();
+        return requests;
+      }
     }
 
     let isLocatorModeActive = false;
@@ -294,108 +311,108 @@ if (window.seleniumLocatorHelperInjected) {
     function createBestLocatorBanner() {
       if (bestLocatorBanner) return bestLocatorBanner;
 
-      const banner = document.createElement('div');
-      banner.id = 'best-locator-banner';
-      banner.style.position = 'fixed';
-      banner.style.bottom = '20px';
-      banner.style.left = '50%';
-      banner.style.transform = 'translateX(-50%)';
-      banner.style.backgroundColor = '#4285F4';
-      banner.style.color = 'white';
-      banner.style.padding = '12px 20px';
-      banner.style.borderRadius = '8px';
-      banner.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
-      banner.style.zIndex = '999999';
-      banner.style.display = 'flex';
-      banner.style.flexDirection = 'column'; // Changed to column layout
-      banner.style.gap = '8px';
-      banner.style.maxWidth = '90%';
-      banner.style.minWidth = '300px';
-      banner.style.fontFamily = 'Arial, sans-serif';
-      banner.style.fontSize = '14px';
-      banner.style.transition = 'all 0.3s ease';
+      const banner = document.createElement("div");
+      banner.id = "best-locator-banner";
+      banner.style.position = "fixed";
+      banner.style.bottom = "20px";
+      banner.style.left = "50%";
+      banner.style.transform = "translateX(-50%)";
+      banner.style.backgroundColor = "#4285F4";
+      banner.style.color = "white";
+      banner.style.padding = "12px 20px";
+      banner.style.borderRadius = "8px";
+      banner.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.2)";
+      banner.style.zIndex = "999999";
+      banner.style.display = "flex";
+      banner.style.flexDirection = "column"; // Changed to column layout
+      banner.style.gap = "8px";
+      banner.style.maxWidth = "90%";
+      banner.style.minWidth = "300px";
+      banner.style.fontFamily = "Arial, sans-serif";
+      banner.style.fontSize = "14px";
+      banner.style.transition = "all 0.3s ease";
 
       // Header section with title and close button
-      const header = document.createElement('div');
-      header.style.display = 'flex';
-      header.style.justifyContent = 'space-between';
-      header.style.alignItems = 'center';
-      header.style.width = '100%';
+      const header = document.createElement("div");
+      header.style.display = "flex";
+      header.style.justifyContent = "space-between";
+      header.style.alignItems = "center";
+      header.style.width = "100%";
 
-      const title = document.createElement('div');
-      title.textContent = 'Best Element Locator';
-      title.style.fontWeight = 'bold';
+      const title = document.createElement("div");
+      title.textContent = "Best Element Locator";
+      title.style.fontWeight = "bold";
 
-      const closeBtn = document.createElement('button');
-      closeBtn.innerHTML = '&times;';
-      closeBtn.style.background = 'none';
-      closeBtn.style.border = 'none';
-      closeBtn.style.color = 'white';
-      closeBtn.style.fontSize = '18px';
-      closeBtn.style.cursor = 'pointer';
-      closeBtn.style.padding = '0';
-      closeBtn.addEventListener('click', () => {
-        banner.style.display = 'none';
+      const closeBtn = document.createElement("button");
+      closeBtn.innerHTML = "&times;";
+      closeBtn.style.background = "none";
+      closeBtn.style.border = "none";
+      closeBtn.style.color = "white";
+      closeBtn.style.fontSize = "18px";
+      closeBtn.style.cursor = "pointer";
+      closeBtn.style.padding = "0";
+      closeBtn.addEventListener("click", () => {
+        banner.style.display = "none";
       });
 
       header.appendChild(title);
       header.appendChild(closeBtn);
 
       // Content section for locator value
-      const content = document.createElement('div');
-      content.style.padding = '6px 8px';
-      content.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-      content.style.borderRadius = '4px';
-      content.style.fontFamily = 'monospace';
-      content.style.fontSize = '13px';
-      content.style.width = '100%';
-      content.style.wordBreak = 'break-all';
-      content.style.boxSizing = 'border-box';
+      const content = document.createElement("div");
+      content.style.padding = "6px 8px";
+      content.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+      content.style.borderRadius = "4px";
+      content.style.fontFamily = "monospace";
+      content.style.fontSize = "13px";
+      content.style.width = "100%";
+      content.style.wordBreak = "break-all";
+      content.style.boxSizing = "border-box";
 
       // Button row
-      const buttonRow = document.createElement('div');
-      buttonRow.style.display = 'flex';
-      buttonRow.style.gap = '8px';
-      buttonRow.style.marginTop = '4px';
+      const buttonRow = document.createElement("div");
+      buttonRow.style.display = "flex";
+      buttonRow.style.gap = "8px";
+      buttonRow.style.marginTop = "4px";
 
-      const copyBtn = document.createElement('button');
-      copyBtn.textContent = 'Copy';
-      copyBtn.style.background = 'rgba(255, 255, 255, 0.2)';
-      copyBtn.style.border = 'none';
-      copyBtn.style.color = 'white';
-      copyBtn.style.padding = '4px 12px';
-      copyBtn.style.borderRadius = '4px';
-      copyBtn.style.cursor = 'pointer';
-      copyBtn.style.fontSize = '12px';
-      copyBtn.addEventListener('click', (e) => {
+      const copyBtn = document.createElement("button");
+      copyBtn.textContent = "Copy";
+      copyBtn.style.background = "rgba(255, 255, 255, 0.2)";
+      copyBtn.style.border = "none";
+      copyBtn.style.color = "white";
+      copyBtn.style.padding = "4px 12px";
+      copyBtn.style.borderRadius = "4px";
+      copyBtn.style.cursor = "pointer";
+      copyBtn.style.fontSize = "12px";
+      copyBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const locatorText = content.textContent.split(': ').pop(); // Extract only the locator value
+        const locatorText = content.textContent.split(": ").pop(); // Extract only the locator value
         navigator.clipboard.writeText(locatorText).then(() => {
-          copyBtn.textContent = 'Copied!';
+          copyBtn.textContent = "Copied!";
           setTimeout(() => {
-            copyBtn.textContent = 'Copy';
+            copyBtn.textContent = "Copy";
           }, 2000);
         });
       });
 
-      const accuracyMeter = document.createElement('div');
-      accuracyMeter.style.marginLeft = 'auto';
-      accuracyMeter.style.fontSize = '12px';
-      accuracyMeter.textContent = 'Accuracy: ⭐⭐⭐⭐⭐'; // Default value
+      const accuracyMeter = document.createElement("div");
+      accuracyMeter.style.marginLeft = "auto";
+      accuracyMeter.style.fontSize = "12px";
+      accuracyMeter.textContent = "Accuracy: ⭐⭐⭐⭐⭐"; // Default value
 
       buttonRow.appendChild(copyBtn);
       buttonRow.appendChild(accuracyMeter);
 
       // Info section (optional, can be shown/hidden)
-      const infoSection = document.createElement('div');
-      infoSection.style.fontSize = '11px';
-      infoSection.style.color = 'rgba(255, 255, 255, 0.8)';
-      infoSection.style.marginTop = '4px';
-      infoSection.style.display = 'none'; // Hidden by default
+      const infoSection = document.createElement("div");
+      infoSection.style.fontSize = "11px";
+      infoSection.style.color = "rgba(255, 255, 255, 0.8)";
+      infoSection.style.marginTop = "4px";
+      infoSection.style.display = "none"; // Hidden by default
 
       // Prevent banner interactions from propagating
-      banner.addEventListener('mouseover', (e) => e.stopPropagation());
-      banner.addEventListener('click', (e) => {
+      banner.addEventListener("mouseover", (e) => e.stopPropagation());
+      banner.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault(); // Prevent default click behavior
       });
@@ -418,53 +435,58 @@ if (window.seleniumLocatorHelperInjected) {
       }
 
       const banner = createBestLocatorBanner();
-      const content = banner.querySelector('div:nth-child(2)'); // Content is the second div
+      const content = banner.querySelector("div:nth-child(2)"); // Content is the second div
       content.textContent = `${locatorType}: ${locatorValue}`;
-      banner.style.display = 'flex';
+      banner.style.display = "flex";
 
       // Update accuracy meter based on score
-      const accuracyMeter = banner.querySelector('div:nth-child(3) div:nth-child(2)'); // Button row -> accuracy meter
+      const accuracyMeter = banner.querySelector(
+        "div:nth-child(3) div:nth-child(2)"
+      ); // Button row -> accuracy meter
       if (score) {
-        let stars = '';
+        let stars = "";
         if (score >= 90) {
-          stars = '⭐⭐⭐⭐⭐';
-          accuracyMeter.style.color = '#FFEB3B'; // Yellow for high accuracy
+          stars = "⭐⭐⭐⭐⭐";
+          accuracyMeter.style.color = "#FFEB3B"; // Yellow for high accuracy
         } else if (score >= 70) {
-          stars = '⭐⭐⭐⭐';
-          accuracyMeter.style.color = '#FFEB3B';
+          stars = "⭐⭐⭐⭐";
+          accuracyMeter.style.color = "#FFEB3B";
         } else if (score >= 50) {
-          stars = '⭐⭐⭐';
-          accuracyMeter.style.color = '#FFFFFF';
+          stars = "⭐⭐⭐";
+          accuracyMeter.style.color = "#FFFFFF";
         } else if (score >= 30) {
-          stars = '⭐⭐';
-          accuracyMeter.style.color = '#FFFFFF';
+          stars = "⭐⭐";
+          accuracyMeter.style.color = "#FFFFFF";
         } else {
-          stars = '⭐';
-          accuracyMeter.style.color = '#FFFFFF';
+          stars = "⭐";
+          accuracyMeter.style.color = "#FFFFFF";
         }
         accuracyMeter.textContent = `Accuracy: ${stars}`;
       }
 
       // Show additional info for certain types
-      const infoSection = banner.querySelector('div:nth-child(4)'); // Info section is the fourth div
-      if (locatorType === 'XPath') {
-        infoSection.textContent = 'XPath may be brittle if page structure changes';
-        infoSection.style.display = 'block';
-      } else if (locatorType === 'ID') {
-        infoSection.textContent = 'ID selectors are typically the most reliable';
-        infoSection.style.display = 'block';
-      } else if (locatorType === 'CSS Selector') {
-        infoSection.textContent = 'CSS selectors balance specificity and readability';
-        infoSection.style.display = 'block';
+      const infoSection = banner.querySelector("div:nth-child(4)"); // Info section is the fourth div
+      if (locatorType === "XPath") {
+        infoSection.textContent =
+          "XPath may be brittle if page structure changes";
+        infoSection.style.display = "block";
+      } else if (locatorType === "ID") {
+        infoSection.textContent =
+          "ID selectors are typically the most reliable";
+        infoSection.style.display = "block";
+      } else if (locatorType === "CSS Selector") {
+        infoSection.textContent =
+          "CSS selectors balance specificity and readability";
+        infoSection.style.display = "block";
       } else {
-        infoSection.style.display = 'none';
+        infoSection.style.display = "none";
       }
     }
 
     // Hide the best locator banner
     function hideBestLocatorBanner() {
       if (bestLocatorBanner) {
-        bestLocatorBanner.style.display = 'none';
+        bestLocatorBanner.style.display = "none";
       }
     }
 
@@ -477,11 +499,11 @@ if (window.seleniumLocatorHelperInjected) {
 
       // Test function to check if a locator uniquely identifies an element
       function testLocatorUniqueness(type, value) {
-        if (!value || value.trim() === '') return false;
+        if (!value || value.trim() === "") return false;
 
         try {
           let elements = [];
-          if (type.toLowerCase().includes('xpath')) {
+          if (type.toLowerCase().includes("xpath")) {
             const result = document.evaluate(
               value,
               document,
@@ -492,10 +514,13 @@ if (window.seleniumLocatorHelperInjected) {
             for (let i = 0; i < result.snapshotLength; i++) {
               elements.push(result.snapshotItem(i));
             }
-          } else if (type.toLowerCase().includes('css')) {
+          } else if (type.toLowerCase().includes("css")) {
             elements = Array.from(document.querySelectorAll(value));
           } else {
-            const selector = type === 'ID' ? `#${value}` : `[${type.toLowerCase()}="${value}"]`;
+            const selector =
+              type === "ID"
+                ? `#${value}`
+                : `[${type.toLowerCase()}="${value}"]`;
             elements = Array.from(document.querySelectorAll(selector));
           }
 
@@ -504,13 +529,16 @@ if (window.seleniumLocatorHelperInjected) {
             count: elements.length,
             complexity: value.length,
             value: value,
-            type: type
+            type: type,
           };
         } catch (e) {
           if (e instanceof DOMException) {
             console.warn(`Error testing locator ${type}: ${value}`, e.message);
           } else {
-            console.error(`Unexpected error testing locator ${type}: ${value}`, e);
+            console.error(
+              `Unexpected error testing locator ${type}: ${value}`,
+              e
+            );
           }
           return false;
         }
@@ -518,35 +546,38 @@ if (window.seleniumLocatorHelperInjected) {
 
       // Test each locator type
       if (locators.id) {
-        const test = testLocatorUniqueness('ID', locators.id);
+        const test = testLocatorUniqueness("ID", locators.id);
         if (test && test.isUnique) {
           testedLocators.push({ ...test, score: 100 }); // ID is highest priority if unique
         }
       }
 
       if (locators.dataTestId) {
-        const test = testLocatorUniqueness('data-testid', locators.dataTestId);
+        const test = testLocatorUniqueness("data-testid", locators.dataTestId);
         if (test && test.isUnique) {
           testedLocators.push({ ...test, score: 95 }); // data-testid is second highest
         }
       }
 
       if (locators.ariaLabel) {
-        const test = testLocatorUniqueness('aria-label', locators.ariaLabel);
+        const test = testLocatorUniqueness("aria-label", locators.ariaLabel);
         if (test && test.isUnique) {
           testedLocators.push({ ...test, score: 90 });
         }
       }
 
       if (locators.name) {
-        const test = testLocatorUniqueness('name', locators.name);
+        const test = testLocatorUniqueness("name", locators.name);
         if (test && test.isUnique) {
           testedLocators.push({ ...test, score: 85 });
         }
       }
 
       if (locators.cssSelector) {
-        const test = testLocatorUniqueness('CSS Selector', locators.cssSelector);
+        const test = testLocatorUniqueness(
+          "CSS Selector",
+          locators.cssSelector
+        );
         if (test && test.isUnique) {
           const score = test.complexity < 100 ? 80 : 0; // Penalize long CSS selectors
           testedLocators.push({ ...test, score });
@@ -554,38 +585,62 @@ if (window.seleniumLocatorHelperInjected) {
       }
 
       if (locators.xpathByName) {
-        const test = testLocatorUniqueness('XPath by Name', locators.xpathByName);
+        const test = testLocatorUniqueness(
+          "XPath by Name",
+          locators.xpathByName
+        );
         if (test) {
           const uniquenessScore = test.isUnique ? 75 : (1 / test.count) * 45;
-          const complexityScore = Math.max(0, 25 - (test.complexity / 10));
-          testedLocators.push({ ...test, score: uniquenessScore + complexityScore });
+          const complexityScore = Math.max(0, 25 - test.complexity / 10);
+          testedLocators.push({
+            ...test,
+            score: uniquenessScore + complexityScore,
+          });
         }
       }
 
-      if (locators.xpathByLinkText && locators.tagName === 'a') {
-        const test = testLocatorUniqueness('XPath by Link Text', locators.xpathByLinkText);
+      if (locators.xpathByLinkText && locators.tagName === "a") {
+        const test = testLocatorUniqueness(
+          "XPath by Link Text",
+          locators.xpathByLinkText
+        );
         if (test) {
           const uniquenessScore = test.isUnique ? 70 : (1 / test.count) * 40;
-          const complexityScore = Math.max(0, 20 - (test.complexity / 10));
-          testedLocators.push({ ...test, score: uniquenessScore + complexityScore });
+          const complexityScore = Math.max(0, 20 - test.complexity / 10);
+          testedLocators.push({
+            ...test,
+            score: uniquenessScore + complexityScore,
+          });
         }
       }
 
-      if (locators.xpathByPartialLinkText && locators.tagName === 'a') {
-        const test = testLocatorUniqueness('XPath by Partial Link Text', locators.xpathByPartialLinkText);
+      if (locators.xpathByPartialLinkText && locators.tagName === "a") {
+        const test = testLocatorUniqueness(
+          "XPath by Partial Link Text",
+          locators.xpathByPartialLinkText
+        );
         if (test) {
           const uniquenessScore = test.isUnique ? 65 : (1 / test.count) * 35;
-          const complexityScore = Math.max(0, 15 - (test.complexity / 10));
-          testedLocators.push({ ...test, score: uniquenessScore + complexityScore });
+          const complexityScore = Math.max(0, 15 - test.complexity / 10);
+          testedLocators.push({
+            ...test,
+            score: uniquenessScore + complexityScore,
+          });
         }
       }
 
       if (locators.relativeXPath) {
-        const test = testLocatorUniqueness('Relative XPath', locators.relativeXPath);
+        const test = testLocatorUniqueness(
+          "Relative XPath",
+          locators.relativeXPath
+        );
         if (test) {
           const uniquenessScore = test.isUnique ? 60 : (1 / test.count) * 30;
-          const complexityScore = Math.max(0, 20 - (test.complexity / 15));
-          testedLocators.push({ ...test, score: uniquenessScore + complexityScore });
+          const complexityScore = Math.max(0, 20 - test.complexity / 15);
+          testedLocators.push({
+            ...test,
+            score: uniquenessScore + complexityScore,
+          });
         }
       }
 
@@ -595,11 +650,14 @@ if (window.seleniumLocatorHelperInjected) {
         const xpathsToTest = locators.allXPaths.slice(0, 3);
         for (let i = 0; i < xpathsToTest.length; i++) {
           const xpath = xpathsToTest[i];
-          const test = testLocatorUniqueness('XPath', xpath);
+          const test = testLocatorUniqueness("XPath", xpath);
           if (test && test.isUnique) {
-            const baseScore = 55 - (i * 5); // Decreasing score for each subsequent XPath
-            const complexityScore = Math.max(0, 20 - (test.complexity / 15));
-            testedLocators.push({ ...test, score: baseScore + complexityScore });
+            const baseScore = 55 - i * 5; // Decreasing score for each subsequent XPath
+            const complexityScore = Math.max(0, 20 - test.complexity / 15);
+            testedLocators.push({
+              ...test,
+              score: baseScore + complexityScore,
+            });
           }
         }
       }
@@ -620,16 +678,20 @@ if (window.seleniumLocatorHelperInjected) {
           type: bestLocator.type,
           value: bestLocator.value,
           score: bestLocator.score,
-          stars
+          stars,
         };
       }
 
       // If the best locator is a long CSS selector, fallback to the second-best
-      if (testedLocators.length > 1 && testedLocators[0].type === 'CSS Selector' && testedLocators[0].complexity >= 100) {
+      if (
+        testedLocators.length > 1 &&
+        testedLocators[0].type === "CSS Selector" &&
+        testedLocators[0].complexity >= 100
+      ) {
         return {
           type: testedLocators[1].type,
           value: testedLocators[1].value,
-          score: testedLocators[1].score
+          score: testedLocators[1].score,
         };
       }
 
@@ -638,21 +700,21 @@ if (window.seleniumLocatorHelperInjected) {
         return {
           type: testedLocators[0].type,
           value: testedLocators[0].value,
-          score: testedLocators[0].score.toFixed(1) // Include the score for debugging
+          score: testedLocators[0].score.toFixed(1), // Include the score for debugging
         };
       }
 
       // Fallback to original priority-based selection if testing didn't work
       const priorityOrder = [
-        { key: 'id', type: 'ID' },
-        { key: 'dataTestId', type: 'Data Test ID' },
-        { key: 'ariaLabel', type: 'ARIA Label' },
-        { key: 'cssSelector', type: 'CSS Selector' },
-        { key: 'xpathByName', type: 'XPath by Name' },
-        { key: 'xpathByLinkText', type: 'XPath by Link Text' },
-        { key: 'xpathByPartialLinkText', type: 'XPath by Partial Link Text' },
-        { key: 'relativeXPath', type: 'Relative XPath' },
-        { key: 'absoluteXPath', type: 'Absolute XPath' }
+        { key: "id", type: "ID" },
+        { key: "dataTestId", type: "Data Test ID" },
+        { key: "ariaLabel", type: "ARIA Label" },
+        { key: "cssSelector", type: "CSS Selector" },
+        { key: "xpathByName", type: "XPath by Name" },
+        { key: "xpathByLinkText", type: "XPath by Link Text" },
+        { key: "xpathByPartialLinkText", type: "XPath by Partial Link Text" },
+        { key: "relativeXPath", type: "Relative XPath" },
+        { key: "absoluteXPath", type: "Absolute XPath" },
       ];
 
       // Find the first available locator in priority order
@@ -664,12 +726,12 @@ if (window.seleniumLocatorHelperInjected) {
 
       // If no prioritized locator found, try to find a good CSS selector
       if (locators.cssSelector) {
-        return { type: 'CSS Selector', value: locators.cssSelector };
+        return { type: "CSS Selector", value: locators.cssSelector };
       }
 
       // Fallback to first available XPath
       if (locators.allXPaths && locators.allXPaths.length > 0) {
-        return { type: 'XPath', value: locators.allXPaths[0] };
+        return { type: "XPath", value: locators.allXPaths[0] };
       }
 
       return null;
@@ -679,102 +741,190 @@ if (window.seleniumLocatorHelperInjected) {
     function generateLocators(element) {
       if (!element || !element.tagName) return {};
 
-      // Start performance tracking
-      performanceTracker.startMeasure('generation', 'all');
+      // Start tracking before generating locators
       domDiffer.startTracking();
       networkMapper.startTracking();
+      performanceTracker.startMeasure("generation", "all");
 
       // Generate CSS selector with improved specificity
       function getCssSelector(el) {
         if (!el || el === document.documentElement) return "";
 
-        // 1. Prefer ID selector if available (shortest and most specific)
+        // Unique ID - Most specific
         if (el.id) {
           return `#${CSS.escape(el.id)}`;
         }
 
-        // 2. Build optimized selector path
-        const path = [];
-        while (el && el.nodeType === Node.ELEMENT_NODE && el !== document.documentElement) {
-          let selector = el.nodeName.toLowerCase();
+        // Try data-testid first - Good for testing
+        const testId =
+          el.getAttribute("data-testid") || el.getAttribute("data-test-id");
+        if (testId) {
+          const selector = `[data-testid="${CSS.escape(testId)}"]`;
+          if (isUnique(selector)) return selector;
+        }
 
-          // 3. Use class if available (but limit to one meaningful class)
-          if (el.className && typeof el.className === "string") {
-            const classes = el.className.trim().split(/\s+/).filter(Boolean);
-            if (classes.length) {
-              // Pick the first class that looks meaningful (not just random characters)
-              const meaningfulClass = classes.find(c => /[a-zA-Z]/.test(c));
-              if (meaningfulClass) {
-                selector += `.${CSS.escape(meaningfulClass)}`;
+        // Try getting a unique selector based on attributes
+        const uniqueAttrSelector = getUniqueAttributeSelector(el);
+        if (uniqueAttrSelector) return uniqueAttrSelector;
+
+        // Try class combinations
+        const classSelector = getUniqueClassSelector(el);
+        if (classSelector) return classSelector;
+
+        // If we reach here, build path with nth-child
+        return buildPath(el);
+      }
+
+      function isUnique(selector) {
+        try {
+          return document.querySelectorAll(selector).length === 1;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function getUniqueAttributeSelector(el) {
+        const priorityAttrs = [
+          "name",
+          "aria-label",
+          "title",
+          "role",
+          "placeholder",
+          "data-*",
+          "id",
+          "class",
+          "type",
+          "value",
+          "href",
+          "src",
+          "alt",
+        ];
+
+        // Try data attributes first as they're most reliable
+        const dataAttrs = Array.from(el.attributes).filter((attr) =>
+          attr.name.startsWith("data-")
+        );
+
+        for (const attr of dataAttrs) {
+          const value = attr.value.trim();
+          if (value) {
+            const selector = `${el.tagName.toLowerCase()}[${
+              attr.name
+            }=${JSON.stringify(value)}]`;
+            if (isUnique(selector)) return selector;
+          }
+        }
+
+        // Then try other priority attributes
+        for (const attr of el.attributes) {
+          if (
+            priorityAttrs.some((pa) =>
+              pa === "*" ? attr.name.startsWith("data-") : attr.name === pa
+            )
+          ) {
+            const value = attr.value.trim();
+            if (value) {
+              // Handle different quote scenarios
+              const selector = `${el.tagName.toLowerCase()}[${
+                attr.name
+              }=${JSON.stringify(value)}]`;
+              if (isUnique(selector)) return selector;
+
+              // Try case-insensitive match
+              const selectorI = `${el.tagName.toLowerCase()}[${
+                attr.name
+              }=${JSON.stringify(value)} i]`;
+              if (isUnique(selectorI)) return selectorI;
+
+              // Try contains for longer values
+              if (value.length > 10) {
+                const partialValue = value.substring(0, 10);
+                const containsSelector = `${el.tagName.toLowerCase()}[${
+                  attr.name
+                }*=${JSON.stringify(partialValue)}]`;
+                if (isUnique(containsSelector)) return containsSelector;
               }
             }
           }
+        }
 
-          // 4. Add data-testid if available (great for testing)
-          const testId = el.getAttribute('data-testid') ||
-            el.getAttribute('data-test-id') ||
-            el.getAttribute('data-test');
-          if (testId) {
-            selector += `[data-testid="${CSS.escape(testId)}"]`;
-            path.unshift(selector);
-            break; // Stop here since data-testid should be unique
+        // Try combinations of attributes if single attribute fails
+        const validAttrs = Array.from(el.attributes)
+          .filter((attr) => attr.value && attr.value.trim())
+          .slice(0, 3); // Limit to 3 attributes to avoid overly complex selectors
+
+        for (let i = 0; i < validAttrs.length - 1; i++) {
+          for (let j = i + 1; j < validAttrs.length; j++) {
+            const selector = `${el.tagName.toLowerCase()}[${
+              validAttrs[i].name
+            }=${JSON.stringify(validAttrs[i].value.trim())}][${
+              validAttrs[j].name
+            }=${JSON.stringify(validAttrs[j].value.trim())}]`;
+            if (isUnique(selector)) return selector;
           }
+        }
 
-          // 5. Add name attribute for form elements
-          const name = el.getAttribute('name');
-          if (name && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA')) {
-            selector += `[name="${CSS.escape(name)}"]`;
-            path.unshift(selector);
-            break; // Name should be unique in forms
+        return null;
+      }
+
+      function getUniqueClassSelector(el) {
+        if (!el.className || typeof el.className !== "string") return null;
+
+        const classes = el.className.trim().split(/\s+/);
+        if (!classes.length) return null;
+
+        // Try single classes first
+        for (const className of classes) {
+          const selector = `${el.tagName.toLowerCase()}.${CSS.escape(
+            className
+          )}`;
+          if (isUnique(selector)) return selector;
+        }
+
+        // Try combinations of classes
+        for (let i = 0; i < classes.length - 1; i++) {
+          for (let j = i + 1; j < classes.length; j++) {
+            const selector = `${el.tagName.toLowerCase()}.${CSS.escape(
+              classes[i]
+            )}.${CSS.escape(classes[j])}`;
+            if (isUnique(selector)) return selector;
           }
+        }
 
-          // 6. For other elements, use minimal attributes
-          const attrToCheck = ['aria-label', 'role', 'title', 'alt', 'href', 'src'];
-          for (const attr of attrToCheck) {
-            const value = el.getAttribute(attr);
-            if (value) {
-              selector += `[${attr}="${CSS.escape(value)}"]`;
-              break;
-            }
-          }
+        return null;
+      }
 
-          // 7. Only use position if absolutely necessary
-          if (el.parentNode) {
-            const siblings = Array.from(el.parentNode.children);
-            const sameTagSiblings = siblings.filter(s => s.tagName === el.tagName);
+      function buildPath(el) {
+        const path = [];
+        let current = el;
 
-            // Only add index if there are siblings with same tag and no unique identifiers
-            if (sameTagSiblings.length > 1 &&
-              selector === el.tagName.toLowerCase() &&
-              !el.className &&
-              !testId &&
-              !name) {
-              const index = siblings.indexOf(el) + 1;
+        while (current && current !== document.documentElement) {
+          let selector = current.tagName.toLowerCase();
+
+          // Add nth-child only if necessary
+          const parent = current.parentNode;
+          if (parent) {
+            const siblings = Array.from(parent.children);
+            const sameTagSiblings = siblings.filter(
+              (el) => el.tagName === current.tagName
+            );
+
+            if (sameTagSiblings.length > 1) {
+              const index = siblings.indexOf(current) + 1;
               selector += `:nth-child(${index})`;
             }
           }
 
           path.unshift(selector);
-          el = el.parentNode;
+
+          // Check if current path is unique
+          const fullPath = path.join(" > ");
+          if (isUnique(fullPath)) return fullPath;
+
+          current = current.parentNode;
         }
 
-        // 8. Return the shortest possible selector that's still unique
-        const fullPath = path.join(" > ");
-
-        // Try to find the shortest unique combination
-        for (let i = path.length - 1; i >= 0; i--) {
-          const partialPath = path.slice(i).join(" > ");
-          try {
-            const matches = document.querySelectorAll(partialPath);
-            if (matches.length === 1 && matches[0] === el) {
-              return partialPath;
-            }
-          } catch (e) {
-            // Ignore invalid selector errors
-          }
-        }
-
-        return fullPath;
+        return path.join(" > ");
       }
 
       // Generate absolute XPath with improved precision
@@ -795,69 +945,84 @@ if (window.seleniumLocatorHelperInjected) {
       function getRelativeXPath(el) {
         if (!el || el.nodeType !== 1) return "";
 
-        // If element has id, use that immediately
+        // Handle elements with ID first
         if (el.id) {
           return `//*[@id="${el.id}"]`;
         }
 
-        const uniqueAttributes = [
-          "data-testid",
-          "name",
-          "aria-label",
-          "role",
-          "title",
-        ];
-        for (const attr of uniqueAttributes) {
-          const value = el.getAttribute(attr);
-          if (value) {
-            // Check if this xpath is unique
-            const xpath = `//${el.nodeName.toLowerCase()}[@${attr}="${value}"]`;
-            const matchingElements = document.evaluate(
-              xpath,
-              document,
-              null,
-              XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-              null
-            );
-            if (matchingElements.snapshotLength === 1) {
-              return xpath;
-            }
-          }
-        }
-
-        // If no unique attributes, build path
         let path = [];
-        while (el && el.nodeType === 1 && el !== document.body) {
-          let selector = el.nodeName.toLowerCase();
+        let current = el;
 
-          if (el.id) {
-            path.unshift(`//*[@id="${el.id}"]`);
-            break;
-          } else {
-            // Try to find unique attributes for this element
-            let foundUniqueAttr = false;
-            for (const attr of uniqueAttributes) {
-              const value = el.getAttribute(attr);
-              if (value) {
-                selector = `${el.nodeName.toLowerCase()}[@${attr}="${value}"]`;
-                foundUniqueAttr = true;
-                break;
-              }
-            }
+        while (current && current !== document.documentElement) {
+          let currentTag = current.tagName.toLowerCase();
+          let index = 1;
+          let sibling = current;
 
-            // If no unique attributes, use position
-            if (!foundUniqueAttr) {
-              let siblings = Array.from(el.parentNode.children);
-              let index = siblings.indexOf(el) + 1;
-              selector += `[${index}]`;
+          // Count previous siblings with same tag
+          while ((sibling = sibling.previousElementSibling)) {
+            if (sibling.tagName.toLowerCase() === currentTag) {
+              index++;
             }
           }
 
-          path.unshift(selector);
-          el = el.parentNode;
+          // Try to create a unique identifier
+          let uniqueIdentifier = "";
+
+          // Check for useful attributes in priority order
+          const attributes = [
+            "data-testid",
+            "name",
+            "aria-label",
+            "title",
+            "placeholder",
+            "role",
+          ];
+          for (const attr of attributes) {
+            const value = current.getAttribute(attr);
+            if (value) {
+              uniqueIdentifier = `[@${attr}="${value}"]`;
+              index = null; // Don't need position if we have a unique attribute
+              break;
+            }
+          }
+
+          // If no unique attribute found, try class
+          if (
+            !uniqueIdentifier &&
+            current.className &&
+            typeof current.className === "string"
+          ) {
+            const classes = current.className.trim().split(/\s+/);
+            if (classes.length) {
+              uniqueIdentifier = `[contains(@class, "${classes[0]}")]`;
+            }
+          }
+
+          // Construct the path segment
+          let pathSegment =
+            currentTag + (uniqueIdentifier || (index > 1 ? `[${index}]` : ""));
+          path.unshift(pathSegment);
+
+          // Try the current path to see if it's unique
+          const testPath = "//" + path.join("/");
+          const results = document.evaluate(
+            testPath,
+            document,
+            null,
+            XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+            null
+          );
+
+          // If we found a unique path, return it
+          if (results.snapshotLength === 1) {
+            return testPath;
+          }
+
+          current = current.parentElement;
         }
 
-        return path.length ? `/${path.join("/")}` : "";
+        // Return the full path if no unique shorter path was found
+        return "//" + path.join("/");
       }
 
       // Generate XPath by text with escaping for quotes
@@ -955,7 +1120,7 @@ if (window.seleniumLocatorHelperInjected) {
 
       // NEW: Generate XPath by name attribute
       function getXPathByName(el) {
-        const name = el?.getAttribute('name');
+        const name = el?.getAttribute("name");
         if (!el || !name) return "";
 
         const xpath = `//${el.nodeName.toLowerCase()}[@name="${name}"]`;
@@ -988,7 +1153,7 @@ if (window.seleniumLocatorHelperInjected) {
 
       // NEW: Generate XPath by link text (for anchor elements)
       function getXPathByLinkText(el) {
-        if (!el || el.nodeName.toLowerCase() !== 'a') return "";
+        if (!el || el.nodeName.toLowerCase() !== "a") return "";
         const text = el.textContent?.trim();
         if (!text) return "";
 
@@ -1034,7 +1199,7 @@ if (window.seleniumLocatorHelperInjected) {
 
       // NEW: Generate XPath by partial link text (for anchor elements)
       function getXPathByPartialLinkText(el) {
-        if (!el || el.nodeName.toLowerCase() !== 'a') return "";
+        if (!el || el.nodeName.toLowerCase() !== "a") return "";
         const text = el.textContent?.trim();
         if (!text) return "";
 
@@ -1397,8 +1562,11 @@ if (window.seleniumLocatorHelperInjected) {
 
       // Get DOM changes and network requests
       const domChanges = domDiffer.stopTracking();
-      const networkRequests = networkMapper.mapRequestsToElement(element);
-      const performanceMetrics = performanceTracker.endMeasure('generation', 'all');
+      const networkRequests = networkMapper.stopTracking();
+      const performanceMetrics = performanceTracker.endMeasure(
+        "generation",
+        "all"
+      );
 
       // Add metrics to the locators object
       return {
@@ -1430,10 +1598,18 @@ if (window.seleniumLocatorHelperInjected) {
         ariaLabel: element.getAttribute("aria-label") || null,
         role: element.getAttribute("role") || null,
         _metadata: {
-          domChanges,
-          networkRequests,
-          performance: performanceMetrics
-        }
+          domChanges: {
+            mutations: domChanges.mutations,
+            added: domChanges.added.length,
+            removed: domChanges.removed.length,
+            modified: domChanges.modified.length,
+            total: domChanges.mutations.length,
+          },
+          networkRequests: networkRequests,
+          performance: {
+            duration: performanceMetrics?.duration || 0,
+          },
+        },
       };
     }
 
@@ -1443,7 +1619,7 @@ if (window.seleniumLocatorHelperInjected) {
       return function executedFunction(...args) {
         const later = () => {
           clearTimeout(timeout);
-          func(...args);   
+          func(...args);
         };
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
@@ -1453,7 +1629,7 @@ if (window.seleniumLocatorHelperInjected) {
     // Highlight element with a border using transform for better performance
     function highlightElement(element) {
       if (!element || !element.style) return;
-      
+
       // Remove previous highlight with RAF
       requestAnimationFrame(() => {
         if (highlightedElement) {
@@ -1481,12 +1657,12 @@ if (window.seleniumLocatorHelperInjected) {
     // Handle mouseover events in locator mode with debounce
     const debouncedMouseOver = debounce((event) => {
       if (!isLocatorModeActive) return;
-      
+
       // Ignore if same element
       if (hoveredElement === event.target) return;
 
       // Always ignore banner events
-      if (event.target.closest('#best-locator-banner')) return;
+      if (event.target.closest("#best-locator-banner")) return;
 
       event.stopPropagation();
       event.preventDefault();
@@ -1525,7 +1701,7 @@ if (window.seleniumLocatorHelperInjected) {
       if (!isLocatorModeActive) return;
 
       // Always ignore banner events
-      if (event.target.closest('#best-locator-banner')) return;
+      if (event.target.closest("#best-locator-banner")) return;
 
       event.stopPropagation();
       event.preventDefault();
@@ -1545,7 +1721,7 @@ if (window.seleniumLocatorHelperInjected) {
       sendMessageToBackground({
         action: "getLocators",
         locators: locators,
-        metadata: locators._metadata
+        metadata: locators._metadata,
       });
 
       // Deactivate locator mode but keep the highlight and banner if enabled
@@ -1556,7 +1732,7 @@ if (window.seleniumLocatorHelperInjected) {
       // Signal completion
       sendMessageToBackground({
         action: "locatorSelected",
-        keepBannerVisible: isBestLocatorEnabled
+        keepBannerVisible: isBestLocatorEnabled,
       });
 
       // Don't remove highlight or banner immediately to allow copying
@@ -1623,15 +1799,18 @@ if (window.seleniumLocatorHelperInjected) {
     function activateLocatorMode() {
       if (isLocatorModeActive) return;
 
-      console.log("Activating locator mode, best locator enabled:", isBestLocatorEnabled);
+      console.log(
+        "Activating locator mode, best locator enabled:",
+        isBestLocatorEnabled
+      );
       isLocatorModeActive = true;
 
       initializeDomDiffer();
       initializeNetworkMapper();
 
-      document.addEventListener("mouseover", debouncedMouseOver, { 
+      document.addEventListener("mouseover", debouncedMouseOver, {
         capture: true,
-        passive: false 
+        passive: false,
       });
       document.addEventListener("click", handleClick, true);
       document.body.style.cursor = "crosshair";
@@ -1726,15 +1905,157 @@ if (window.seleniumLocatorHelperInjected) {
             }
           }
 
-          if (request.action === 'toggleBestLocator') {
+          if (request.action === "toggleBestLocator") {
             toggleBestLocator(request.enable);
             sendResponse({ success: true }); // Add response to ensure message is handled
+          }
+
+          if (request.action === "validateLocator") {
+            validateAndHighlightElement(
+              request.locatorType,
+              request.locatorValue
+            );
           }
 
           return true; // Keep the message channel open for sendResponse
         });
       } catch (error) {
         console.error("Failed to setup message listener:", error);
+      }
+    }
+
+    // Add validation handling
+    function validateAndHighlightElement(type, value) {
+      let element = null;
+
+      try {
+        switch (type.toLowerCase()) {
+          case "xpath":
+          case "relative xpath":
+          case "absolute xpath":
+          case "xpath by name":
+          case "xpath by text":
+          case "xpath by partial text":
+            const result = document.evaluate(
+              value,
+              document,
+              null,
+              XPathResult.FIRST_ORDERED_NODE_TYPE,
+              null
+            );
+            element = result.singleNodeValue;
+            break;
+
+          case "id":
+            element = document.getElementById(value);
+            break;
+
+          case "css selector":
+            element = document.querySelector(value);
+            break;
+
+          case "class name":
+            element = document.getElementsByClassName(value)[0];
+            break;
+
+          case "tag name":
+            const elements = Array.from(document.getElementsByTagName(value));
+            element = elements[0]; // Get first matching element
+            if (elements.length > 1) {
+              // If hovering over an element, find its index
+              if (hoveredElement && elements.includes(hoveredElement)) {
+                element = hoveredElement;
+              }
+            }
+            break;
+
+          case "link text":
+            const exactLinks = Array.from(
+              document.getElementsByTagName("a")
+            ).filter((link) => link.textContent.trim() === value);
+            element = exactLinks[0];
+            if (exactLinks.length > 1) {
+              // If hovering over a link, use that one
+              if (hoveredElement && exactLinks.includes(hoveredElement)) {
+                element = hoveredElement;
+              }
+              // Add index information to the validation result
+              chrome.runtime.sendMessage({
+                action: "validationResult",
+                success: true,
+                locatorType: type,
+                locatorValue: value,
+                additionalInfo: `Found ${
+                  exactLinks.length
+                } matches. Using index ${exactLinks.indexOf(element) + 1}.`,
+              });
+            }
+            break;
+
+          case "partial link text":
+            const partialLinks = Array.from(
+              document.getElementsByTagName("a")
+            ).filter((link) => link.textContent.includes(value));
+            element = partialLinks[0];
+            if (partialLinks.length > 1) {
+              // If hovering over a link, use that one
+              if (hoveredElement && partialLinks.includes(hoveredElement)) {
+                element = hoveredElement;
+              }
+              // Add index information to the validation result
+              chrome.runtime.sendMessage({
+                action: "validationResult",
+                success: true,
+                locatorType: type,
+                locatorValue: value,
+                additionalInfo: `Found ${
+                  partialLinks.length
+                } matches. Using index ${partialLinks.indexOf(element) + 1}.`,
+              });
+            }
+            break;
+
+          default:
+            // For other attribute-based selectors
+            const selector = `[${type.toLowerCase()}="${value}"]`;
+            element = document.querySelector(selector);
+        }
+
+        if (element) {
+          // Add validation highlight effect
+          element.style.transition = "all 0.3s ease";
+          element.style.outline = "2px solid #4CAF50";
+          element.style.outlineOffset = "2px";
+          element.style.boxShadow = "0 0 10px rgba(76, 175, 80, 0.5)";
+
+          chrome.runtime.sendMessage({
+            action: "validationResult",
+            success: true,
+            locatorType: type,
+            locatorValue: value,
+          });
+
+          // Remove highlight after 2 seconds
+          setTimeout(() => {
+            element.style.outline = "";
+            element.style.outlineOffset = "";
+            element.style.boxShadow = "";
+          }, 2000);
+        } else {
+          chrome.runtime.sendMessage({
+            action: "validationResult",
+            success: false,
+            locatorType: type,
+            locatorValue: value,
+          });
+        }
+      } catch (error) {
+        chrome.runtime.sendMessage({
+          action: "validationResult",
+          success: false,
+          locatorType: type,
+          locatorValue: value,
+        });
       }
     }
 
@@ -1751,7 +2072,7 @@ if (window.seleniumLocatorHelperInjected) {
         }
       }
 
-      chrome.storage.local.set({ 'isBestLocatorEnabled': enable }, () => {
+      chrome.storage.local.set({ isBestLocatorEnabled: enable }, () => {
         console.log("Best locator preference saved:", enable);
       });
     }
@@ -1767,9 +2088,11 @@ if (window.seleniumLocatorHelperInjected) {
           sendMessageToBackground({
             action: "contentScriptReady",
             url: window.location.href,
-            iconUrl: chrome.runtime.getURL('popup/icons/icon48.png'),
+            iconUrl: chrome.runtime.getURL("popup/icons/icon48.png"),
           });
-          console.log("Content script initialized successfully with preferences loaded");
+          console.log(
+            "Content script initialized successfully with preferences loaded"
+          );
         });
       } catch (error) {
         console.error("Content script initialization failed:", error);
@@ -1781,7 +2104,7 @@ if (window.seleniumLocatorHelperInjected) {
 
     // Listen for storage changes to update the state in real-time
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local' && changes.isBestLocatorEnabled) {
+      if (area === "local" && changes.isBestLocatorEnabled) {
         const isEnabled = changes.isBestLocatorEnabled.newValue;
         isBestLocatorEnabled = isEnabled;
 
@@ -1797,7 +2120,7 @@ if (window.seleniumLocatorHelperInjected) {
 
     // Initialize the best locator setting on script load
     function initializeBestLocatorSetting() {
-      chrome.storage.local.get('isBestLocatorEnabled', (result) => {
+      chrome.storage.local.get("isBestLocatorEnabled", (result) => {
         isBestLocatorEnabled = result.isBestLocatorEnabled ?? true;
         if (!isBestLocatorEnabled) {
           hideBestLocatorBanner();

@@ -930,3 +930,64 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+.locator-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.validate-btn {
+  background-color: var(--section-bg);
+  border: 1px solid var(--border-color);
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 4px;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.validate-btn:hover {
+  background-color: var(--hover-bg);
+  transform: translateY(-1px);
+}
+
+.validate-btn.validating {
+  background-color: #4CAF50;
+  color: white;
+  border-color: #45A049;
+}
+
+.validate-btn.validation-failed {
+  background-color: #ef4444;
+  color: white;
+  border-color: #dc2626;
+}
+
+.validate-btn.validation-success {
+  background-color: #4CAF50;
+  color: white;
+  border-color: #45A049;
+}
+
+.validate-btn svg {
+  transition: transform 0.2s ease;
+}
+
+.validate-btn:hover svg {
+  transform: scale(1.1);
+}
+
+.validating svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
