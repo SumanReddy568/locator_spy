@@ -1,3 +1,6 @@
+## [1.1.2] - 2025-04-19
+- zipper fix
+
 ## [1.1.1] - 2025-04-11
 - hover click deactivation fix in old extesnion 1.1.0
 
