@@ -139,8 +139,8 @@ echo "Panel version: $(grep 'Version' "$PANEL_PATH" || echo 'Not found')"
 echo "Popup version: $(grep 'Version' "$POPUP_HTML_PATH" || echo 'Not found')"
 echo "Welcome version: $(grep 'v[0-9]' "$WELCOME_HTML_PATH" || echo 'Not found')"
 
-# Commit changes with verification
-if git add "$MANIFEST_PATH" "$PANEL_PATH" "$POPUP_HTML_PATH" "$WELCOME_HTML_PATH" "$CHANGELOG_PATH" "$EXTENSIONS_DIR/$NEW_ZIP_FILENAME"; then
+# Commit changes with verification - use force add for extensions directory
+if git add -f "$MANIFEST_PATH" "$PANEL_PATH" "$POPUP_HTML_PATH" "$WELCOME_HTML_PATH" "$CHANGELOG_PATH" "$EXTENSIONS_DIR/$NEW_ZIP_FILENAME"; then
   git commit -m "Auto-update: Version $NEW_VERSION [skip ci]"
   echo "Successfully updated to version $NEW_VERSION"
 else
