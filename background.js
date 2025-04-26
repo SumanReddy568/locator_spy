@@ -257,7 +257,7 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log("Selenium Locator Helper installed");
 });
 
-const CURRENT_VERSION = '1.0.9';
+const CURRENT_VERSION = '1.1.3';
 
 // Function to check and show update notification
 async function checkAndShowUpdateNotification() {

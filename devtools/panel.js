@@ -652,16 +652,13 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // Add dock position detection
-  const dockWarning = document.getElementById("dockWarning");
-  
   function checkDockPosition() {
     const rect = document.body.getBoundingClientRect();
-    const isNotBottomDocked = rect.height > rect.width;
-    
-    if (isNotBottomDocked) {
-      dockWarning.style.display = "flex";
-    } else {
-      dockWarning.style.display = "none";
+    const isSideDocked = rect.height > rect.width;
+
+    const dockWarning = document.getElementById("dockWarning");
+    if (dockWarning) {
+      dockWarning.style.display = isSideDocked ? "flex" : "none";
     }
   }
 

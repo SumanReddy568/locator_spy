@@ -875,8 +875,6 @@ body {
 }
 
 .dock-warning {
-  position: sticky;
-  top: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -884,9 +882,10 @@ body {
   background-color: #fff3cd;
   color: #856404;
   border: 1px solid #ffeeba;
-  margin-bottom: 8px;
   border-radius: 4px;
-  z-index: 1000;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 8px;
 }
 
 .dark-mode .dock-warning {
