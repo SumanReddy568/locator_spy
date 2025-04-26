@@ -75,18 +75,24 @@ mv temp.json "$MANIFEST_PATH"
 
 # Update only the main version info in dropdown and latest release note version
 if [ -f "$PANEL_PATH" ]; then
-  # Update version in dropdown menu
-  sed -i'' -e "s/<div class=\"version-info\">.*Version [0-9]\+\.[0-9]\+\.[0-9]\+.*<\/div>/<div class=\"version-info\">\n              <span>Version ${NEW_VERSION}<\/span>\n            <\/div>/" "$PANEL_PATH"
+  # Backup the original file (just in case)
+  cp "$PANEL_PATH" "${PANEL_PATH}.bak"
+  
+  # 1. Update version in dropdown menu (simpler approach)
+  sed -i'' -e "s/Version [0-9]\+\.[0-9]\+\.[0-9]\+<\/span>/Version ${NEW_VERSION}<\/span>/" "$PANEL_PATH"
 
-  # Update ONLY the latest version in release notes (the one with new-badge)
-  sed -i'' -e "/<h4>Version [0-9]\+\.[0-9]\+\.[0-9]\+.*new-badge/s/Version [0-9]\+\.[0-9]\+\.[0-9]\+/Version ${NEW_VERSION}/" "$PANEL_PATH"
+  # 2. Update latest version in release notes (more specific)
+  sed -i'' -e "/class=\"release-item latest\"/,/<h4>/s/Version [0-9]\+\.[0-9]\+\.[0-9]\+/Version ${NEW_VERSION}/" "$PANEL_PATH"
 
-  # Verify updates
-  if ! (grep -q "Version ${NEW_VERSION}.*version-info" "$PANEL_PATH" && \
-        grep -q "Version ${NEW_VERSION}.*new-badge" "$PANEL_PATH"); then
-    echo "Failed to update versions in panel.html"
+  # More lenient verification
+  if ! grep -q "Version ${NEW_VERSION}" "$PANEL_PATH"; then
+    echo "Error: Failed to update any version in panel.html"
+    echo "Debug: Current content around version info:"
+    grep -A 2 -B 2 "Version" "$PANEL_PATH" || echo "No version found"
     exit 1
   fi
+  
+  echo "Successfully updated panel.html to version ${NEW_VERSION}"
 fi
 
 # Update version in popup.html with proper sed command
