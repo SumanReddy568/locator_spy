@@ -191,13 +191,13 @@ body {
   justify-content: center;
   align-items: center;
   height: 40px;
-  background-color: #1e1e1e; /* Dark background for dark mode */
+  background-color: #1e1e1e;
   border-radius: 5px;
 }
 
 .version-info span {
   font-size: 1em;
-  color: #e0e0e0; /* Light text for dark mode */
+  color: #e0e0e0;
 }
 
 .update-available {
@@ -486,6 +486,16 @@ body {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-color);
+  background-color: var(--section-bg);
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  transition: all var(--transition-speed);
+}
+
+.toggle-container:hover {
+  background-color: var(--hover-bg);
+  border-color: var(--hover-border);
 }
 
 .toggle-container input[type="checkbox"] {
@@ -494,8 +504,14 @@ body {
   cursor: pointer;
 }
 
+.toggle-container .toggle-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
 .dark-mode .toggle-container {
-  color: var(--text-light); /* Ensure text is visible in dark mode */
+  color: var(--text-light);
 }
 
 /* Animations */
@@ -590,7 +606,6 @@ body {
     align-self: flex-end;
   }
 
-  /* Add these styles to your panel.css */
   .copy-btn.copied {
     background-color: #10b981;
     transform: scale(1.05);
@@ -632,10 +647,8 @@ body {
     border-bottom: none;
   }
 
-  /* Add to your panel.css */
   .section {
     overflow: auto !important;
-    /* Ensure scrolling works properly */
   }
 
   #locatorResults {
@@ -647,7 +660,6 @@ body {
     transition: all 0.3s ease;
   }
 
-  /* Add visual feedback for expanded state */
   .expanded .locator-item {
     animation: fadeInItem 0.3s ease forwards;
   }
@@ -664,7 +676,6 @@ body {
     }
   }
 
-  /* Improve copied button visual feedback */
   .copy-btn.copied {
     background-color: #10b981 !important;
     transform: scale(1.05);
@@ -687,140 +698,11 @@ body {
       transform: scale(1);
     }
   }
-  
 }
 
 .locators-table {
   background: var(--section-bg);
   padding: 8px 0;
-}
-
-.metrics-panel {
-  margin: 8px 0; /* Reduced from likely 16px or more */
-  padding: 8px; /* Reduced from likely 12px or more */
-  border-radius: 6px;
-  background: var(--surface-2);
-  font-size: 13px;
-  opacity: 0.92;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  width: calc(100% - 32px);
-  align-self: center;
-  flex-shrink: 0; /* Prevent panel from growing */
-  max-height: 36px; /* Height when collapsed */
-  overflow: hidden;
-  transition: max-height 0.3s ease;
-}
-
-.metrics-panel.expanded {
-  max-height: 160px; /* Reduced from 200px */
-  overflow: auto;
-}
-
-.metrics-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  padding: 1px 4px; /* Reduced from 2px 4px */
-  min-height: 20px; /* Added to ensure consistent collapsed height */
-}
-
-.metrics-title {
-  font-size: 12px; /* Reduced from 13px */
-  opacity: 0.9;
-}
-
-.metrics-toggle {
-  background: none;
-  border: none;
-  padding: 2px;
-  cursor: pointer;
-  color: var(--text-muted);
-  transition: transform 0.2s;
-}
-
-.metrics-toggle.collapsed {
-  transform: rotate(-90deg);
-}
-
-.metrics-content {
-  overflow: hidden;
-  transition: max-height 0.2s ease-out;
-  max-height: 0;
-  margin-top: 4px; /* Reduced from likely 8px */
-  padding: 4px 0; /* Reduced padding */
-}
-
-.metrics-content.expanded {
-  max-height: 120px; /* Reduced from 160px */
-  overflow: auto;
-}
-
-/* Ensure results section gets priority */
-.results {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-height: 0; /* Important for flexbox overflow */
-}
-
-.section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0; /* Important for flexbox overflow */
-}
-
-#locatorResults {
-  flex: 1;
-  overflow: auto;
-  min-height: 100px; /* Ensure minimum height */
-}
-
-/* Make metrics grid more compact */
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px; /* Reduced from likely 12px or more */
-  margin-bottom: 4px; /* Reduced from likely 8px */
-}
-
-.metric-item {
-  background: var(--section-bg);
-  padding: 2px 4px; /* Reduced from 3px 5px */
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  font-size: 12px; /* Added to make metrics more compact */
-}
-
-.metric-label {
-  color: var(--text-muted);
-  font-size: 11px; /* Reduced size */
-}
-
-.metric-value {
-  font-weight: 500;
-}
-
-#networkRequestsList {
-  margin-top: 4px; /* Reduced from 8px */
-  max-height: 60px; /* Reduced from 80px */
-  overflow-y: auto;
-}
-
-/* Responsive adjustments */
-@media (max-width: 500px) {
-  .metrics-panel {
-    margin: 6px 12px;
-    width: calc(100% - 24px);
-  }
-  
-  .metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
 }
 
 .release-notes-panel {
@@ -990,4 +872,25 @@ body {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+.dock-warning {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  z-index: 1000;
+}
+
+.dark-mode .dock-warning {
+  background-color: #2c2a25;
+  color: #ffd700;
+  border-color: #423e36;
 }

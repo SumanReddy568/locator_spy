@@ -73,11 +73,18 @@ if ! jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$MANIFEST_PA
 fi
 mv temp.json "$MANIFEST_PATH"
 
-# Update version in panel.html with proper sed command
+# Update only the main version info in dropdown and latest release note version
 if [ -f "$PANEL_PATH" ]; then
-  sed -i'' -e "s/Version [0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Version ${NEW_VERSION}/g" "$PANEL_PATH"
-  if ! grep -q "Version $NEW_VERSION" "$PANEL_PATH"; then
-    echo "Failed to update version in panel.html"
+  # Update version in dropdown menu
+  sed -i'' -e "/<div class=\"version-info\">/,/<\/div>/c\            <div class=\"version-info\">\n              <span>Version ${NEW_VERSION}<\/span>\n            <\/div>" "$PANEL_PATH"
+
+  # Update only the version number in the release note with new-badge
+  sed -i'' -e "/<span class=\"new-badge\">/s/Version [0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Version ${NEW_VERSION}/" "$PANEL_PATH"
+
+  # Verify updates
+  if ! (grep -q "Version ${NEW_VERSION}.*version-info" "$PANEL_PATH" && \
+        grep -q "Version ${NEW_VERSION}.*new-badge" "$PANEL_PATH"); then
+    echo "Failed to update versions in panel.html"
     exit 1
   fi
 fi

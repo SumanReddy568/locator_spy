@@ -108,42 +108,12 @@
       </div>
       <label class="toggle-container">
         <input type="checkbox" id="bestLocatorToggle" checked>
-        <span class="toggle-label">Show Best Locator</span>
+        <span class="toggle-label">Best Locator</span>
       </label>
-    </div>
-    
-    <!-- New Metrics Panel -->
-    <div class="metrics-panel">
-      <div class="metrics-header">
-        <div class="metrics-title">Performance Metrics</div>
-        <button class="metrics-toggle collapsed">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </button>
-      </div>
-      <div class="metrics-content">
-        <div class="metrics-grid">
-          <div class="metric-item">
-            <div class="metric-label">Generation Time</div>
-            <div class="metric-value" id="generationTime">-</div>
-          </div>
-          <div class="metric-item">
-            <div class="metric-label">DOM Changes</div>
-            <div class="metric-value" id="domChanges">-</div>
-          </div>
-          <div class="metric-item">
-            <div class="metric-label">Network Requests</div>
-            <div class="metric-value" id="networkRequests">-</div>
-          </div>
-        </div>
-        
-        <!-- Network Requests List -->
-        <div id="networkRequestsList" style="margin-top: 8px; max-height: 80px; overflow-y: auto;">
-          <div class="metrics-title">Recent Network Activity</div>
-          <div id="requestsContainer"></div>
-        </div>
-      </div>
+      <label class="toggle-container">
+        <input type="checkbox" id="autoValidatorToggle">
+        <span class="toggle-label">Auto Validator</span>
+      </label>
     </div>
     
     <div class="results">
@@ -157,7 +127,6 @@
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
               </svg>
             </button>
-            <!-- Add down arrow button -->
             <button id="scrollDownBtn" class="action-btn" title="Scroll Down" data-target="#locatorResults">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="6 9 12 15 18 9"></polyline>
@@ -192,7 +161,16 @@
     </div>
     <div class="release-notes-content">
       <div class="release-item latest">
-        <h4>Version 1.1.2 <span class="release-date">April 2025</span><span class="new-badge">New</span></h4>
+        <h4>Version 1.1.3 <span class="release-date">April 2025</span><span class="new-badge">New</span></h4>
+        <ul>
+          <li>Added Auto Validator feature for automatic locator testing</li>
+          <li>Enhanced locator accuracy scoring system</li>
+          <li>Deprecated legacy performance tracking features</li>
+          <li>Improved memory usage and reliability</li>
+        </ul>
+      </div>
+      <div class="release-item">
+        <h4>Version 1.1.2 <span class="release-date">April 2025</span></h4>
         <ul>
           <li>Added locator validation feature - test locators directly in the panel</li>
           <li>Visual feedback for valid/invalid locators</li>
@@ -200,7 +178,7 @@
         </ul>
       </div>
       <div class="release-item">
-        <h4>Version 1.1.2 <span class="release-date">April 2025</span></h4>
+        <h4>Version 1.1.1 <span class="release-date">March 2025</span></h4>
         <ul>
           <li>Performance control enhancements</li>
           <li>Added notification system for updates</li>
@@ -209,22 +187,6 @@
           <li>Added hover-based element inspection</li>
           <li>Improved DOM change detection</li>
           <li>Added network request tracking</li>
-        </ul>
-      </div>
-      <div class="release-item">
-        <h4>Version 1.1.2 <span class="release-date">March 2025</span></h4>
-        <ul>
-          <li>Added network request tracking</li>
-          <li>Improved XPath generation accuracy</li>
-          <li>Fixed CSS selector generation issues</li>
-        </ul>
-      </div>
-      <div class="release-item">
-        <h4>Version 1.1.2 <span class="release-date">March 2025</span></h4>
-        <ul>
-          <li>Added dark mode support</li>
-          <li>Improved UI responsiveness</li>
-          <li>Added locator filtering capability</li>
         </ul>
       </div>
     </div>

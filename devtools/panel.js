@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", function () {
     '.section-actions .action-btn[title="Copy All"]'
   );
   const bestLocatorToggle = document.getElementById("bestLocatorToggle");
+  const autoValidatorToggle = document.getElementById("autoValidatorToggle");
 
   let isLocatorModeActive = false;
 
@@ -145,26 +146,24 @@ document.addEventListener("DOMContentLoaded", function () {
               Failed
             `;
           }
-
-          // Reset after 3 seconds
-          setTimeout(() => {
-            if (!btn.classList.contains("validating")) {
-              btn.classList.remove("validation-success", "validation-failed");
-              btn.innerHTML = `
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M20 6L9 17l-5-5"/>
-                </svg>
-                Validate
-              `;
-            }
-          }, 3000);
         }
       });
     }
   });
 
-  // Display locators in the devtools panel
+  // Update displayLocators function to include validation for all XPath locators
   function displayLocators(locators) {
+    // Reset validation states
+    document.querySelectorAll('.validate-btn').forEach(btn => {
+      btn.classList.remove('validation-success', 'validation-failed', 'validating');
+      btn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1-7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+        </svg>
+        Validate
+      `;
+    });
+
     if (!locators || Object.keys(locators).length === 0) {
       locatorResults.innerHTML =
         '<p class="placeholder">No locators found for this element</p>';
@@ -222,20 +221,30 @@ document.addEventListener("DOMContentLoaded", function () {
       );
     }
 
-    // Display All XPaths section
+    // Display All XPaths section with validation
     if (locators.allXPaths && locators.allXPaths.length > 0) {
       html += `<div class="locator-item"><span class="locator-type">All XPaths:</span></div>`;
       locators.allXPaths.forEach((xpath) => {
         html += `
           <div class="locator-item">
             <span class="locator-value">${xpath}</span>
-            <button class="copy-btn" data-value="${escapeHtml(xpath)}">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1-2-2h9a2 2 0 0 1-2 2v1"></path>
-              </svg>
-              Copy
-            </button>
+            <div class="locator-actions">
+              <button class="validate-btn" data-type="XPath" data-value="${escapeHtml(
+                xpath
+              )}" title="Validate locator">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1-7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+                </svg>
+                Validate
+              </button>
+              <button class="copy-btn" data-value="${escapeHtml(xpath)}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                Copy
+              </button>
+            </div>
           </div>
         `;
       });
@@ -261,76 +270,7 @@ document.addEventListener("DOMContentLoaded", function () {
     html += "</div>";
     locatorResults.innerHTML = html;
 
-    // Update metrics panel
-    const metricsPanel = document.querySelector(".metrics-panel");
-    const generationTime = document.getElementById("generationTime");
-    const domChanges = document.getElementById("domChanges");
-    const networkRequests = document.getElementById("networkRequests");
-    const networkList = document.getElementById("networkRequestsList");
-    const requestsContainer = document.getElementById("requestsContainer");
-
-    if (locators._metadata) {
-      metricsPanel.style.display = "block";
-
-      // Performance metrics
-      if (locators._metadata.performance) {
-        const duration =
-          locators._metadata.performance.duration?.toFixed(2) || 0;
-        generationTime.textContent = `${duration}ms`;
-      }
-
-      // DOM changes
-      if (locators._metadata.domChanges) {
-        const changes = locators._metadata.domChanges;
-        const totalChanges =
-          (changes.added?.length || 0) +
-          (changes.removed?.length || 0) +
-          (changes.modified?.length || 0);
-        domChanges.textContent =
-          totalChanges > 0 ? `${totalChanges} changes` : "No changes";
-
-        if (changes.mutations?.length > 0) {
-          console.log("DOM Mutations:", changes.mutations.length);
-        }
-      }
-
-      // Network requests
-      if (locators._metadata.networkRequests) {
-        const requests = locators._metadata.networkRequests;
-        if (Array.isArray(requests) && requests.length > 0) {
-          networkRequests.textContent = `${requests.length} requests`;
-
-          // Display network requests list
-          networkList.style.display = "block";
-          requestsContainer.innerHTML = requests
-            .map(
-              (req) => `
-            <div class="network-request">
-              <div class="request-url">${req.url || "Unknown URL"}</div>
-              ${
-                req.duration
-                  ? `<div class="request-timing">Duration: ${req.duration.toFixed(
-                      2
-                    )}ms</div>`
-                  : ""
-              }
-            </div>
-          `
-            )
-            .join("");
-        } else {
-          networkList.style.display = "none";
-          networkRequests.textContent = "0 requests";
-        }
-      } else {
-        networkList.style.display = "none";
-        networkRequests.textContent = "0 requests";
-      }
-    } else {
-      metricsPanel.style.display = "none";
-    }
-
-    // Add event listeners to copy buttons
+    // Add event listeners to copy and validate buttons
     document.querySelectorAll(".copy-btn").forEach((btn) => {
       btn.addEventListener("click", function () {
         const value = this.getAttribute("data-value");
@@ -339,6 +279,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     addValidationListeners();
+    autoValidateLocators(locators); // Trigger auto-validation if enabled
   }
 
   // Helper function to create locator item
@@ -357,7 +298,7 @@ document.addEventListener("DOMContentLoaded", function () {
           <button class="copy-btn" data-value="${escapeHtml(value)}">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1-2-2h9a2 2 0 0 1-2 2v1"></path>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
             Copy
           </button>
@@ -607,20 +548,6 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  // Add metrics panel collapse/expand functionality
-  const metricsHeader = document.querySelector(".metrics-header");
-  const metricsToggle = document.querySelector(".metrics-toggle");
-  const metricsContent = document.querySelector(".metrics-content");
-
-  // Start collapsed
-  metricsContent.classList.add("collapsed");
-  metricsToggle.classList.add("collapsed");
-
-  metricsHeader.addEventListener("click", () => {
-    metricsContent.classList.toggle("collapsed");
-    metricsToggle.classList.toggle("collapsed");
-  });
-
   // Release notes panel functionality
   const releaseNotesBtn = document.getElementById("releaseNotesBtn");
   const releaseNotesPanel = document.querySelector(".release-notes-panel");
@@ -645,6 +572,102 @@ document.addEventListener("DOMContentLoaded", function () {
       releaseNotesPanel.classList.remove("show");
     }
   });
+
+  // Initialize "Auto Validator" toggle state from storage
+  chrome.storage.local.get("isAutoValidatorEnabled", (result) => {
+    const isEnabled = result.hasOwnProperty("isAutoValidatorEnabled")
+      ? result.isAutoValidatorEnabled
+      : false;
+    chrome.storage.local.set({ isAutoValidatorEnabled: isEnabled }); // Ensure default is false
+    autoValidatorToggle.checked = isEnabled;
+  });
+
+  // Update storage and behavior when "Auto Validator" toggle changes
+  autoValidatorToggle.addEventListener("change", (event) => {
+    const isEnabled = event.target.checked;
+    chrome.storage.local.set({ isAutoValidatorEnabled: isEnabled }, () => {
+      console.log("Auto Validator setting updated in storage:", isEnabled);
+    });
+  });
+
+  // Automatically validate locators if "Auto Validator" is enabled
+  function autoValidateLocators(locators) {
+    chrome.storage.local.get("isAutoValidatorEnabled", (result) => {
+      const allLocators = [];
+      
+      // Collect all available locators with their types
+      if (locators.id) allLocators.push({ type: 'ID', value: locators.id });
+      if (locators.dataTestId) allLocators.push({ type: 'Data Test ID', value: locators.dataTestId });
+      if (locators.cssSelector) allLocators.push({ type: 'CSS Selector', value: locators.cssSelector });
+      if (locators.relativeXPath) allLocators.push({ type: 'Relative XPath', value: locators.relativeXPath });
+      if (locators.absoluteXPath) allLocators.push({ type: 'Absolute XPath', value: locators.absoluteXPath });
+      if (locators.xpathByName) allLocators.push({ type: 'XPath by Name', value: locators.xpathByName });
+      if (locators.xpathByText) allLocators.push({ type: 'XPath by Text', value: locators.xpathByText });
+      if (locators.partialTextXPath) allLocators.push({ type: 'XPath by Partial Text', value: locators.partialTextXPath });
+      // Add lower priority locators
+      if (locators.className) allLocators.push({ type: 'Class Name', value: locators.className });
+      if (locators.tagName) allLocators.push({ type: 'Tag Name', value: locators.tagName });
+      if (locators.linkText) allLocators.push({ type: 'Link Text', value: locators.linkText });
+      if (locators.partialLinkText) allLocators.push({ type: 'Partial Link Text', value: locators.partialLinkText });
+      if (locators.allXPaths) {
+        locators.allXPaths.forEach(xpath => allLocators.push({ type: 'XPath', value: xpath }));
+      }
+
+      if (result.isAutoValidatorEnabled) {
+        // Auto validate all locators
+        allLocators.forEach(({ type, value }) => {
+          // Find and update the button state before validation
+          const buttons = document.querySelectorAll('.validate-btn');
+          buttons.forEach(btn => {
+            if (btn.dataset.type === type && btn.dataset.value === value) {
+              btn.classList.add('validating');
+              btn.innerHTML = `
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+                Validating...
+              `;
+            }
+          });
+
+          // Send validation request
+          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            chrome.tabs.sendMessage(tabs[0].id, {
+              action: "validateLocator",
+              locatorType: type,
+              locatorValue: value
+            });
+          });
+        });
+      }
+    });
+  }
+
+  // Listen for storage changes to update the toggle state dynamically
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.isAutoValidatorEnabled) {
+      autoValidatorToggle.checked = changes.isAutoValidatorEnabled.newValue;
+    }
+  });
+
+  // Add dock position detection
+  const dockWarning = document.getElementById("dockWarning");
+  
+  function checkDockPosition() {
+    const rect = document.body.getBoundingClientRect();
+    const isNotBottomDocked = rect.height > rect.width;
+    
+    if (isNotBottomDocked) {
+      dockWarning.style.display = "flex";
+    } else {
+      dockWarning.style.display = "none";
+    }
+  }
+
+  // Check dock position on load and window resize
+  checkDockPosition();
+  window.addEventListener("resize", checkDockPosition);
 });
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -653,42 +676,6 @@ document.addEventListener("DOMContentLoaded", function () {
   if (urlParams.get("showReleaseNotes") === "true") {
     const releaseNotesPanel = document.querySelector(".release-notes-panel");
     releaseNotesPanel.classList.add("show");
-  }
-  // Get metrics panel elements
-  const metricsPanel = document.querySelector(".metrics-panel");
-  const metricsHeader = document.querySelector(".metrics-header");
-  const metricsToggle = document.querySelector(".metrics-toggle");
-  const metricsContent = document.querySelector(".metrics-content");
-
-  // Set initial state - metrics panel visible but collapsed
-  metricsPanel.style.display = "block";
-  metricsToggle.classList.add("collapsed");
-
-  // Toggle metrics panel expansion
-  metricsHeader.addEventListener("click", function () {
-    metricsToggle.classList.toggle("collapsed");
-    metricsContent.classList.toggle("expanded");
-    metricsPanel.classList.toggle("expanded");
-  });
-
-  // Additional functionality to ensure element locator section gets focus
-  const locatorModeBtn = document.getElementById("locatorModeBtn");
-  if (locatorModeBtn) {
-    locatorModeBtn.addEventListener("click", function () {
-      // When locator mode is activated, ensure focus on the results section
-      const locatorResults = document.getElementById("locatorResults");
-      if (locatorResults) {
-        // Ensure metrics panel is collapsed when locator mode is activated
-        metricsToggle.classList.add("collapsed");
-        metricsContent.classList.remove("expanded");
-        metricsPanel.classList.remove("expanded");
-
-        // Small delay to let UI update before scrolling
-        setTimeout(() => {
-          locatorResults.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 100);
-      }
-    });
   }
 });
 
