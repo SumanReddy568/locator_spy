@@ -79,7 +79,7 @@ if [ -f "$PANEL_PATH" ]; then
   sed -i'' -e "/<div class=\"version-info\">/,/<\/div>/c\            <div class=\"version-info\">\n              <span>Version ${NEW_VERSION}<\/span>\n            <\/div>" "$PANEL_PATH"
 
   # Update only the version number in the release note with new-badge
-  sed -i'' -e "/<span class=\"new-badge\">/s/Version [0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Version ${NEW_VERSION}/" "$PANEL_PATH"
+  sed -i'' -e "/<h4>Version [0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/s/Version [0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Version ${NEW_VERSION}/" "$PANEL_PATH"
 
   # Verify updates
   if ! (grep -q "Version ${NEW_VERSION}.*version-info" "$PANEL_PATH" && \
