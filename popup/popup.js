@@ -142,6 +142,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Display locators in the popup
   function displayLocators(locators) {
+    // Reset validation states
+    document.querySelectorAll('.validate-btn').forEach(btn => {
+      btn.classList.remove('validation-success', 'validation-failed', 'validating');
+      btn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1-7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+        </svg>
+        Validate
+      `;
+    });
+
     if (!locators || Object.keys(locators).length === 0) {
       locatorResults.innerHTML =
         '<p class="placeholder">No locators found for this element</p>';
@@ -188,26 +199,36 @@ document.addEventListener("DOMContentLoaded", function () {
       );
     }
 
-    // Display All XPaths section
+    // Display All XPaths section with validation
     if (locators.allXPaths && locators.allXPaths.length > 0) {
       html += `<div class="locator-item"><span class="locator-type">All XPaths:</span></div>`;
       locators.allXPaths.forEach((xpath) => {
         html += `
           <div class="locator-item">
             <span class="locator-value">${xpath}</span>
-            <button class="copy-btn" data-value="${escapeHtml(xpath)}">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1-2-2h9a2 2 0 0 1-2 2v1"></path>
-              </svg>
-              Copy
-            </button>
+            <div class="locator-actions">
+              <button class="validate-btn" data-type="XPath" data-value="${escapeHtml(
+                xpath
+              )}" title="Validate locator">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1-7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+                </svg>
+                Validate
+              </button>
+              <button class="copy-btn" data-value="${escapeHtml(xpath)}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1-2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                Copy
+              </button>
+            </div>
           </div>
         `;
       });
     }
 
-    // Display low priority locators at the bottom
+    // Display lower priority locators at the bottom
     if (locators.className) {
       html += createLocatorItem("Class Name", locators.className);
     }
@@ -227,13 +248,16 @@ document.addEventListener("DOMContentLoaded", function () {
     html += "</div>";
     locatorResults.innerHTML = html;
 
-    // Add event listeners to copy buttons
+    // Add event listeners to copy and validate buttons
     document.querySelectorAll(".copy-btn").forEach((btn) => {
       btn.addEventListener("click", function () {
         const value = this.getAttribute("data-value");
         copyToClipboard(value, this);
       });
     });
+
+    addValidationListeners();
+    autoValidateLocators(locators); // Trigger auto-validation if enabled
   }
 
   // Helper function to create locator item
@@ -262,31 +286,32 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // Add event listener for validate buttons
-  document.addEventListener("click", function (e) {
-    if (e.target.closest(".validate-btn")) {
-      const btn = e.target.closest(".validate-btn");
-      const type = btn.dataset.type;
-      const value = btn.dataset.value;
+  function addValidationListeners() {
+    document.querySelectorAll(".validate-btn").forEach((btn) => {
+      btn.addEventListener("click", function () {
+        const type = this.getAttribute("data-type");
+        const value = this.getAttribute("data-value");
 
-      // Show validating state
-      btn.classList.add("validating");
-      btn.innerHTML = `
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 6v6l4 2"/>
-        </svg>
-        Validating...
-      `;
+        // Send validation request to content script
+        chrome.tabs.query(
+          { active: true, currentWindow: true },
+          function (tabs) {
+            chrome.tabs.sendMessage(tabs[0].id, {
+              action: "validateLocator",
+              locatorType: type,
+              locatorValue: value,
+            });
+          }
+        );
 
-      chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          action: "validateLocator",
-          locatorType: type,
-          locatorValue: value,
-        });
+        // Add visual feedback
+        this.classList.add("validating");
+        setTimeout(() => {
+          this.classList.remove("validating");
+        }, 2000);
       });
-    }
-  });
+    });
+  }
 
   // Add listener for validation results
   chrome.runtime.onMessage.addListener(function (message) {
