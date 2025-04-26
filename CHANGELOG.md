@@ -1,3 +1,6 @@
+## [1.1.3] - 2025-04-26
+- version bump
+
 ## [1.1.4] - 2025-04-26
 - Merge branch master of https://github.com/SumanReddy568/locator_spy
 
