@@ -1,3 +1,6 @@
+## [1.1.4] - 2025-05-11
+- auto locator error fix
+
 ## [1.1.3] - 2025-04-26
 - version bump
 
