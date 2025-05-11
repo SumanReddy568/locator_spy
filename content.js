@@ -273,6 +273,7 @@ if (window.seleniumLocatorHelperInjected) {
     let contextCheckInterval = null;
     let bestLocatorBanner = null;
     let isBestLocatorEnabled = true;
+    let lastValidatedElement = null;
 
     // Initialize utility instances
     const domDiffer = new DOMDiffer();
@@ -808,9 +809,8 @@ if (window.seleniumLocatorHelperInjected) {
         for (const attr of dataAttrs) {
           const value = attr.value.trim();
           if (value) {
-            const selector = `${el.tagName.toLowerCase()}[${
-              attr.name
-            }=${JSON.stringify(value)}]`;
+            const selector = `${el.tagName.toLowerCase()}[${attr.name
+              }=${JSON.stringify(value)}]`;
             if (isUnique(selector)) return selector;
           }
         }
@@ -825,23 +825,20 @@ if (window.seleniumLocatorHelperInjected) {
             const value = attr.value.trim();
             if (value) {
               // Handle different quote scenarios
-              const selector = `${el.tagName.toLowerCase()}[${
-                attr.name
-              }=${JSON.stringify(value)}]`;
+              const selector = `${el.tagName.toLowerCase()}[${attr.name
+                }=${JSON.stringify(value)}]`;
               if (isUnique(selector)) return selector;
 
               // Try case-insensitive match
-              const selectorI = `${el.tagName.toLowerCase()}[${
-                attr.name
-              }=${JSON.stringify(value)} i]`;
+              const selectorI = `${el.tagName.toLowerCase()}[${attr.name
+                }=${JSON.stringify(value)} i]`;
               if (isUnique(selectorI)) return selectorI;
 
               // Try contains for longer values
               if (value.length > 10) {
                 const partialValue = value.substring(0, 10);
-                const containsSelector = `${el.tagName.toLowerCase()}[${
-                  attr.name
-                }*=${JSON.stringify(partialValue)}]`;
+                const containsSelector = `${el.tagName.toLowerCase()}[${attr.name
+                  }*=${JSON.stringify(partialValue)}]`;
                 if (isUnique(containsSelector)) return containsSelector;
               }
             }
@@ -855,11 +852,9 @@ if (window.seleniumLocatorHelperInjected) {
 
         for (let i = 0; i < validAttrs.length - 1; i++) {
           for (let j = i + 1; j < validAttrs.length; j++) {
-            const selector = `${el.tagName.toLowerCase()}[${
-              validAttrs[i].name
-            }=${JSON.stringify(validAttrs[i].value.trim())}][${
-              validAttrs[j].name
-            }=${JSON.stringify(validAttrs[j].value.trim())}]`;
+            const selector = `${el.tagName.toLowerCase()}[${validAttrs[i].name
+              }=${JSON.stringify(validAttrs[i].value.trim())}][${validAttrs[j].name
+              }=${JSON.stringify(validAttrs[j].value.trim())}]`;
             if (isUnique(selector)) return selector;
           }
         }
@@ -1849,6 +1844,14 @@ if (window.seleniumLocatorHelperInjected) {
 
       hoveredElement = null;
 
+      // Clear any remaining validation highlights
+      if (lastValidatedElement) {
+        lastValidatedElement.style.outline = "";
+        lastValidatedElement.style.outlineOffset = "";
+        lastValidatedElement.style.boxShadow = "";
+        lastValidatedElement = null;
+      }
+
       if (contextCheckInterval) {
         clearInterval(contextCheckInterval);
         contextCheckInterval = null;
@@ -1926,6 +1929,14 @@ if (window.seleniumLocatorHelperInjected) {
 
     // Add validation handling
     function validateAndHighlightElement(type, value) {
+      // Clear previous validation highlight if exists
+      if (lastValidatedElement) {
+        lastValidatedElement.style.outline = "";
+        lastValidatedElement.style.outlineOffset = "";
+        lastValidatedElement.style.boxShadow = "";
+        lastValidatedElement = null;
+      }
+
       let element = null;
 
       try {
@@ -1985,9 +1996,8 @@ if (window.seleniumLocatorHelperInjected) {
                 success: true,
                 locatorType: type,
                 locatorValue: value,
-                additionalInfo: `Found ${
-                  exactLinks.length
-                } matches. Using index ${exactLinks.indexOf(element) + 1}.`,
+                additionalInfo: `Found ${exactLinks.length
+                  } matches. Using index ${exactLinks.indexOf(element) + 1}.`,
               });
             }
             break;
@@ -2008,9 +2018,8 @@ if (window.seleniumLocatorHelperInjected) {
                 success: true,
                 locatorType: type,
                 locatorValue: value,
-                additionalInfo: `Found ${
-                  partialLinks.length
-                } matches. Using index ${partialLinks.indexOf(element) + 1}.`,
+                additionalInfo: `Found ${partialLinks.length
+                  } matches. Using index ${partialLinks.indexOf(element) + 1}.`,
               });
             }
             break;
@@ -2022,6 +2031,9 @@ if (window.seleniumLocatorHelperInjected) {
         }
 
         if (element) {
+          // Store reference to currently highlighted element
+          lastValidatedElement = element;
+
           // Add validation highlight effect
           element.style.transition = "all 0.3s ease";
           element.style.outline = "2px solid #4CAF50";
@@ -2037,9 +2049,12 @@ if (window.seleniumLocatorHelperInjected) {
 
           // Remove highlight after 2 seconds
           setTimeout(() => {
-            element.style.outline = "";
-            element.style.outlineOffset = "";
-            element.style.boxShadow = "";
+            if (lastValidatedElement === element) {
+              element.style.outline = "";
+              element.style.outlineOffset = "";
+              element.style.boxShadow = "";
+              lastValidatedElement = null;
+            }
           }, 2000);
         } else {
           chrome.runtime.sendMessage({
