@@ -20,3 +20,5 @@ extensions/
 
 # Other
 .DS_Store
+
+.lh/

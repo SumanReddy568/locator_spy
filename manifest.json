@@ -4,7 +4,8 @@
   "description": "Helps find locators for Selenium automation testing",
   "manifest_version": 3,
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "host_permissions": [
     "<all_urls>"
@@ -33,13 +34,38 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "welcome.html",
-        "popup/icons/icon16.png"
+        "locator_helper.js",
+        "locator_generator.js",
+        "popup/icons/*"
       ],
       "matches": [
         "<all_urls>"
       ]
     }
   ],
-  "devtools_page": "devtools/devtools.html"
+  "devtools_page": "devtools/devtools.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "locator_helper.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "locator_generator.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
 }
