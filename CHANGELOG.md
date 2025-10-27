@@ -1,3 +1,6 @@
+## [1.1.5] - 2025-10-27
+- new banner
+
 ## [1.1.4] - 2025-05-11
 - auto locator error fix
 
