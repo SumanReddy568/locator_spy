@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8">
   <title>Locator Finder</title>
   <link rel="stylesheet" href="panel.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
 </head>
+
 <body class="light-mode">
   <div class="container">
     <!-- Add dock warning message -->
@@ -13,7 +17,8 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M10 15l5-5-5-5"></path>
       </svg>
-      Docking to the side may limit visibility. Consider docking at the bottom. As this extension is only built for bottom
+      Docking to the side may limit visibility. Consider docking at the bottom. As this extension is only built for
+      bottom
     </div>
     <div class="header">
       <div class="logo-title">
@@ -26,8 +31,22 @@
         <span class="badge">AutoLocator</span>
       </div>
       <div class="header-controls">
+        <a href="https://ailqaagents.netlify.app/locator" target="_blank" class="ai-link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2l2.4 7.4h7.6l-6.2 4.5 2.4 7.4-6.2-4.5-6.2 4.5 2.4-7.4-6.2-4.5h7.6z"></path>
+          </svg>
+          Try our AI Powered Locator
+        </a>
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSfXZFOzldNdQZL53p_AQR1tgTyTTuQ_OnNr41AM9U8sv_e1Rg/viewform?usp=dialog" target="_blank" class="ai-link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2l2.4 7.4h7.6l-6.2 4.5 2.4 7.4-6.2-4.5-6.2 4.5 2.4-7.4-6.2-4.5h7.6z"></path>
+          </svg>
+          Rate Our Locator
+        </a>
+
         <button id="themeToggleBtn" class="icon-btn" title="Toggle Dark Mode">
-          <svg class="theme-icon light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg class="theme-icon light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
             <circle cx="12" cy="12" r="5"></circle>
             <line x1="12" y1="1" x2="12" y2="3"></line>
             <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -38,7 +57,8 @@
             <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
             <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
           </svg>
-          <svg class="theme-icon dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg class="theme-icon dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
           </svg>
         </button>
@@ -53,7 +73,9 @@
           <div class="dropdown-content">
             <a href="https://github.com/SumanReddy568/locator_spy" target="_blank" class="dropdown-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+                <path
+                  d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22">
+                </path>
               </svg>
               GitHub Repository
             </a>
@@ -65,9 +87,12 @@
               </svg>
               Report a Bug
             </a>
-            <a href="https://github.com/SumanReddy568/locator_spy/issues/new?labels=enhancement" target="_blank" class="dropdown-item">
+            <a href="https://github.com/SumanReddy568/locator_spy/issues/new?labels=enhancement" target="_blank"
+              class="dropdown-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                <polygon
+                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
+                </polygon>
               </svg>
               Request a Feature
             </a>
@@ -89,7 +114,7 @@
         </div>
       </div>
     </div>
-        
+
     <div class="controls">
       <button id="locatorModeBtn" class="btn pulse-animation">
         <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -114,7 +139,7 @@
         <input type="text" placeholder="Filter locators...">
       </div>
       <label class="toggle-container">
-        <input type="checkbox" id="bestLocatorToggle" checked>
+        <input type="checkbox" id="bestLocatorToggle">
         <span class="toggle-label">Best Locator</span>
       </label>
       <label class="toggle-container">
@@ -122,7 +147,7 @@
         <span class="toggle-label">Auto Validator</span>
       </label>
     </div>
-    
+
     <div class="results">
       <div class="section">
         <div class="section-header">
@@ -201,4 +226,5 @@
 
   <script src="panel.js"></script>
 </body>
+
 </html>

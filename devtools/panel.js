@@ -521,7 +521,7 @@ document.addEventListener("DOMContentLoaded", function () {
   chrome.storage.local.get("isBestLocatorEnabled", (result) => {
     const isEnabled = result.hasOwnProperty("isBestLocatorEnabled")
       ? result.isBestLocatorEnabled
-      : true;
+      : false;
     chrome.storage.local.set({ isBestLocatorEnabled: isEnabled }); // Ensure default is true
     bestLocatorToggle.checked = isEnabled;
   });
