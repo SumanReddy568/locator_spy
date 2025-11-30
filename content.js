@@ -1168,6 +1168,11 @@ if (window.seleniumLocatorHelperInjected) {
         }
       });
 
+      if (typeof hideBestLocatorBanner === 'function') {
+        hideBestLocatorBanner();
+      }
+
+
       // Initialize the best locator setting on script load
       function initializeBestLocatorSetting() {
         chrome.storage.local.get("isBestLocatorEnabled", (result) => {
