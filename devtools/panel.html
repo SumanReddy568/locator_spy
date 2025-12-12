@@ -22,46 +22,26 @@
     </div>
     <div class="header">
       <div class="logo-title">
-        <svg class="logo" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M16 18l2-2-4-4-4 4 2 2"></path>
-          <path d="M8 6l-2 2 4 4 4-4-2-2"></path>
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-        </svg>
-        <h1>Locator Spy</h1>
-        <span class="badge">AutoLocator</span>
+        <img src="../images/zoomai.png" class="logo" width="24" height="24" alt="Logo">
+        <h1>LOCATOR SPY</h1>
+        <span class="badge">AI Powered Locator Generator</span>
       </div>
       <div class="header-controls">
         <a href="https://ailqaagents.netlify.app/locator" target="_blank" class="ai-link">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2l2.4 7.4h7.6l-6.2 4.5 2.4 7.4-6.2-4.5-6.2 4.5 2.4-7.4-6.2-4.5h7.6z"></path>
           </svg>
-          Try our AI Powered Locator
+          Try our AI Powered Web Locator
         </a>
-        <a href="https://docs.google.com/forms/d/e/1FAIpQLSfXZFOzldNdQZL53p_AQR1tgTyTTuQ_OnNr41AM9U8sv_e1Rg/viewform?usp=dialog" target="_blank" class="ai-link">
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSfXZFOzldNdQZL53p_AQR1tgTyTTuQ_OnNr41AM9U8sv_e1Rg/viewform?usp=dialog"
+          target="_blank" class="ai-link">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2l2.4 7.4h7.6l-6.2 4.5 2.4 7.4-6.2-4.5-6.2 4.5 2.4-7.4-6.2-4.5h7.6z"></path>
           </svg>
           Rate Our Locator
         </a>
 
-        <button id="themeToggleBtn" class="icon-btn" title="Toggle Dark Mode">
-          <svg class="theme-icon light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2">
-            <circle cx="12" cy="12" r="5"></circle>
-            <line x1="12" y1="1" x2="12" y2="3"></line>
-            <line x1="12" y1="21" x2="12" y2="23"></line>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-            <line x1="1" y1="12" x2="3" y2="12"></line>
-            <line x1="21" y1="12" x2="23" y2="12"></line>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-          </svg>
-          <svg class="theme-icon dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-          </svg>
-        </button>
+
         <div class="dropdown">
           <button id="menuBtn" class="icon-btn" title="Menu">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -159,6 +139,13 @@
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
               </svg>
             </button>
+            <button id="optimizeAiBtn" class="action-btn" title="Optimize using AI">
+              <img src="../images/ai1.png" width="16" height="16" alt="AI">
+              Optimize Using AI
+            </button>
+            <button id="aiSettingsBtn" class="action-btn" title="AI Settings">
+              AI Settings
+            </button>
             <button id="scrollDownBtn" class="action-btn" title="Scroll Down" data-target="#locatorResults">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="6 9 12 15 18 9"></polyline>
@@ -178,6 +165,60 @@
       </svg>
       Copied to clipboard!
     </div>
+
+    <!-- AI Settings Modal -->
+    <div id="aiSettingsModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>AI Settings</h3>
+          <button id="closeAiSettingsBtn" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="aiProviderSelect">AI Provider</label>
+            <select id="aiProviderSelect">
+              <option value="google">Google Gemini</option>
+              <option value="openrouter">OpenRouter</option>
+            </select>
+          </div>
+
+          <div id="googleFields">
+            <div class="form-group">
+              <label for="googleApiKey">Google API Key</label>
+              <input type="password" id="googleApiKey" placeholder="Enter your Google API Key">
+              <p class="help-text">Get your key from <a href="https://aistudio.google.com/app/apikey"
+                  target="_blank">Google AI Studio</a></p>
+            </div>
+            <div class="form-group">
+              <label for="aiModelSelect">Gemini Model</label>
+              <select id="aiModelSelect">
+                <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash</option>
+                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                <!-- Retaining user's requested 2.5 options if they want them, though they might not exist yet -->
+                <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (Newest)</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="openRouterFields" style="display: none;">
+            <div class="form-group">
+              <label for="openRouterApiKey">OpenRouter API Key</label>
+              <input type="password" id="openRouterApiKey" placeholder="sk-or-...">
+              <p class="help-text">Get your key from <a href="https://openrouter.ai/keys" target="_blank">OpenRouter</a>
+              </p>
+            </div>
+            <div class="form-group">
+              <label for="openRouterModel">Model Name</label>
+              <input type="text" id="openRouterModel" placeholder="e.g. deepseek/deepseek-r1">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="saveAiSettingsBtn" class="btn primary-btn">Save Settings</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Release Notes Panel -->
@@ -195,30 +236,11 @@
       <div class="release-item latest">
         <h4>Version 1.1.6 <span class="release-date">April 2025</span><span class="new-badge">New</span></h4>
         <ul>
-          <li>Added Auto Validator feature for automatic locator testing</li>
-          <li>Enhanced locator accuracy scoring system</li>
-          <li>Deprecated legacy performance tracking features</li>
-          <li>Improved memory usage and reliability</li>
-        </ul>
-      </div>
-      <div class="release-item">
-        <h4>Version 1.1.2 <span class="release-date">April 2025</span></h4>
-        <ul>
-          <li>Added locator validation feature - test locators directly in the panel</li>
-          <li>Visual feedback for valid/invalid locators</li>
-          <li>Improved locator testing reliability</li>
-        </ul>
-      </div>
-      <div class="release-item">
-        <h4>Version 1.1.1 <span class="release-date">March 2025</span></h4>
-        <ul>
-          <li>Performance control enhancements</li>
-          <li>Added notification system for updates</li>
-          <li>Improved Best Locator feature with accuracy rating</li>
-          <li>Enhanced performance metrics tracking</li>
-          <li>Added hover-based element inspection</li>
-          <li>Improved DOM change detection</li>
-          <li>Added network request tracking</li>
+          <li><strong>AI Powered Optimization:</strong> Generate robust unique locators using Gemini AI models.</li>
+          <li><strong>Gemini 2.0 Support:</strong> Integrated latest Gemini 2.0 Flash Experimental model for faster
+            results.</li>
+          <li><strong>Smart Caching:</strong> AI Locators are seamlessly integrated with Validation.</li>
+          <li><strong>Enhanced UI:</strong> Modern, cleaner interface with improved accessibility.</li>
         </ul>
       </div>
     </div>

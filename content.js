@@ -69,9 +69,13 @@ if (window.seleniumLocatorHelperInjected) {
 
         // Force immediate banner cleanup if disabled
         if (!isBestLocatorEnabled) {
-          hideBestLocatorBanner();
-          removeHighlight();
-          if (bestLocatorBanner) {
+          if (typeof hideBestLocatorBanner === "function") {
+            hideBestLocatorBanner();
+          }
+          if (typeof removeHighlight === "function") {
+            removeHighlight();
+          }
+          if (typeof bestLocatorBanner !== "undefined" && bestLocatorBanner) {
             bestLocatorBanner.remove(); // Completely remove the banner element
             bestLocatorBanner = null;
           }
@@ -738,6 +742,7 @@ if (window.seleniumLocatorHelperInjected) {
         sendMessageToBackground({
           action: "getLocators",
           locators: locators,
+          htmlContext: hoveredElement.outerHTML,
         });
       }, 50); // 50ms debounce
 

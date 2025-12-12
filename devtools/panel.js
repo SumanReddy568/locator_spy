@@ -1,7 +1,6 @@
 document.addEventListener("DOMContentLoaded", function () {
   const locatorModeBtn = document.getElementById("locatorModeBtn");
   const locatorResults = document.getElementById("locatorResults");
-  const themeToggleBtn = document.getElementById("themeToggleBtn");
   const menuBtn = document.getElementById("menuBtn");
   const dropdownContent = document.querySelector(".dropdown-content");
   const copyNotification = document.getElementById("copyNotification");
@@ -17,14 +16,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   let isLocatorModeActive = false;
 
-  // Initialize theme from local storage
-  if (localStorage.getItem("theme") === "dark") {
-    document.body.classList.add("dark-mode");
-    document.body.classList.remove("light-mode");
-  } else {
-    document.body.classList.add("light-mode");
-    document.body.classList.remove("dark-mode");
-  }
+  // Ensure light mode is default since dark mode is removed
+  document.body.classList.add("light-mode");
+  document.body.classList.remove("dark-mode");
 
   // Create a connection to the background page
   const backgroundPageConnection = chrome.runtime.connect({
@@ -68,18 +62,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
-  // Toggle theme
-  themeToggleBtn.addEventListener("click", function () {
-    if (document.body.classList.contains("light-mode")) {
-      document.body.classList.remove("light-mode");
-      document.body.classList.add("dark-mode");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.body.classList.remove("dark-mode");
-      document.body.classList.add("light-mode");
-      localStorage.setItem("theme", "light");
-    }
-  });
+
 
   // Toggle dropdown menu
   menuBtn.addEventListener("click", function (e) {
@@ -152,7 +135,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // Update displayLocators function to include validation for all XPath locators
-  function displayLocators(locators) {
+  function displayLocators(locators, isAiGenerated = false) {
     // Reset validation states
     document.querySelectorAll('.validate-btn').forEach(btn => {
       btn.classList.remove('validation-success', 'validation-failed', 'validating');
@@ -184,87 +167,60 @@ document.addEventListener("DOMContentLoaded", function () {
     let html = "";
     html += '<div class="locators-table">';
 
-    // Display high priority locators first
-    if (locators.id) {
-      html += createLocatorItem("ID", locators.id);
-    }
+    if (isAiGenerated) {
+        // Dynamic rendering for AI results (can be many types)
+        for (const [key, value] of Object.entries(locators)) {
+             if (value && typeof value === 'string') {
+                 // Format key slightly if it's camelCase (optional, but AI prompt asks for readable keys)
+                 html += createLocatorItem(key, value, true);
+             }
+        }
+    } else {
+        // Standard rendering for local generator results (Strict Order)
+        if (locators.id) html += createLocatorItem("ID", locators.id);
+        if (locators.dataTestId) html += createLocatorItem("Data Test ID", locators.dataTestId);
+        if (locators.cssSelector) html += createLocatorItem("CSS Selector", locators.cssSelector);
+        if (locators.relativeXPath) html += createLocatorItem("Relative XPath", locators.relativeXPath);
+        if (locators.absoluteXPath) html += createLocatorItem("Absolute XPath", locators.absoluteXPath);
+        if (locators.xpathByName) html += createLocatorItem("XPath by Name", locators.xpathByName);
+        if (locators.xpathByText) html += createLocatorItem("XPath by Text", locators.xpathByText);
+        if (locators.xpathByLinkText) html += createLocatorItem("XPath by Link Text", locators.xpathByLinkText);
+        if (locators.xpathByPartialLinkText) html += createLocatorItem("XPath by Partial Link Text", locators.xpathByPartialLinkText);
+        
+        if (locators.partialTextXPath) {
+          html += createLocatorItem("XPath by Partial Text", locators.partialTextXPath);
+        }
 
-    if (locators.dataTestId) {
-      html += createLocatorItem("Data Test ID", locators.dataTestId);
-    }
+        if (locators.allXPaths && locators.allXPaths.length > 0) {
+          html += `<div class="locator-item"><span class="locator-type">All XPaths:</span></div>`;
+          locators.allXPaths.forEach((xpath) => {
+            html += `
+              <div class="locator-item">
+                <span class="locator-value">${xpath}</span>
+                <div class="locator-actions">
+                  <button class="validate-btn" data-type="XPath" data-value="${escapeHtml(xpath)}" title="Validate locator">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1-7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+                    </svg>
+                    Validate
+                  </button>
+                  <button class="copy-btn" data-value="${escapeHtml(xpath)}">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Copy
+                  </button>
+                </div>
+              </div>
+            `;
+          });
+        }
 
-    if (locators.cssSelector) {
-      html += createLocatorItem("CSS Selector", locators.cssSelector);
-    }
-
-    // Display all XPath related locators
-    if (locators.relativeXPath) {
-      html += createLocatorItem("Relative XPath", locators.relativeXPath);
-    }
-
-    if (locators.absoluteXPath) {
-      html += createLocatorItem("Absolute XPath", locators.absoluteXPath);
-    }
-
-    if (locators.xpathByName) {
-      html += createLocatorItem("XPath by Name", locators.xpathByName);
-    }
-
-    if (locators.xpathByText) {
-      html += createLocatorItem("XPath by Text", locators.xpathByText);
-    }
-
-    if (locators.partialTextXPath) {
-      html += createLocatorItem(
-        "XPath by Partial Text",
-        locators.partialTextXPath
-      );
-    }
-
-    // Display All XPaths section with validation
-    if (locators.allXPaths && locators.allXPaths.length > 0) {
-      html += `<div class="locator-item"><span class="locator-type">All XPaths:</span></div>`;
-      locators.allXPaths.forEach((xpath) => {
-        html += `
-          <div class="locator-item">
-            <span class="locator-value">${xpath}</span>
-            <div class="locator-actions">
-              <button class="validate-btn" data-type="XPath" data-value="${escapeHtml(
-                xpath
-              )}" title="Validate locator">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1-7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
-                </svg>
-                Validate
-              </button>
-              <button class="copy-btn" data-value="${escapeHtml(xpath)}">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-                Copy
-              </button>
-            </div>
-          </div>
-        `;
-      });
-    }
-
-    // Display lower priority locators at the bottom
-    if (locators.className) {
-      html += createLocatorItem("Class Name", locators.className);
-    }
-
-    if (locators.tagName) {
-      html += createLocatorItem("Tag Name", locators.tagName);
-    }
-
-    if (locators.linkText) {
-      html += createLocatorItem("Link Text", locators.linkText);
-    }
-
-    if (locators.partialLinkText) {
-      html += createLocatorItem("Partial Link Text", locators.partialLinkText);
+        if (locators.className) html += createLocatorItem("Class Name", locators.className);
+        if (locators.tagName) html += createLocatorItem("Tag Name", locators.tagName);
+        if (locators.linkText) html += createLocatorItem("Link Text", locators.linkText);
+        if (locators.partialLinkText) html += createLocatorItem("Partial Link Text", locators.partialLinkText);
     }
 
     html += "</div>";
@@ -283,11 +239,15 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // Helper function to create locator item
-  function createLocatorItem(type, value) {
+  function createLocatorItem(type, value, isAiGenerated = false) {
+    const badge = isAiGenerated 
+      ? '<img src="../images/ai2.png" class="ai-badge" alt="AI" title="AI Generated">' 
+      : '';
+    
     return `
       <div class="locator-item">
         <span class="locator-type">${type}:</span>
-        <span class="locator-value">${value}</span>
+        <span class="locator-value">${value} ${badge}</span>
         <div class="locator-actions">
           <button class="validate-btn" data-type="${type}" data-value="${escapeHtml(value)}" title="Validate locator">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -603,6 +563,8 @@ document.addEventListener("DOMContentLoaded", function () {
       if (locators.absoluteXPath) allLocators.push({ type: 'Absolute XPath', value: locators.absoluteXPath });
       if (locators.xpathByName) allLocators.push({ type: 'XPath by Name', value: locators.xpathByName });
       if (locators.xpathByText) allLocators.push({ type: 'XPath by Text', value: locators.xpathByText });
+      if (locators.xpathByLinkText) allLocators.push({ type: 'XPath by Link Text', value: locators.xpathByLinkText });
+      if (locators.xpathByPartialLinkText) allLocators.push({ type: 'XPath by Partial Link Text', value: locators.xpathByPartialLinkText });
       if (locators.partialTextXPath) allLocators.push({ type: 'XPath by Partial Text', value: locators.partialTextXPath });
       // Add lower priority locators
       if (locators.className) allLocators.push({ type: 'Class Name', value: locators.className });
@@ -665,18 +627,8 @@ document.addEventListener("DOMContentLoaded", function () {
   // Check dock position on load and window resize
   checkDockPosition();
   window.addEventListener("resize", checkDockPosition);
-});
 
-document.addEventListener("DOMContentLoaded", function () {
-  // Check if opened from notification
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get("showReleaseNotes") === "true") {
-    const releaseNotesPanel = document.querySelector(".release-notes-panel");
-    releaseNotesPanel.classList.add("show");
-  }
-});
-
-document.addEventListener("DOMContentLoaded", () => {
+  // Scroll Down Button Logic
   const scrollDownBtn = document.getElementById("scrollDownBtn");
   if (scrollDownBtn) {
     scrollDownBtn.addEventListener("click", () => {
@@ -686,5 +638,292 @@ document.addEventListener("DOMContentLoaded", () => {
         targetElement.scrollBy({ top: 100, behavior: "smooth" });
       }
     });
+  }
+
+  // AI Optimization Feature
+  const optimizeAiBtn = document.getElementById("optimizeAiBtn");
+  const aiSettingsBtn = document.getElementById("aiSettingsBtn");
+  const aiSettingsModal = document.getElementById("aiSettingsModal");
+  const closeAiSettingsBtn = document.getElementById("closeAiSettingsBtn");
+  const saveAiSettingsBtn = document.getElementById("saveAiSettingsBtn");
+  const googleApiKeyInput = document.getElementById("googleApiKey");
+  const aiModelSelect = document.getElementById("aiModelSelect");
+  
+  // New OpenRouter Elements
+  const aiProviderSelect = document.getElementById("aiProviderSelect");
+  const googleFields = document.getElementById("googleFields");
+  const openRouterFields = document.getElementById("openRouterFields");
+  const openRouterApiKeyInput = document.getElementById("openRouterApiKey");
+  const openRouterModelInput = document.getElementById("openRouterModel");
+  
+  let currentHtmlContext = null;
+  let currentLocators = null;
+
+  // Listen for locators message to get context
+   backgroundPageConnection.onMessage.addListener(function (message) {
+    if (message.action === "getLocators") {
+      if (message.locators) {
+          currentLocators = message.locators;
+      }
+      if (message.htmlContext) {
+          currentHtmlContext = message.htmlContext;
+      }
+    }
+  });
+
+  // Open Settings
+  aiSettingsBtn.addEventListener("click", () => {
+      openAiSettings();
+  });
+
+  // Toggle Provider Fields
+  aiProviderSelect.addEventListener("change", () => {
+      if (aiProviderSelect.value === "openrouter") {
+          googleFields.style.display = "none";
+          openRouterFields.style.display = "block";
+      } else {
+          googleFields.style.display = "block";
+          openRouterFields.style.display = "none";
+      }
+  });
+
+  function openAiSettings() {
+      // Load saved settings
+      chrome.storage.local.get(["aiProvider", "googleApiKey", "aiModel", "openRouterApiKey", "openRouterModel"], (result) => {
+          // Default to google if no provider set
+          const provider = result.aiProvider || "google";
+          aiProviderSelect.value = provider;
+          
+          // Trigger change to set correct visibility
+          aiProviderSelect.dispatchEvent(new Event('change'));
+
+          if (result.googleApiKey) {
+              googleApiKeyInput.value = result.googleApiKey;
+          }
+          if (result.aiModel) {
+              aiModelSelect.value = result.aiModel;
+          }
+          
+          if (result.openRouterApiKey) {
+              openRouterApiKeyInput.value = result.openRouterApiKey;
+          }
+          if (result.openRouterModel) {
+              openRouterModelInput.value = result.openRouterModel;
+          }
+          
+          aiSettingsModal.classList.add("show");
+      });
+  }
+
+  // Close Settings
+  closeAiSettingsBtn.addEventListener("click", () => {
+      aiSettingsModal.classList.remove("show");
+  });
+
+  // Save Settings
+  saveAiSettingsBtn.addEventListener("click", () => {
+      const provider = aiProviderSelect.value;
+      const googleKey = googleApiKeyInput.value.trim();
+      const googleModel = aiModelSelect.value;
+      const orKey = openRouterApiKeyInput.value.trim();
+      const orModel = openRouterModelInput.value.trim();
+
+      if (provider === "google" && !googleKey) {
+          alert("Please enter a valid Google API Key");
+          return;
+      }
+      
+      if (provider === "openrouter" && !orKey) {
+          alert("Please enter a valid OpenRouter API Key");
+          return;
+      }
+
+      const settings = {
+          aiProvider: provider,
+          googleApiKey: googleKey,
+          aiModel: googleModel,
+          openRouterApiKey: orKey,
+          openRouterModel: orModel
+      };
+
+      chrome.storage.local.set(settings, () => {
+          aiSettingsModal.classList.remove("show");
+          showCopyNotification("Settings saved!");
+      });
+  });
+
+  // Optimize AI Button Click
+  if (optimizeAiBtn) {
+      optimizeAiBtn.addEventListener("click", async () => {
+          optimizeAiBtn.innerHTML = `Improving...`;
+          optimizeAiBtn.classList.add("pulse-animation");
+
+          chrome.storage.local.get(["aiProvider", "googleApiKey", "aiModel", "openRouterApiKey", "openRouterModel"], async (result) => {
+              const provider = result.aiProvider || "google";
+              
+              const apiKey = provider === "openrouter" ? result.openRouterApiKey : result.googleApiKey;
+              const model = provider === "openrouter" ? result.openRouterModel : result.aiModel;
+
+              if (!apiKey) {
+                  openAiSettings();
+                  resetOptimizeBtn();
+                  return;
+              }
+
+              // Fallback: If we have locators but no HTML context (e.g. from older messages), warn but try or fail gracefully.
+              // We strictly need context or at least the element info.
+              // Assuming that if we have locators, we probably have context if the extension is updated.
+              if (!currentHtmlContext && !currentLocators) {
+                  showCopyNotification("No element selected to optimize");
+                  resetOptimizeBtn();
+                  return;
+              }
+
+              try {
+                  const locators = await generateAiLocators(
+                      currentHtmlContext,
+                      currentLocators,
+                      apiKey, 
+                      model,
+                      provider
+                  );
+                  
+                  if (locators) {
+                      displayLocators(locators, true);
+                      showCopyNotification("Optimized by AI!");
+                  }
+              } catch (error) {
+                  console.error("AI Generation Error: ", error);
+                  showCopyNotification("AI Optimization Failed: " + error.message);
+              } finally {
+                  resetOptimizeBtn();
+              }
+          });
+      });
+  }
+
+  function resetOptimizeBtn() {
+      optimizeAiBtn.classList.remove("pulse-animation");
+      optimizeAiBtn.innerHTML = `
+        <img src="../images/ai2.png" width="16" height="16" alt="AI">
+        Optimize Using AI
+      `;
+  }
+
+  async function generateAiLocators(htmlContext, existingLocators, apiKey, model, provider = "google") {
+      let prompt = `
+        You are an Automation QA Expert. 
+        Analyze the following element and its context. Generate a COMPREHENSIVE list of ALL possible robust, unique, and reliable Selenium locators.
+        
+        Include variations for:
+        - CSS Selectors (ID-based, Attribute-based, Class-combinations, Parent-child relationships)
+        - XPath (Relative, Absolute, Text-based, Contains, Following-sibling, etc.)
+        - Link Text / Partial Link Text (if applicable)
+        - ID, Name, Class Name, Tag Name (if unique)
+        
+        Prioritize stability and shortness.
+      `;
+
+      if (htmlContext) {
+          prompt += `
+            HTML Context:
+            \`\`\`html
+            ${htmlContext}
+            \`\`\`
+          `;
+      }
+
+      if (existingLocators) {
+          prompt += `
+            Existing Locators (for reference):
+            ${JSON.stringify(existingLocators, null, 2)}
+          `;
+      }
+        
+      prompt += `
+        Return ONLY a JSON object where keys are descriptive locator types (e.g., "css_id", "xpath_text", "css_complex", "xpath_sibling") and values are the locator strings.
+        Example format:
+        {
+            "CSS (ID)": "#submit",
+            "XPath (Text)": "//button[text()='Submit']",
+            "CSS (Attribute)": "button[type='submit']"
+        }
+        
+        Do not explain. Just JSON.
+      `;
+      
+      // Default models if empty
+      if (!model) {
+          model = provider === "google" ? "gemini-2.0-flash-exp" : "google/gemini-2.0-flash-exp:free";
+      }
+
+      try {
+          let url, body, headers;
+          
+          if (provider === "google") {
+             url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+             headers = { "Content-Type": "application/json" };
+             body = JSON.stringify({
+                  contents: [{ parts: [{ text: prompt }] }]
+             });
+          } else {
+             // OpenRouter Configuration
+             url = "https://openrouter.ai/api/v1/chat/completions";
+             headers = {
+                 "Content-Type": "application/json",
+                 "Authorization": `Bearer ${apiKey}`,
+                 // Optional headers for better request tracking
+                 "HTTP-Referer": "https://github.com/SumanReddy568/locator_spy", 
+                 "X-Title": "Locator Spy"
+             };
+             body = JSON.stringify({
+                 model: model,
+                 messages: [
+                     { role: "user", content: prompt }
+                 ]
+             });
+          }
+          
+          const response = await fetch(url, {
+              method: "POST",
+              headers: headers,
+              body: body
+          });
+
+          if (!response.ok) {
+              const err = await response.json();
+              const msg = err.error?.message || err.message || "API Request Failed";
+              throw new Error(msg);
+          }
+
+          const data = await response.json();
+          let text = "";
+          
+          if (provider === "google") {
+              text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          } else {
+              // OpenRouter / OpenAI structure
+              text = data.choices?.[0]?.message?.content;
+          }
+          
+          if (!text) throw new Error("No response from AI");
+
+          // Clean markdown code blocks if present
+          const jsonStr = text.replace(/```json|```/g, "").trim();
+          return JSON.parse(jsonStr);
+
+      } catch (e) {
+          throw e;
+      }
+  }
+
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+  // Check if opened from notification
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get("showReleaseNotes") === "true") {
+    const releaseNotesPanel = document.querySelector(".release-notes-panel");
+    releaseNotesPanel.classList.add("show");
   }
 });
