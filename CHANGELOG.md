@@ -1,3 +1,6 @@
+## [1.1.7] - 2025-12-12
+- feat: Introduce AI-powered locator generation, refactor existing logic, and update UI assets and icons.
+
 ## [1.1.6] - 2025-11-30
 - new fix
 
