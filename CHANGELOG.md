@@ -1,4 +1,7 @@
 ## [1.1.9] - 2025-12-13
+- feat: Update extension name to Locator Finder: AI Powered and set version to 1.1.8
+
+## [1.1.9] - 2025-12-13
 - docs: update manifest description to reflect AI capabilities.
 
 ## [1.1.8] - 2025-12-13
