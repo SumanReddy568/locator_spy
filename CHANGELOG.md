@@ -1,3 +1,6 @@
+## [1.1.9] - 2025-12-13
+- docs: update manifest description to reflect AI capabilities.
+
 ## [1.1.8] - 2025-12-13
 - feat: Extract AI locator generation to a new service, update AI model options, and refine UI elements.
 
