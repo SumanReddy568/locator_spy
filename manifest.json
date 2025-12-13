@@ -1,7 +1,7 @@
 {
   "name": "Locator Spy",
   "version": "1.1.8",
-  "description": "Helps find locators for Selenium automation testing",
+  "description": "AI Powered Locator Finder for Selenium automation testing",
   "manifest_version": 3,
   "background": {
     "service_worker": "background.js",
