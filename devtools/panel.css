@@ -19,6 +19,14 @@
   --border-radius: 8px;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Outfit', sans-serif;
+}
+
+.header h1, 
+.section h3, 
+.logo-title h1,
+.badge {
+  font-family: var(--font-display);
 }
 
 .dark-mode {

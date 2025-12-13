@@ -39,17 +39,13 @@ document.addEventListener("DOMContentLoaded", function () {
       locatorModeBtn.classList.add("active-mode");
       locatorModeBtn.classList.remove("pulse-animation");
       locatorModeBtn.innerHTML = `
-        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
-        </svg>
+        <img src="../images/cursor-icon.png" class="icon" width="16" height="16" alt="Locator Mode">
         Locator Mode (Active)
       `;
     } else {
       locatorModeBtn.classList.remove("active-mode");
       locatorModeBtn.innerHTML = `
-        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
-        </svg>
+        <img src="../images/cursor-icon.png" class="icon" width="16" height="16" alt="Locator Mode">
         Locator Mode
       `;
     }
@@ -89,9 +85,7 @@ document.addEventListener("DOMContentLoaded", function () {
       isLocatorModeActive = false;
       locatorModeBtn.classList.remove("active-mode");
       locatorModeBtn.innerHTML = `
-        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
-        </svg>
+        <img src="../images/cursor-icon.png" class="icon" width="16" height="16" alt="Locator Mode">
         Locator Mode
       `;
     }
@@ -241,7 +235,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Helper function to create locator item
   function createLocatorItem(type, value, isAiGenerated = false) {
     const badge = isAiGenerated 
-      ? '<img src="../images/ai2.png" class="ai-badge" alt="AI" title="AI Generated">' 
+      ? '<img src="../images/ai1.png" class="ai-badge" alt="AI" title="AI Generated">' 
       : '';
     
     return `
@@ -310,11 +304,9 @@ document.addEventListener("DOMContentLoaded", function () {
       isLocatorModeActive = false;
       locatorModeBtn.classList.remove("active-mode");
       locatorModeBtn.innerHTML = `
-      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
-      </svg>
-      Locator Mode
-    `;
+        <img src="../images/cursor-icon.png" class="icon" width="16" height="16" alt="Locator Mode">
+        Locator Mode
+      `;
 
       // Notify background script to deactivate locator mode
       backgroundPageConnection.postMessage({
@@ -806,117 +798,9 @@ document.addEventListener("DOMContentLoaded", function () {
       optimizeAiBtn.classList.remove("pulse-animation");
       optimizeAiBtn.innerHTML = `
         <img src="../images/ai2.png" width="16" height="16" alt="AI">
-        Optimize Using AI
+        <b>Optimize Using AI</b>
       `;
   }
-
-  async function generateAiLocators(htmlContext, existingLocators, apiKey, model, provider = "google") {
-      let prompt = `
-        You are an Automation QA Expert. 
-        Analyze the following element and its context. Generate a COMPREHENSIVE list of ALL possible robust, unique, and reliable Selenium locators.
-        
-        Include variations for:
-        - CSS Selectors (ID-based, Attribute-based, Class-combinations, Parent-child relationships)
-        - XPath (Relative, Absolute, Text-based, Contains, Following-sibling, etc.)
-        - Link Text / Partial Link Text (if applicable)
-        - ID, Name, Class Name, Tag Name (if unique)
-        
-        Prioritize stability and shortness.
-      `;
-
-      if (htmlContext) {
-          prompt += `
-            HTML Context:
-            \`\`\`html
-            ${htmlContext}
-            \`\`\`
-          `;
-      }
-
-      if (existingLocators) {
-          prompt += `
-            Existing Locators (for reference):
-            ${JSON.stringify(existingLocators, null, 2)}
-          `;
-      }
-        
-      prompt += `
-        Return ONLY a JSON object where keys are descriptive locator types (e.g., "css_id", "xpath_text", "css_complex", "xpath_sibling") and values are the locator strings.
-        Example format:
-        {
-            "CSS (ID)": "#submit",
-            "XPath (Text)": "//button[text()='Submit']",
-            "CSS (Attribute)": "button[type='submit']"
-        }
-        
-        Do not explain. Just JSON.
-      `;
-      
-      // Default models if empty
-      if (!model) {
-          model = provider === "google" ? "gemini-2.0-flash-exp" : "google/gemini-2.0-flash-exp:free";
-      }
-
-      try {
-          let url, body, headers;
-          
-          if (provider === "google") {
-             url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-             headers = { "Content-Type": "application/json" };
-             body = JSON.stringify({
-                  contents: [{ parts: [{ text: prompt }] }]
-             });
-          } else {
-             // OpenRouter Configuration
-             url = "https://openrouter.ai/api/v1/chat/completions";
-             headers = {
-                 "Content-Type": "application/json",
-                 "Authorization": `Bearer ${apiKey}`,
-                 // Optional headers for better request tracking
-                 "HTTP-Referer": "https://github.com/SumanReddy568/locator_spy", 
-                 "X-Title": "Locator Spy"
-             };
-             body = JSON.stringify({
-                 model: model,
-                 messages: [
-                     { role: "user", content: prompt }
-                 ]
-             });
-          }
-          
-          const response = await fetch(url, {
-              method: "POST",
-              headers: headers,
-              body: body
-          });
-
-          if (!response.ok) {
-              const err = await response.json();
-              const msg = err.error?.message || err.message || "API Request Failed";
-              throw new Error(msg);
-          }
-
-          const data = await response.json();
-          let text = "";
-          
-          if (provider === "google") {
-              text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          } else {
-              // OpenRouter / OpenAI structure
-              text = data.choices?.[0]?.message?.content;
-          }
-          
-          if (!text) throw new Error("No response from AI");
-
-          // Clean markdown code blocks if present
-          const jsonStr = text.replace(/```json|```/g, "").trim();
-          return JSON.parse(jsonStr);
-
-      } catch (e) {
-          throw e;
-      }
-  }
-
 });
 
 document.addEventListener("DOMContentLoaded", function () {
