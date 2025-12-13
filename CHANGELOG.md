@@ -1,3 +1,6 @@
+## [1.1.8] - 2025-12-13
+- feat: Extract AI locator generation to a new service, update AI model options, and refine UI elements.
+
 ## [1.1.7] - 2025-12-12
 - feat: Introduce AI-powered locator generation, refactor existing logic, and update UI assets and icons.
 
