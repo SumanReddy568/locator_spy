@@ -1,6 +1,6 @@
 {
   "name": "Locator Finder: AI Powered",
-  "version": "1.1.9",
+  "version": "1.2.0",
   "description": "AI Powered Locator Finder for Selenium automation testing",
   "manifest_version": 3,
   "background": {
