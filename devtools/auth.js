@@ -59,7 +59,7 @@ function setButtonLoading(buttonId, isLoading) {
     if (button) {
         const buttonText = button.querySelector('.button-text');
         const buttonLoader = button.querySelector('.button-loader');
-        
+
         if (isLoading) {
             button.disabled = true;
             if (buttonText) buttonText.style.display = 'none';
@@ -134,7 +134,7 @@ async function getUserDetails() {
 async function signup(email, password) {
     try {
         const hash = await generateHash(email, password);
-        
+
         const userDetails = await getUserDetails();
 
         const response = await fetch(`${AUTH_CONFIG.API_BASE_URL}/signup`, {
@@ -181,7 +181,7 @@ async function signup(email, password) {
 async function login(email, password) {
     try {
         const hash = await generateHash(email, password);
-        
+
         const response = await fetch(`${AUTH_CONFIG.API_BASE_URL}/login`, {
             method: 'POST',
             headers: {
@@ -223,7 +223,7 @@ async function login(email, password) {
 async function logout() {
     try {
         const token = getStoredToken();
-        
+
         if (!token) {
             throw new Error('No active session found.');
         }
@@ -264,7 +264,7 @@ async function logout() {
 async function validateSession() {
     try {
         const token = getStoredToken();
-        
+
         if (!token) {
             return { valid: false };
         }
@@ -357,10 +357,10 @@ function initSignup() {
 
             try {
                 const result = await signup(email, password);
-                
+
                 if (result.success) {
                     showSuccess('Account created successfully! Logging you in...');
-                    
+
                     // Auto-login after signup
                     setTimeout(async () => {
                         try {
@@ -369,7 +369,7 @@ function initSignup() {
                                 storeAuthData(loginResult.token, loginResult.email, loginResult.hash);
                                 showSuccess('Login successful! Redirecting...');
                                 setTimeout(() => {
-                                    window.location.href = 'popup.html';
+                                    window.location.href = 'panel.html';
                                 }, 1000);
                             }
                         } catch (error) {
@@ -425,12 +425,12 @@ function initLogin() {
 
             try {
                 const result = await login(email, password);
-                
+
                 if (result.success) {
                     storeAuthData(result.token, result.email, result.hash);
                     showSuccess('Login successful! Redirecting...');
                     setTimeout(() => {
-                        window.location.href = 'popup.html';
+                        window.location.href = 'panel.html';
                     }, 1000);
                 }
             } catch (error) {
@@ -458,7 +458,7 @@ function initLogout() {
     // Cancel button
     if (cancelBtn) {
         cancelBtn.addEventListener('click', () => {
-            window.location.href = 'popup.html';
+            window.location.href = 'panel.html';
         });
     }
 
@@ -469,7 +469,7 @@ function initLogout() {
 
             try {
                 const result = await logout();
-                
+
                 if (result.success) {
                     clearAuthData();
                     showSuccess('Logged out successfully! Redirecting...');

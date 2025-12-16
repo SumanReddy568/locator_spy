@@ -14,6 +14,34 @@ document.addEventListener("DOMContentLoaded", function () {
   const bestLocatorToggle = document.getElementById("bestLocatorToggle");
   const autoValidatorToggle = document.getElementById("autoValidatorToggle");
   const autoOptimizeToggle = document.getElementById("autoOptimizeToggle");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  // Auth Status Check
+  if (window.AuthModule) {
+    if (!AuthModule.isAuthenticated()) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    // Update UI for logged in state
+    if (logoutBtn) {
+      logoutBtn.style.display = 'flex';
+      logoutBtn.addEventListener('click', async () => {
+        if (confirm('Are you sure you want to logout?')) {
+          await AuthModule.logout();
+          window.location.href = 'login.html';
+        }
+      });
+    }
+
+    // Periodic session check (every 5 mins)
+    setInterval(async () => {
+      const isValid = await AuthModule.checkSession();
+      if (!isValid) {
+        window.location.href = 'login.html';
+      }
+    }, 300000);
+  }
 
   let isLocatorModeActive = false;
 
