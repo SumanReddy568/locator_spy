@@ -56,7 +56,7 @@ window.generateLocators = function generateLocators(element) {
     "title",
     "role",
     "for",
-    "href", 
+    "href",
     "src"
   ];
 
@@ -75,7 +75,7 @@ window.generateLocators = function generateLocators(element) {
 
     // 2. Unique Tag Name
     if (isUnique(el.tagName.toLowerCase())) {
-        return el.tagName.toLowerCase();
+      return el.tagName.toLowerCase();
     }
 
     // 3. Stable Attributes
@@ -114,9 +114,9 @@ window.generateLocators = function generateLocators(element) {
 
       // Try multiple classes if single didn't work
       if (classes.length > 1) {
-          const classSelector = classes.map((c) => `.${escape(c)}`).join("");
-          const fullClassSelector = `${el.tagName.toLowerCase()}${classSelector}`;
-          if (isUnique(fullClassSelector)) return fullClassSelector;
+        const classSelector = classes.map((c) => `.${escape(c)}`).join("");
+        const fullClassSelector = `${el.tagName.toLowerCase()}${classSelector}`;
+        if (isUnique(fullClassSelector)) return fullClassSelector;
       }
     }
 
@@ -131,35 +131,35 @@ window.generateLocators = function generateLocators(element) {
     while (current && current.nodeType === 1) {
       // If we hit an ID, use it as anchor
       if (current.id) {
-          const idSelector = `#${escape(current.id)}`;
-          path.unshift(idSelector);
-          const fullPath = path.join(" > ");
-          if (isUnique(fullPath)) return fullPath;
-          // If not unique, continue but keep ID in path
+        const idSelector = `#${escape(current.id)}`;
+        path.unshift(idSelector);
+        const fullPath = path.join(" > ");
+        if (isUnique(fullPath)) return fullPath;
+        // If not unique, continue but keep ID in path
       } else {
-          // Try unique class or fallback to nth-type
-          let selector = current.tagName.toLowerCase();
-          const classes = Array.from(current.classList || []).filter(c => !shouldIgnoreClass(c));
-          
-          let addedClass = false;
-          // Try to append a class if it helps uniqueness
-           if (classes.length > 0) {
-              selector += `.${escape(classes[0])}`;
-              addedClass = true;
-          }
+        // Try unique class or fallback to nth-type
+        let selector = current.tagName.toLowerCase();
+        const classes = Array.from(current.classList || []).filter(c => !shouldIgnoreClass(c));
 
-          if (!addedClass) {
-              const siblings = Array.from(current.parentNode?.children || []).filter(
-                (s) => s.tagName === current.tagName
-              );
-    
-              if (siblings.length > 1) {
-                const index = siblings.indexOf(current) + 1;
-                selector += `:nth-of-type(${index})`;
-              }
+        let addedClass = false;
+        // Try to append a class if it helps uniqueness
+        if (classes.length > 0) {
+          selector += `.${escape(classes[0])}`;
+          addedClass = true;
+        }
+
+        if (!addedClass) {
+          const siblings = Array.from(current.parentNode?.children || []).filter(
+            (s) => s.tagName === current.tagName
+          );
+
+          if (siblings.length > 1) {
+            const index = siblings.indexOf(current) + 1;
+            selector += `:nth-of-type(${index})`;
           }
-           
-          path.unshift(selector);
+        }
+
+        path.unshift(selector);
       }
 
       // Check current path uniqueness
@@ -168,7 +168,7 @@ window.generateLocators = function generateLocators(element) {
 
       if (current.tagName.toLowerCase() === "html") break;
       current = current.parentNode;
-      
+
       // Prevent infinite loops / too deep
       if (path.length > 15) break;
     }
@@ -200,13 +200,13 @@ window.generateLocators = function generateLocators(element) {
 
   function buildOptimizedXPath(el) {
     if (!el || el.nodeType !== 1) return "";
-    
+
     // Short circuit if ID acts as anchor
     if (el.id) {
-        // Even if not unique globally, it acts as a strong start point
-        // We handle global uniqueness check outside or via index
-         const idPath = `//*[@id='${el.id}']`;
-         return indexIfNeeded(idPath, el);
+      // Even if not unique globally, it acts as a strong start point
+      // We handle global uniqueness check outside or via index
+      const idPath = `//*[@id='${el.id}']`;
+      return indexIfNeeded(idPath, el);
     }
 
     const parts = [];
@@ -221,7 +221,7 @@ window.generateLocators = function generateLocators(element) {
       }
 
       let segment = current.tagName.toLowerCase();
-      
+
       // Add index if needed
       // Check previous siblings of same tag
       let prevIndex = 0;
@@ -230,29 +230,29 @@ window.generateLocators = function generateLocators(element) {
         if (sib.tagName === current.tagName) prevIndex++;
         sib = sib.previousElementSibling;
       }
-      
+
       // Check next siblings to see if index 1 is implicitly needed vs just "tag"
       // If there are ANY siblings of same tag, we should probably add index for stability
       let hasSiblings = prevIndex > 0;
       if (!hasSiblings) {
-           let next = current.nextElementSibling;
-           while(next) {
-               if(next.tagName === current.tagName) { hasSiblings = true; break; }
-               next = next.nextElementSibling;
-           }
+        let next = current.nextElementSibling;
+        while (next) {
+          if (next.tagName === current.tagName) { hasSiblings = true; break; }
+          next = next.nextElementSibling;
+        }
       }
 
       if (hasSiblings) {
-          segment += `[${prevIndex + 1}]`;
+        segment += `[${prevIndex + 1}]`;
       }
 
       parts.unshift(segment);
       if (current.tagName.toLowerCase() === 'html') {
-          return "/" + parts.join("/"); // Reached root, make absolute
+        return "/" + parts.join("/"); // Reached root, make absolute
       }
       current = current.parentNode;
     }
-    
+
     return "//" + parts.join("/");
   }
 
@@ -260,15 +260,15 @@ window.generateLocators = function generateLocators(element) {
     const segs = [];
     let cur = el;
     while (cur && cur.nodeType === 1) {
-        let tag = cur.tagName.toLowerCase();
-        let index = 1;
-        let sib = cur.previousElementSibling;
-        while (sib) {
-            if (sib.tagName.toLowerCase() === tag) index++;
-            sib = sib.previousElementSibling;
-        }
-        segs.unshift(`${tag}[${index}]`);
-        cur = cur.parentNode;
+      let tag = cur.tagName.toLowerCase();
+      let index = 1;
+      let sib = cur.previousElementSibling;
+      while (sib) {
+        if (sib.tagName.toLowerCase() === tag) index++;
+        sib = sib.previousElementSibling;
+      }
+      segs.unshift(`${tag}[${index}]`);
+      cur = cur.parentNode;
     }
     return '/' + segs.join('/');
   }
@@ -277,31 +277,42 @@ window.generateLocators = function generateLocators(element) {
     const text = el.innerText || el.textContent;
     // Don't use text matching for very long text
     if (!text || text.length > 60 || !text.trim()) return null;
-    
+
     const trimmed = text.trim();
     const xpath = `//${el.tagName.toLowerCase()}[text()=${escapeXPath(trimmed)}]`;
-    
+
     // Validate it finds the element
     return indexIfNeeded(xpath, el);
   }
 
   function getLinkTextXPaths(el) {
-      if (el.tagName.toLowerCase() !== 'a') return { link: null, partial: null };
-      
-      const text = el.innerText || el.textContent;
-      if (!text || !text.trim()) return { link: null, partial: null };
-      
-      const trimmed = text.trim();
-      const linkXpath = `//a[text()=${escapeXPath(trimmed)}]`;
-      
-      // For partial, allow slightly longer text, but slice it
-      const partialText = trimmed.length > 20 ? trimmed.substring(0, 20) : trimmed;
-      const partialXpath = `//a[contains(text(), ${escapeXPath(partialText)})]`;
-      
-      return {
-          link: indexIfNeeded(linkXpath, el),
-          partial: indexIfNeeded(partialXpath, el)
-      };
+    if (el.tagName.toLowerCase() !== 'a') return { link: null, partial: null };
+
+    const text = el.innerText || el.textContent;
+    if (!text || !text.trim()) return { link: null, partial: null };
+
+    const trimmed = text.trim();
+    const linkXpath = `//a[text()=${escapeXPath(trimmed)}]`;
+
+    // For partial, allow slightly longer text, but slice it
+    const partialText = trimmed.length > 20 ? trimmed.substring(0, 20) : trimmed;
+    const partialXpath = `//a[contains(text(), ${escapeXPath(partialText)})]`;
+
+    return {
+      link: indexIfNeeded(linkXpath, el),
+      partial: indexIfNeeded(partialXpath, el)
+    };
+  }
+
+  function getXpathByClassName(el) {
+    if (!el.className || typeof el.className !== 'string') return null;
+    const xpath = `//${el.tagName.toLowerCase()}[@class=${escapeXPath(el.className)}]`;
+    return indexIfNeeded(xpath, el);
+  }
+
+  function getXpathByTagName(el) {
+    const xpath = `//${el.tagName.toLowerCase()}`;
+    return indexIfNeeded(xpath, el);
   }
 
   /** -----------------------------------------------------
@@ -318,6 +329,9 @@ window.generateLocators = function generateLocators(element) {
     // New fields demanded by user
     xpathByLinkText: linkPaths.link,
     xpathByPartialLinkText: linkPaths.partial,
+
+    xpathByClassName: getXpathByClassName(element),
+    xpathByTagName: getXpathByTagName(element),
 
     tagName: element.tagName.toLowerCase(),
     id: element.id || null,

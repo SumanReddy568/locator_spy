@@ -743,6 +743,7 @@ if (window.seleniumLocatorHelperInjected) {
           action: "getLocators",
           locators: locators,
           htmlContext: hoveredElement.outerHTML,
+          trigger: "hover"
         });
       }, 50); // 50ms debounce
 
@@ -773,6 +774,7 @@ if (window.seleniumLocatorHelperInjected) {
           locators: locators,
           metadata: locators._metadata,
           htmlContext: clickedElement.outerHTML,
+          trigger: "click"
         });
 
         // Deactivate locator mode but keep the highlight and banner if enabled
@@ -1002,7 +1004,7 @@ if (window.seleniumLocatorHelperInjected) {
         let element = null;
         console.log(`[LocatorSpy] Validating locator - Type: "${type}", Value: "${value}"`);
         const lowerType = type.toLowerCase();
-        
+
         try {
 
           // 1. XPath Strategies
@@ -1020,81 +1022,81 @@ if (window.seleniumLocatorHelperInjected) {
               console.warn("Invalid XPath execution:", e);
               // Fallback: maybe it wasn't an xpath but the value started with /? Unlikely but possible.
             }
-          } 
+          }
           // 2. ID Strategy
           else if (lowerType === "id") {
-             element = document.getElementById(value);
+            element = document.getElementById(value);
           }
           // 3. CSS Strategies (Explicit or detected)
           else if (lowerType.includes("css") || lowerType.includes("selector")) {
-             try {
-                element = document.querySelector(value);
-             } catch (e) {
-                console.warn("Invalid CSS Selector:", e);
-             }
+            try {
+              element = document.querySelector(value);
+            } catch (e) {
+              console.warn("Invalid CSS Selector:", e);
+            }
           }
           // 4. Specific Strategies
           else if (lowerType === "class name") {
-             element = document.getElementsByClassName(value)[0];
+            element = document.getElementsByClassName(value)[0];
           }
           else if (lowerType === "tag name") {
-               const elements = Array.from(document.getElementsByTagName(value));
-               element = elements[0]; 
-               // ... logic for index if multiple ...
-               if (elements.length > 1 && hoveredElement && elements.includes(hoveredElement)) {
-                   element = hoveredElement;
-               }
+            const elements = Array.from(document.getElementsByTagName(value));
+            element = elements[0];
+            // ... logic for index if multiple ...
+            if (elements.length > 1 && hoveredElement && elements.includes(hoveredElement)) {
+              element = hoveredElement;
+            }
           }
           else if (lowerType === "link text") {
-              // ... existing link text logic ...
-              const exactLinks = Array.from(document.getElementsByTagName("a"))
-                .filter(link => link.textContent.trim() === value);
-              element = exactLinks[0];
-               if (exactLinks.length > 1) {
-                if (hoveredElement && exactLinks.includes(hoveredElement)) {
-                  element = hoveredElement;
-                }
-                chrome.runtime.sendMessage({
-                  action: "validationResult",
-                  success: true,
-                  locatorType: type,
-                  locatorValue: value,
-                  additionalInfo: `Found ${exactLinks.length} matches. Using index ${exactLinks.indexOf(element) + 1}.`,
-                });
+            // ... existing link text logic ...
+            const exactLinks = Array.from(document.getElementsByTagName("a"))
+              .filter(link => link.textContent.trim() === value);
+            element = exactLinks[0];
+            if (exactLinks.length > 1) {
+              if (hoveredElement && exactLinks.includes(hoveredElement)) {
+                element = hoveredElement;
               }
+              chrome.runtime.sendMessage({
+                action: "validationResult",
+                success: true,
+                locatorType: type,
+                locatorValue: value,
+                additionalInfo: `Found ${exactLinks.length} matches. Using index ${exactLinks.indexOf(element) + 1}.`,
+              });
+            }
           }
           else if (lowerType === "partial link text") {
-              // ... existing partial link text logic ...
-              const partialLinks = Array.from(document.getElementsByTagName("a"))
-                .filter(link => link.textContent.includes(value));
-              element = partialLinks[0];
-               if (partialLinks.length > 1) {
-                if (hoveredElement && partialLinks.includes(hoveredElement)) {
-                   element = hoveredElement;
-                }
-                chrome.runtime.sendMessage({
-                  action: "validationResult",
-                  success: true,
-                  locatorType: type,
-                  locatorValue: value,
-                  additionalInfo: `Found ${partialLinks.length} matches. Using index ${partialLinks.indexOf(element) + 1}.`,
-                });
+            // ... existing partial link text logic ...
+            const partialLinks = Array.from(document.getElementsByTagName("a"))
+              .filter(link => link.textContent.includes(value));
+            element = partialLinks[0];
+            if (partialLinks.length > 1) {
+              if (hoveredElement && partialLinks.includes(hoveredElement)) {
+                element = hoveredElement;
               }
+              chrome.runtime.sendMessage({
+                action: "validationResult",
+                success: true,
+                locatorType: type,
+                locatorValue: value,
+                additionalInfo: `Found ${partialLinks.length} matches. Using index ${partialLinks.indexOf(element) + 1}.`,
+              });
+            }
           }
           // 5. Default / Attribute Fallback
           else {
-              // Try as a direct CSS selector first (e.g. if the user provided customized keys or AI output)
+            // Try as a direct CSS selector first (e.g. if the user provided customized keys or AI output)
+            try {
+              element = document.querySelector(value);
+            } catch (e) {
+              // Not a valid selector, treat as Attribute selector (e.g. key="name", value="submit")
               try {
-                  element = document.querySelector(value);
-              } catch (e) {
-                  // Not a valid selector, treat as Attribute selector (e.g. key="name", value="submit")
-                  try {
-                      const selector = `[${lowerType}="${value}"]`;
-                      element = document.querySelector(selector);
-                  } catch (e2) {
-                      console.warn("Failed to construct attribute selector:", e2);
-                  }
+                const selector = `[${lowerType}="${value}"]`;
+                element = document.querySelector(selector);
+              } catch (e2) {
+                console.warn("Failed to construct attribute selector:", e2);
               }
+            }
           }
 
           if (element) {

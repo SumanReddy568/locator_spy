@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", function () {
   );
   const bestLocatorToggle = document.getElementById("bestLocatorToggle");
   const autoValidatorToggle = document.getElementById("autoValidatorToggle");
+  const autoOptimizeToggle = document.getElementById("autoOptimizeToggle");
 
   let isLocatorModeActive = false;
 
@@ -78,7 +79,7 @@ document.addEventListener("DOMContentLoaded", function () {
     console.log("Received message in panel:", message);
 
     if (message.action === "getLocators") {
-      displayLocators(message.locators);
+      displayLocators(message.locators, false, message.trigger);
     }
 
     if (message.action === "locatorModeDeactivated") {
@@ -129,7 +130,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // Update displayLocators function to include validation for all XPath locators
-  function displayLocators(locators, isAiGenerated = false) {
+  function displayLocators(locators, isAiGenerated = false, trigger = null) {
     // Reset validation states
     document.querySelectorAll('.validate-btn').forEach(btn => {
       btn.classList.remove('validation-success', 'validation-failed', 'validating');
@@ -162,33 +163,33 @@ document.addEventListener("DOMContentLoaded", function () {
     html += '<div class="locators-table">';
 
     if (isAiGenerated) {
-        // Dynamic rendering for AI results (can be many types)
-        for (const [key, value] of Object.entries(locators)) {
-             if (value && typeof value === 'string') {
-                 // Format key slightly if it's camelCase (optional, but AI prompt asks for readable keys)
-                 html += createLocatorItem(key, value, true);
-             }
+      // Dynamic rendering for AI results (can be many types)
+      for (const [key, value] of Object.entries(locators)) {
+        if (value && typeof value === 'string') {
+          // Format key slightly if it's camelCase (optional, but AI prompt asks for readable keys)
+          html += createLocatorItem(key, value, true);
         }
+      }
     } else {
-        // Standard rendering for local generator results (Strict Order)
-        if (locators.id) html += createLocatorItem("ID", locators.id);
-        if (locators.dataTestId) html += createLocatorItem("Data Test ID", locators.dataTestId);
-        if (locators.cssSelector) html += createLocatorItem("CSS Selector", locators.cssSelector);
-        if (locators.relativeXPath) html += createLocatorItem("Relative XPath", locators.relativeXPath);
-        if (locators.absoluteXPath) html += createLocatorItem("Absolute XPath", locators.absoluteXPath);
-        if (locators.xpathByName) html += createLocatorItem("XPath by Name", locators.xpathByName);
-        if (locators.xpathByText) html += createLocatorItem("XPath by Text", locators.xpathByText);
-        if (locators.xpathByLinkText) html += createLocatorItem("XPath by Link Text", locators.xpathByLinkText);
-        if (locators.xpathByPartialLinkText) html += createLocatorItem("XPath by Partial Link Text", locators.xpathByPartialLinkText);
-        
-        if (locators.partialTextXPath) {
-          html += createLocatorItem("XPath by Partial Text", locators.partialTextXPath);
-        }
+      // Standard rendering for local generator results (Strict Order)
+      if (locators.id) html += createLocatorItem("ID", locators.id);
+      if (locators.dataTestId) html += createLocatorItem("Data Test ID", locators.dataTestId);
+      if (locators.cssSelector) html += createLocatorItem("CSS Selector", locators.cssSelector);
+      if (locators.relativeXPath) html += createLocatorItem("Relative XPath", locators.relativeXPath);
+      if (locators.absoluteXPath) html += createLocatorItem("Absolute XPath", locators.absoluteXPath);
+      if (locators.xpathByName) html += createLocatorItem("XPath by Name", locators.xpathByName);
+      if (locators.xpathByText) html += createLocatorItem("XPath by Text", locators.xpathByText);
+      if (locators.xpathByLinkText) html += createLocatorItem("XPath by Link Text", locators.xpathByLinkText);
+      if (locators.xpathByPartialLinkText) html += createLocatorItem("XPath by Partial Link Text", locators.xpathByPartialLinkText);
 
-        if (locators.allXPaths && locators.allXPaths.length > 0) {
-          html += `<div class="locator-item"><span class="locator-type">All XPaths:</span></div>`;
-          locators.allXPaths.forEach((xpath) => {
-            html += `
+      if (locators.partialTextXPath) {
+        html += createLocatorItem("XPath by Partial Text", locators.partialTextXPath);
+      }
+
+      if (locators.allXPaths && locators.allXPaths.length > 0) {
+        html += `<div class="locator-item"><span class="locator-type">All XPaths:</span></div>`;
+        locators.allXPaths.forEach((xpath) => {
+          html += `
               <div class="locator-item">
                 <span class="locator-value">${xpath}</span>
                 <div class="locator-actions">
@@ -208,13 +209,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 </div>
               </div>
             `;
-          });
-        }
+        });
+      }
 
-        if (locators.className) html += createLocatorItem("Class Name", locators.className);
-        if (locators.tagName) html += createLocatorItem("Tag Name", locators.tagName);
-        if (locators.linkText) html += createLocatorItem("Link Text", locators.linkText);
-        if (locators.partialLinkText) html += createLocatorItem("Partial Link Text", locators.partialLinkText);
+      if (locators.xpathByClassName) html += createLocatorItem("XPath by Class Name", locators.xpathByClassName);
+      if (locators.xpathByTagName) html += createLocatorItem("XPath by Tag Name", locators.xpathByTagName);
     }
 
     html += "</div>";
@@ -230,14 +229,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
     addValidationListeners();
     autoValidateLocators(locators); // Trigger auto-validation if enabled
+
+    // Trigger Auto Optimization if enabled and not already AI generated
+    if (!isAiGenerated && trigger === 'click') {
+      chrome.storage.local.get("isAutoOptimizeEnabled", (result) => {
+        if (result.isAutoOptimizeEnabled) {
+          performAiOptimization(true);
+        }
+      });
+    }
   }
 
   // Helper function to create locator item
   function createLocatorItem(type, value, isAiGenerated = false) {
-    const badge = isAiGenerated 
-      ? '<img src="../images/ai1.png" class="ai-badge" alt="AI" title="AI Generated">' 
+    const badge = isAiGenerated
+      ? '<img src="../images/ai1.png" class="ai-badge" alt="AI" title="AI Generated">'
       : '';
-    
+
     return `
       <div class="locator-item">
         <span class="locator-type">${type}:</span>
@@ -542,11 +550,28 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
+  // Initialize "Auto Optimize" toggle state from storage
+  chrome.storage.local.get("isAutoOptimizeEnabled", (result) => {
+    const isEnabled = result.hasOwnProperty("isAutoOptimizeEnabled")
+      ? result.isAutoOptimizeEnabled
+      : false;
+    chrome.storage.local.set({ isAutoOptimizeEnabled: isEnabled });
+    autoOptimizeToggle.checked = isEnabled;
+  });
+
+  // Update storage when "Auto Optimize" toggle changes
+  autoOptimizeToggle.addEventListener("change", (event) => {
+    const isEnabled = event.target.checked;
+    chrome.storage.local.set({ isAutoOptimizeEnabled: isEnabled }, () => {
+      console.log("Auto Optimize setting updated in storage:", isEnabled);
+    });
+  });
+
   // Automatically validate locators if "Auto Validator" is enabled
   function autoValidateLocators(locators) {
     chrome.storage.local.get("isAutoValidatorEnabled", (result) => {
       const allLocators = [];
-      
+
       // Collect all available locators with their types
       if (locators.id) allLocators.push({ type: 'ID', value: locators.id });
       if (locators.dataTestId) allLocators.push({ type: 'Data Test ID', value: locators.dataTestId });
@@ -640,163 +665,164 @@ document.addEventListener("DOMContentLoaded", function () {
   const saveAiSettingsBtn = document.getElementById("saveAiSettingsBtn");
   const googleApiKeyInput = document.getElementById("googleApiKey");
   const aiModelSelect = document.getElementById("aiModelSelect");
-  
+
   // New OpenRouter Elements
   const aiProviderSelect = document.getElementById("aiProviderSelect");
   const googleFields = document.getElementById("googleFields");
   const openRouterFields = document.getElementById("openRouterFields");
   const openRouterApiKeyInput = document.getElementById("openRouterApiKey");
   const openRouterModelInput = document.getElementById("openRouterModel");
-  
+
   let currentHtmlContext = null;
   let currentLocators = null;
 
   // Listen for locators message to get context
-   backgroundPageConnection.onMessage.addListener(function (message) {
+  backgroundPageConnection.onMessage.addListener(function (message) {
     if (message.action === "getLocators") {
       if (message.locators) {
-          currentLocators = message.locators;
+        currentLocators = message.locators;
       }
       if (message.htmlContext) {
-          currentHtmlContext = message.htmlContext;
+        currentHtmlContext = message.htmlContext;
       }
     }
   });
 
   // Open Settings
   aiSettingsBtn.addEventListener("click", () => {
-      openAiSettings();
+    openAiSettings();
   });
 
   // Toggle Provider Fields
   aiProviderSelect.addEventListener("change", () => {
-      if (aiProviderSelect.value === "openrouter") {
-          googleFields.style.display = "none";
-          openRouterFields.style.display = "block";
-      } else {
-          googleFields.style.display = "block";
-          openRouterFields.style.display = "none";
-      }
+    if (aiProviderSelect.value === "openrouter") {
+      googleFields.style.display = "none";
+      openRouterFields.style.display = "block";
+    } else {
+      googleFields.style.display = "block";
+      openRouterFields.style.display = "none";
+    }
   });
 
   function openAiSettings() {
-      // Load saved settings
-      chrome.storage.local.get(["aiProvider", "googleApiKey", "aiModel", "openRouterApiKey", "openRouterModel"], (result) => {
-          // Default to google if no provider set
-          const provider = result.aiProvider || "google";
-          aiProviderSelect.value = provider;
-          
-          // Trigger change to set correct visibility
-          aiProviderSelect.dispatchEvent(new Event('change'));
+    // Load saved settings
+    chrome.storage.local.get(["aiProvider", "googleApiKey", "aiModel", "openRouterApiKey", "openRouterModel"], (result) => {
+      // Default to google if no provider set
+      const provider = result.aiProvider || "google";
+      aiProviderSelect.value = provider;
 
-          if (result.googleApiKey) {
-              googleApiKeyInput.value = result.googleApiKey;
-          }
-          if (result.aiModel) {
-              aiModelSelect.value = result.aiModel;
-          }
-          
-          if (result.openRouterApiKey) {
-              openRouterApiKeyInput.value = result.openRouterApiKey;
-          }
-          if (result.openRouterModel) {
-              openRouterModelInput.value = result.openRouterModel;
-          }
-          
-          aiSettingsModal.classList.add("show");
-      });
+      // Trigger change to set correct visibility
+      aiProviderSelect.dispatchEvent(new Event('change'));
+
+      if (result.googleApiKey) {
+        googleApiKeyInput.value = result.googleApiKey;
+      }
+      if (result.aiModel) {
+        aiModelSelect.value = result.aiModel;
+      }
+
+      if (result.openRouterApiKey) {
+        openRouterApiKeyInput.value = result.openRouterApiKey;
+      }
+      if (result.openRouterModel) {
+        openRouterModelInput.value = result.openRouterModel;
+      }
+
+      aiSettingsModal.classList.add("show");
+    });
   }
 
   // Close Settings
   closeAiSettingsBtn.addEventListener("click", () => {
-      aiSettingsModal.classList.remove("show");
+    aiSettingsModal.classList.remove("show");
   });
 
   // Save Settings
   saveAiSettingsBtn.addEventListener("click", () => {
-      const provider = aiProviderSelect.value;
-      const googleKey = googleApiKeyInput.value.trim();
-      const googleModel = aiModelSelect.value;
-      const orKey = openRouterApiKeyInput.value.trim();
-      const orModel = openRouterModelInput.value.trim();
+    const provider = aiProviderSelect.value;
+    const googleKey = googleApiKeyInput.value.trim();
+    const googleModel = aiModelSelect.value;
+    const orKey = openRouterApiKeyInput.value.trim();
+    const orModel = openRouterModelInput.value.trim();
 
-      if (provider === "google" && !googleKey) {
-          alert("Please enter a valid Google API Key");
-          return;
-      }
-      
-      if (provider === "openrouter" && !orKey) {
-          alert("Please enter a valid OpenRouter API Key");
-          return;
-      }
+    if (provider === "google" && !googleKey) {
+      alert("Please enter a valid Google API Key");
+      return;
+    }
 
-      const settings = {
-          aiProvider: provider,
-          googleApiKey: googleKey,
-          aiModel: googleModel,
-          openRouterApiKey: orKey,
-          openRouterModel: orModel
-      };
+    if (provider === "openrouter" && !orKey) {
+      alert("Please enter a valid OpenRouter API Key");
+      return;
+    }
 
-      chrome.storage.local.set(settings, () => {
-          aiSettingsModal.classList.remove("show");
-          showCopyNotification("Settings saved!");
-      });
+    const settings = {
+      aiProvider: provider,
+      googleApiKey: googleKey,
+      aiModel: googleModel,
+      openRouterApiKey: orKey,
+      openRouterModel: orModel
+    };
+
+    chrome.storage.local.set(settings, () => {
+      aiSettingsModal.classList.remove("show");
+      showCopyNotification("Settings saved!");
+    });
   });
 
   // Optimize AI Button Click
   if (optimizeAiBtn) {
-      optimizeAiBtn.addEventListener("click", async () => {
-          optimizeAiBtn.innerHTML = `Improving...`;
-          optimizeAiBtn.classList.add("pulse-animation");
+    optimizeAiBtn.addEventListener("click", () => performAiOptimization(false));
+  }
 
-          chrome.storage.local.get(["aiProvider", "googleApiKey", "aiModel", "openRouterApiKey", "openRouterModel"], async (result) => {
-              const provider = result.aiProvider || "google";
-              
-              const apiKey = provider === "openrouter" ? result.openRouterApiKey : result.googleApiKey;
-              const model = provider === "openrouter" ? result.openRouterModel : result.aiModel;
+  async function performAiOptimization(isAutoTrigger = false) {
+    if (optimizeAiBtn) {
+      optimizeAiBtn.innerHTML = `Improving...`;
+      optimizeAiBtn.classList.add("pulse-animation");
+    }
 
-              if (!apiKey) {
-                  openAiSettings();
-                  resetOptimizeBtn();
-                  return;
-              }
+    chrome.storage.local.get(["aiProvider", "googleApiKey", "aiModel", "openRouterApiKey", "openRouterModel"], async (result) => {
+      const provider = result.aiProvider || "google";
 
-              // Fallback: If we have locators but no HTML context (e.g. from older messages), warn but try or fail gracefully.
-              // We strictly need context or at least the element info.
-              // Assuming that if we have locators, we probably have context if the extension is updated.
-              if (!currentHtmlContext && !currentLocators) {
-                  showCopyNotification("No element selected to optimize");
-                  resetOptimizeBtn();
-                  return;
-              }
+      const apiKey = provider === "openrouter" ? result.openRouterApiKey : result.googleApiKey;
+      const model = provider === "openrouter" ? result.openRouterModel : result.aiModel;
 
-              try {
-                  const locators = await generateAiLocators(
-                      currentHtmlContext,
-                      currentLocators,
-                      apiKey, 
-                      model,
-                      provider
-                  );
-                  
-                  if (locators) {
-                      displayLocators(locators, true);
-                      showCopyNotification("Optimized by AI!");
-                  }
-              } catch (error) {
-                  console.error("AI Generation Error: ", error);
-                  showCopyNotification("AI Optimization Failed: " + error.message);
-              } finally {
-                  resetOptimizeBtn();
-              }
-          });
-      });
+      if (!apiKey) {
+        if (!isAutoTrigger) openAiSettings();
+        resetOptimizeBtn();
+        return;
+      }
+
+      if (!currentHtmlContext && !currentLocators) {
+        if (!isAutoTrigger) showCopyNotification("No element selected to optimize");
+        resetOptimizeBtn();
+        return;
+      }
+
+      try {
+        const locators = await generateAiLocators(
+          currentHtmlContext,
+          currentLocators,
+          apiKey,
+          model,
+          provider
+        );
+
+        if (locators) {
+          displayLocators(locators, true);
+          showCopyNotification(isAutoTrigger ? "Auto-optimized by AI!" : "Optimized by AI!");
+        }
+      } catch (error) {
+        console.error("AI Generation Error: ", error);
+        if (!isAutoTrigger) showCopyNotification("AI Optimization Failed: " + error.message);
+      } finally {
+        resetOptimizeBtn();
+      }
+    });
   }
 
   function resetOptimizeBtn() {
-      optimizeAiBtn.classList.remove("pulse-animation");
-      optimizeAiBtn.innerHTML = `
+    optimizeAiBtn.classList.remove("pulse-animation");
+    optimizeAiBtn.innerHTML = `
         <img src="../images/ai2.png" width="16" height="16" alt="AI">
         <b>Optimize Using AI</b>
       `;
