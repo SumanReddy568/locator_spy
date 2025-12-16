@@ -1,5 +1,5 @@
 /**
- * Authentication Module for Speed Tester
+ * Authentication Module for Locator Spy
  * Integrates with Cloudflare Auth Worker API
  */
 
