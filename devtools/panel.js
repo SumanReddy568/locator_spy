@@ -26,10 +26,39 @@ document.addEventListener("DOMContentLoaded", function () {
     // Update UI for logged in state
     if (logoutBtn) {
       logoutBtn.style.display = 'flex';
-      logoutBtn.addEventListener('click', async () => {
-        if (confirm('Are you sure you want to logout?')) {
+
+      const logoutModal = document.getElementById("logoutModal");
+      const cancelLogoutBtn = document.getElementById("cancelLogoutBtn");
+      const cancelLogoutBtnX = document.getElementById("cancelLogoutBtnX");
+      const confirmLogoutBtn = document.getElementById("confirmLogoutBtn");
+
+      // Open Modal
+      logoutBtn.addEventListener('click', () => {
+        if (logoutModal) logoutModal.style.display = "flex";
+      });
+
+      // Close Modal Actions
+      const closeLogoutModal = () => {
+        if (logoutModal) logoutModal.style.display = "none";
+      };
+
+      if (cancelLogoutBtn) cancelLogoutBtn.addEventListener('click', closeLogoutModal);
+      if (cancelLogoutBtnX) cancelLogoutBtnX.addEventListener('click', closeLogoutModal);
+
+      // Confirm Logout
+      if (confirmLogoutBtn) {
+        confirmLogoutBtn.addEventListener('click', async () => {
+          closeLogoutModal();
+          // Show loading or visual feedback if needed
           await AuthModule.logout();
           window.location.href = 'login.html';
+        });
+      }
+
+      // Close on outside click
+      window.addEventListener("click", (event) => {
+        if (event.target === logoutModal) {
+          closeLogoutModal();
         }
       });
     }

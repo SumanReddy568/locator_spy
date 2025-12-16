@@ -22,8 +22,8 @@
   --font-display: 'Outfit', sans-serif;
 }
 
-.header h1, 
-.section h3, 
+.header h1,
+.section h3,
 .logo-title h1,
 .badge {
   font-family: var(--font-display);
@@ -596,6 +596,24 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
+}
+
+.btn.destructive-btn {
+  background: linear-gradient(to bottom, #dc2626, #b91c1c);
+  color: white;
+  border: 1px solid #991b1b;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn.destructive-btn:hover {
+  background: linear-gradient(to bottom, #b91c1c, #991b1b);
+}
+
+/* Reduce modal width for small variant */
+.modal-content.small-modal {
+  max-width: 360px;
+  width: 90%;
+  padding: 24px;
 }
 
 /* Responsive adjustments */

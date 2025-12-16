@@ -263,6 +263,28 @@
     </div>
   </div>
 
+  <!-- Logout Confirmation Modal -->
+  <div id="logoutModal" class="modal">
+    <div class="modal-content small-modal">
+      <div class="modal-header">
+        <h3>Confirm Logout</h3>
+        <button class="close-modal-btn" id="cancelLogoutBtnX">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to log out of Locator Spy?</p>
+      </div>
+      <div class="modal-footer">
+        <button id="cancelLogoutBtn" class="btn secondary-btn">Cancel</button>
+        <button id="confirmLogoutBtn" class="btn primary-btn destructive-btn">Log Out</button>
+      </div>
+    </div>
+  </div>
+
   <script src="auth.js"></script>
   <script src="ailocservice.js"></script>
   <script src="panel.js"></script>
