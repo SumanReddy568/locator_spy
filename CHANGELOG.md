@@ -1,3 +1,6 @@
+## [1.2.1] - 2025-12-17
+- feat: Add initial DevTools panel UI for Locator Spy with AI settings and locator generation features.
+
 ## [1.2.0] - 2025-12-16
 - feat: Add initial Locator Spy devtools panel with UI, styling, and logic.
 
