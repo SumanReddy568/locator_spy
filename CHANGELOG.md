@@ -1,3 +1,6 @@
+## [1.2.2] - 2025-12-18
+- feat: Introduce analytics tracking for extension lifecycle and locator actions, and add new devtools panel and popup.
+
 ## [1.2.1] - 2025-12-17
 - feat: Add initial DevTools panel UI for Locator Spy with AI settings and locator generation features.
 
