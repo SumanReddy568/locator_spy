@@ -1,3 +1,5 @@
+import { trackLocatorModeActive, trackOptimizeWithAI, trackAiSettingsOpened, trackAutoOptimizeToggle, trackAutoValidatorToggle, trackLogout } from '../utils/analytics.js';
+
 document.addEventListener("DOMContentLoaded", function () {
   const locatorModeBtn = document.getElementById("locatorModeBtn");
   const locatorResults = document.getElementById("locatorResults");
@@ -49,6 +51,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (confirmLogoutBtn) {
         confirmLogoutBtn.addEventListener('click', async () => {
           closeLogoutModal();
+          trackLogout();
           // Show loading or visual feedback if needed
           await AuthModule.logout();
           window.location.href = 'login.html';
@@ -94,6 +97,7 @@ document.addEventListener("DOMContentLoaded", function () {
     isLocatorModeActive = !isLocatorModeActive;
 
     if (isLocatorModeActive) {
+      trackLocatorModeActive();
       locatorModeBtn.classList.add("active-mode");
       locatorModeBtn.classList.remove("pulse-animation");
       locatorModeBtn.innerHTML = `
@@ -602,6 +606,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Update storage and behavior when "Auto Validator" toggle changes
   autoValidatorToggle.addEventListener("change", (event) => {
     const isEnabled = event.target.checked;
+    trackAutoValidatorToggle(isEnabled);
     chrome.storage.local.set({ isAutoValidatorEnabled: isEnabled }, () => {
       console.log("Auto Validator setting updated in storage:", isEnabled);
     });
@@ -619,6 +624,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Update storage when "Auto Optimize" toggle changes
   autoOptimizeToggle.addEventListener("change", (event) => {
     const isEnabled = event.target.checked;
+    trackAutoOptimizeToggle(isEnabled);
     chrome.storage.local.set({ isAutoOptimizeEnabled: isEnabled }, () => {
       console.log("Auto Optimize setting updated in storage:", isEnabled);
     });
@@ -747,6 +753,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Open Settings
   aiSettingsBtn.addEventListener("click", () => {
+    trackAiSettingsOpened();
     openAiSettings();
   });
 
@@ -828,7 +835,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Optimize AI Button Click
   if (optimizeAiBtn) {
-    optimizeAiBtn.addEventListener("click", () => performAiOptimization(false));
+    optimizeAiBtn.addEventListener("click", () => {
+      trackOptimizeWithAI();
+      performAiOptimization(false);
+    });
   }
 
   async function performAiOptimization(isAutoTrigger = false) {

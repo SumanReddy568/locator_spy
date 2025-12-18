@@ -30,3 +30,52 @@ export async function track(eventName, options = {}) {
         console.error("Analytics failed", err);
     }
 }
+
+export function trackLocatorModeActive(meta = {}) {
+    return track("locator_mode_active", {
+        feature: "locator_mode",
+        meta
+    });
+}
+
+export function trackOptimizeWithAI(meta = {}) {
+    return track("optimize_with_ai", {
+        feature: "ai_optimization",
+        meta
+    });
+}
+
+export function trackAiSettingsOpened(meta = {}) {
+    return track("ai_settings_opened", {
+        feature: "ai_settings",
+        meta
+    });
+}
+
+export function trackAutoOptimizeToggle(enabled, meta = {}) {
+    return track("auto_optimize_toggle", {
+        feature: "auto_optimize",
+        meta: { enabled, ...meta }
+    });
+}
+
+export function trackAutoValidatorToggle(enabled, meta = {}) {
+    return track("auto_validator_toggle", {
+        feature: "auto_validator",
+        meta: { enabled, ...meta }
+    });
+}
+
+export function trackLogin(meta = {}) {
+    return track("user_login", {
+        feature: "auth",
+        meta
+    });
+}
+
+export function trackLogout(meta = {}) {
+    return track("user_logout", {
+        feature: "auth",
+        meta
+    });
+}
