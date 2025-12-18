@@ -16,13 +16,15 @@ export async function track(eventName, options = {}) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 product: "locator_spy",
-                event: eventName,
-                extensionId: chrome?.runtime?.id || 'web_user',
+                event: eventName,              // ✅ Changed from event_name → event
+                extensionId: chrome?.runtime?.id || 'web_user',  // ✅ Changed from extension_id → extensionId
                 page: options.page || (typeof window !== 'undefined' ? window.location.href : 'background'),
                 feature: options.feature || null,
-                version: chrome?.runtime?.getManifest()?.version || '1.0.0',
-                system: systemInfo,
-                meta: options.meta || {}
+                version: chrome?.runtime?.getManifest?.()?.version || '1.0.0',
+                metadata: {
+                    system: systemInfo,
+                    ...options.meta
+                }
             })
         });
         return await response.json();
