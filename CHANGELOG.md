@@ -1,4 +1,7 @@
 ## [1.2.2] - 2025-12-18
+- fix: downgrade version to 1.2.1 and update panel.js to use module type for script; enhance analytics tracking for locator mode, AI settings, and toggle actions
+
+## [1.2.2] - 2025-12-18
 - feat: Introduce analytics tracking for extension lifecycle and locator actions, and add new devtools panel and popup.
 
 ## [1.2.1] - 2025-12-17
