@@ -1,3 +1,27 @@
+const CLOUDFLARE_WORKER_URL = "https://cloud-fare-ai-gateway.sumanreddy568.workers.dev";
+
+let cachedBasePrompt = null;
+
+/**
+ * Fetches the base prompt from the external text file.
+ * @returns {Promise<string>}
+ */
+async function getBasePrompt() {
+  if (cachedBasePrompt) return cachedBasePrompt;
+  try {
+    const url = chrome.runtime.getURL("devtools/prompt/v1.txt");
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Could not fetch prompt file");
+    cachedBasePrompt = await response.text();
+    return cachedBasePrompt;
+  } catch (error) {
+    console.error("Error loading AI prompt:", error);
+    // Fallback in case of failure
+    return `You are a senior Automation QA Architect.
+Analyze the provided "HTML Context" to generate precise, robust, and optimized Selenium/WebDriver locators for the **Single Target Element**.`;
+  }
+}
+
 /**
  * Generates AI-based locators using Google Gemini or OpenRouter.
  * Returns ONLY valid, unique, and usable Selenium locators.
@@ -16,46 +40,10 @@ async function generateAiLocators(
   model,
   provider = "google"
 ) {
-  let prompt = `
-    You are a senior Automation QA Architect.
+  let prompt = await getBasePrompt();
 
-    **OBJECTIVE**: 
-    Analyze the provided "HTML Context" to generate precise, robust, and optimized Selenium/WebDriver locators for the **Single Target Element**.
-
-    **INPUTS PROVIDED**:
-    1. **HTML Context**: The DOM snippet containing the target element.
-    2. **Existing Locators**: A list of locators that *already* identify the target element. 
-
-    **STRICT INSTRUCTIONS**:
-    1. **IDENTIFY TARGET**: Use the "Existing Locators" to find the EXACT matching element within the "HTML Context". ALL generated locators must point to this SAME element.
-    2. **NO HALLUCINATIONS**: You must ONLY use attributes (id, class, name, data-*, text) that are VISIBLE in the "HTML Context". Do not invent attributes.
-    3. **CORE GENERATION**: Generate the fundamental locators (ID, CSS Selector, XPath) again based on the "HTML Context" to ensure they are the most accurate.
-    4. **OPTIMIZATION**: Review the "Existing Locators". Can they be shortened? Can they be made more robust (e.g., using a data attribute instead of a long path)? If yes, provide the optimized version.
-    5. **ADDITIONAL LOCATORS**: Suggest creative but reliable alternatives (e.g., searching by partial text, specific attribute combinations, relative XPaths).
-
-    **LOCATOR STRATEGIES**:
-    - **Reliability**: Prioritize IDs, \`data-test-id\`, \`data-cy\`, unique names.
-    - **Text Matching**: ALWAYS use \`normalize-space(.)\` instead of \`text()\` to handle whitespace and nested elements safely (e.g., \`//span[contains(normalize-space(.), 'My Text')]\`).
-    - **Maintainability**: Avoid long absolute XPaths or CSS chains. Use relative paths where possible.
-    - **Length Constraint**: AVOID locators longer than 75 characters unless absolutely necessary for uniqueness.
-    - **Conciseness**: Prefer \`#submit\` over \`div > form > button#submit\`. Short is better if unique.
-    - **Uniqueness**: Ensure the locator is likely unique to that element (or at least the snippet provided).
-
-    **OUTPUT FORMAT**:
-    Return ONLY a valid JSON object.
-    Keys should be descriptive (e.g., "Optimized CSS", "Robust XPath", "Data Attribute").
-    Values must be the locator strings.
-
-    Example:
-    {
-    "Optimized CSS": "button.submit-btn",
-    "Robust XPath": "//button[contains(normalize-space(.), 'Submit')]",
-    "Data ID": "[data-testid='submit-form']"
-    }
-    `;
-
-    if (htmlContext) {
-        prompt += `
+  if (htmlContext) {
+    prompt += `
     HTML Context:
     ${htmlContext}
     `;
@@ -72,20 +60,30 @@ async function generateAiLocators(
   if (!model) {
     model =
       provider === "google"
-        ? "gemini-2.5-flash-exp"
+        ? "gemini-1.5-flash"
         : "google/gemini-2.5-flash-exp:free";
   }
 
   let url, headers, body;
 
   if (provider === "google") {
-    url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    headers = { "Content-Type": "application/json" };
+    url = `${CLOUDFLARE_WORKER_URL}/compat/chat/completions`;
+
+    const fullModelName = model.includes("/") ? model : `google-ai-studio/${model}`;
+
+    headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    };
     body = JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
+      model: fullModelName,
+      messages: [
+        { role: "user", content: prompt }
+      ],
+      temperature: 1,
     });
   } else if (provider === "openrouter") {
-    url = "https://openrouter.ai/api/v1/chat/completions";
+    url = `${CLOUDFLARE_WORKER_URL}/openrouter/chat/completions`;
     headers = {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${apiKey}`,
@@ -95,7 +93,7 @@ async function generateAiLocators(
     body = JSON.stringify({
       model,
       messages: [{ role: "user", content: prompt }],
-      temperature: 0,
+      temperature: 1,
     });
   } else {
     throw new Error("Unsupported provider");
@@ -113,13 +111,7 @@ async function generateAiLocators(
   }
 
   const data = await response.json();
-  let text;
-
-  if (provider === "google") {
-    text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  } else {
-    text = data?.choices?.[0]?.message?.content;
-  }
+  const text = data?.choices?.[0]?.message?.content;
 
   if (!text) {
     throw new Error("Empty AI response");
