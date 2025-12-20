@@ -1,3 +1,6 @@
+## [1.2.3] - 2025-12-20
+- feat: Add AI-powered locator generation service and its initial prompt definition.
+
 ## [1.2.2] - 2025-12-18
 - fix: downgrade version to 1.2.1 and enhance analytics tracking with updated metadata structure
 
