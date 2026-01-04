@@ -1,4 +1,7 @@
 ## [1.2.6] - 2026-01-04
+- feat: Enhance authentication storage and analytics tracking with user ID support
+
+## [1.2.6] - 2026-01-04
 - feat: Update authentication and analytics tracking with user info retrieval and version bump to 1.2.5
 
 ## [1.2.3] - 2025-12-20
