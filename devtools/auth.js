@@ -74,17 +74,54 @@ function setButtonLoading(buttonId, isLoading) {
 }
 
 // Store authentication data
-function storeAuthData(token, email, hash) {
+function storeAuthData(token, email, hash, userId = null) {
+    // Store in localStorage (for backward compatibility)
     localStorage.setItem(AUTH_CONFIG.STORAGE_KEYS.TOKEN, token);
     localStorage.setItem(AUTH_CONFIG.STORAGE_KEYS.USER_EMAIL, email);
     localStorage.setItem(AUTH_CONFIG.STORAGE_KEYS.USER_HASH, hash);
+    if (userId) {
+        localStorage.setItem(AUTH_CONFIG.STORAGE_KEYS.USER_ID, userId);
+    }
+    
+    // Also store in Chrome extension storage for analytics
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        const chromeData = {
+            auth_token: token,
+            user_email: email,
+            user_hash: hash
+        };
+        if (userId) {
+            chromeData.user_id = userId;
+        }
+        
+        chrome.storage.local.set(chromeData, () => {
+            if (chrome.runtime.lastError) {
+                console.warn('Failed to store auth data in Chrome storage:', chrome.runtime.lastError);
+            } else {
+                console.log('Auth data stored in Chrome storage successfully');
+            }
+        });
+    }
 }
 
 // Clear authentication data
 function clearAuthData() {
+    // Clear localStorage
     localStorage.removeItem(AUTH_CONFIG.STORAGE_KEYS.TOKEN);
     localStorage.removeItem(AUTH_CONFIG.STORAGE_KEYS.USER_EMAIL);
     localStorage.removeItem(AUTH_CONFIG.STORAGE_KEYS.USER_HASH);
+    localStorage.removeItem(AUTH_CONFIG.STORAGE_KEYS.USER_ID);
+    
+    // Also clear Chrome extension storage
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.remove(['auth_token', 'user_email', 'user_hash', 'user_id'], () => {
+            if (chrome.runtime.lastError) {
+                console.warn('Failed to clear auth data from Chrome storage:', chrome.runtime.lastError);
+            } else {
+                console.log('Auth data cleared from Chrome storage successfully');
+            }
+        });
+    }
 }
 
 // Get stored token
@@ -213,7 +250,10 @@ async function login(email, password) {
             throw new Error(data.error || 'Login failed. Please try again.');
         }
 
-        return { success: true, token: data.token, hash, email };
+        // Include userId from response if available
+        const userId = data.user_id || data.userId || email; // fallback to email as userId
+
+        return { success: true, token: data.token, hash, email, userId };
     } catch (error) {
         console.error('Login error:', error);
         throw error;
@@ -367,7 +407,8 @@ function initSignup() {
                         try {
                             const loginResult = await login(email, password);
                             if (loginResult.success) {
-                                storeAuthData(loginResult.token, loginResult.email, loginResult.hash);
+                                // Pass userId to storeAuthData
+                                storeAuthData(loginResult.token, loginResult.email, loginResult.hash, loginResult.userId);
                                 showSuccess('Login successful! Redirecting...');
                                 setTimeout(() => {
                                     window.location.href = 'panel.html';
@@ -428,7 +469,8 @@ function initLogin() {
                 const result = await login(email, password);
 
                 if (result.success) {
-                    storeAuthData(result.token, result.email, result.hash);
+                    // Pass userId to storeAuthData
+                    storeAuthData(result.token, result.email, result.hash, result.userId);
                     showSuccess('Login successful! Redirecting...');
                     setTimeout(() => {
                         window.location.href = 'panel.html';

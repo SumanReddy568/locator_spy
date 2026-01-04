@@ -1,26 +1,42 @@
 const TRACK_URL = "https://multi-product-analytics.sumanreddy568.workers.dev/";
 
-// Initialize user info asynchronously
-let userInfo = {};
-
 // Function to get user info when needed
 async function getUserInfo() {
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     try {
+      // Use Chrome extension storage (not localStorage)
       const storageData = await new Promise((resolve) => {
         chrome.storage.local.get(
-          ["user_id", "user_email", "user_hash"],
+          ["auth_token", "user_email", "user_hash", "user_id"],
           resolve
         );
       });
+
+      console.log("Chrome storage data:", storageData);
+
       return {
         userId: storageData.user_id || null,
         email: storageData.user_email || null,
         userHash: storageData.user_hash || null,
+        authToken: storageData.auth_token || null,
       };
     } catch (e) {
-      console.warn("Failed to fetch user info for analytics:", e);
-      return {};
+      console.warn("Failed to fetch user info from Chrome storage:", e);
+
+      // Fallback to localStorage if Chrome storage fails
+      try {
+        const localData = {
+          userId: localStorage.getItem("user_id"),
+          email: localStorage.getItem("user_email"),
+          userHash: localStorage.getItem("user_hash"),
+          authToken: localStorage.getItem("auth_token"),
+        };
+        console.log("LocalStorage fallback data:", localData);
+        return localData;
+      } catch (localError) {
+        console.warn("Failed to fetch from localStorage as well:", localError);
+        return {};
+      }
     }
   }
   return {};
@@ -28,8 +44,11 @@ async function getUserInfo() {
 
 export async function track(eventName, options = {}) {
   try {
+    console.log("Analytics track called for:", eventName);
+
     // Get user info when tracking (not at module load time)
     const currentUserInfo = await getUserInfo();
+    console.log("Got user info:", currentUserInfo);
 
     const systemInfo =
       typeof window !== "undefined"
@@ -43,28 +62,37 @@ export async function track(eventName, options = {}) {
           }
         : { ua: "service-worker" };
 
+    const payload = {
+      product: "locator_spy",
+      event: eventName,
+      extensionId: chrome?.runtime?.id || "web_user",
+      page:
+        options.page ||
+        (typeof window !== "undefined" ? window.location.href : "background"),
+      feature: options.feature || null,
+      version: chrome?.runtime?.getManifest?.()?.version || "1.0.0",
+      metadata: {
+        system: systemInfo,
+        ...options.meta,
+        ...currentUserInfo,
+      },
+    };
+
+    console.log("Sending analytics payload:", payload);
+
     const response = await fetch(TRACK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        product: "locator_spy",
-        event: eventName,
-        extensionId: chrome?.runtime?.id || "web_user",
-        page:
-          options.page ||
-          (typeof window !== "undefined" ? window.location.href : "background"),
-        feature: options.feature || null,
-        version: chrome?.runtime?.getManifest?.()?.version || "1.0.0",
-        metadata: {
-          system: systemInfo,
-          ...options.meta,
-          ...currentUserInfo,
-        },
-      }),
+      body: JSON.stringify(payload),
     });
-    return await response.json();
+
+    const result = await response.json();
+    console.log("Analytics response:", result);
+    return result;
   } catch (err) {
     console.error("Analytics failed", err);
+    // Don't throw the error, just log it so it doesn't break the app
+    return null;
   }
 }
 
