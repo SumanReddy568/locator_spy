@@ -10,7 +10,8 @@ const AUTH_CONFIG = {
     STORAGE_KEYS: {
         TOKEN: 'auth_token',
         USER_EMAIL: 'user_email',
-        USER_HASH: 'user_hash'
+        USER_HASH: 'user_hash',
+        USER_ID: 'user_id'
     }
 };
 
