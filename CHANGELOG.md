@@ -1,3 +1,6 @@
+## [1.2.7] - 2026-01-10
+- add log end point changes
+
 ## [1.2.6] - 2026-01-04
 - feat: Enhance authentication storage and analytics tracking with user ID support
 
