@@ -433,7 +433,6 @@ if (window.seleniumLocatorHelperInjected) {
 
         // Test function to check if a locator uniquely identifies an element
         function testLocatorUniqueness(type, value) {
-          window.logToBackground('debug', 'testLocatorUniqueness called', { type, value });
           if (!value || value.trim() === "") return false;
 
           try {
@@ -466,7 +465,6 @@ if (window.seleniumLocatorHelperInjected) {
               value: value,
               type: type,
             };
-            window.logToBackground('debug', 'testLocatorUniqueness result', result);
             return result;
           } catch (e) {
             window.logToBackground('error', 'testLocatorUniqueness failed', { type, value, error: e.message });

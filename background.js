@@ -62,7 +62,6 @@ export const initializeServiceWorker = () => {
 
   // Add this helper function near the top
   function isValidXPath(xpath) {
-    logger.info("isValidXPath called", { xpath });
     try {
       if (!xpath || typeof xpath !== 'string') return false;
       // Remove triple slashes
@@ -236,7 +235,6 @@ export const initializeServiceWorker = () => {
         return;
       }
 
-      logger.info("onMessage listener triggered", { action: message.action, tabId: sender.tab?.id });
 
       if (!sender.tab) return;
 
