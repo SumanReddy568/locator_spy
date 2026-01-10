@@ -53,13 +53,13 @@ export async function track(eventName, options = {}) {
     const systemInfo =
       typeof window !== "undefined"
         ? {
-            ua: navigator.userAgent,
-            lang: navigator.language,
-            platform: navigator.platform,
-            screen: `${window.screen.width}x${window.screen.height}`,
-            viewport: `${window.innerWidth}x${window.innerHeight}`,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          }
+          ua: navigator.userAgent,
+          lang: navigator.language,
+          platform: navigator.platform,
+          screen: `${window.screen.width}x${window.screen.height}`,
+          viewport: `${window.innerWidth}x${window.innerHeight}`,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }
         : { ua: "service-worker" };
 
     const payload = {
@@ -144,3 +144,61 @@ export function trackLogout(meta = {}) {
     meta,
   });
 }
+
+/**
+ * Internal function to send logs to the logpush endpoint
+ */
+async function sendLog(level, message, extraData = {}) {
+  try {
+    const currentUserInfo = await getUserInfo();
+    const systemInfo =
+      typeof window !== "undefined"
+        ? {
+          ua: navigator.userAgent,
+          lang: navigator.language,
+          platform: navigator.platform,
+          screen: `${window.screen.width}x${window.screen.height}`,
+          viewport: `${window.innerWidth}x${window.innerHeight}`,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }
+        : { ua: "service-worker" };
+
+    const payload = {
+      product: "locator_spy",
+      log_type: level,
+      user_id: currentUserInfo.userId || "anonymous",
+      message: message,
+      extra_data: JSON.stringify({
+        ...extraData,
+        ...currentUserInfo,
+        system: systemInfo,
+        extensionId: chrome?.runtime?.id || "web_user",
+        version: chrome?.runtime?.getManifest?.()?.version || "1.0.0",
+        page: typeof window !== "undefined" ? window.location.href : "background",
+      }),
+    };
+
+    // Using the same base URL but appending api/logpush
+    // The base URL ends with / so we append api/logpush
+    // Remove trailing slash if present to avoid double slash
+    const baseUrl = TRACK_URL.endsWith('/') ? TRACK_URL.slice(0, -1) : TRACK_URL;
+    const LOGPUSH_ENDPOINT = `${baseUrl}/api/logpush`;
+
+    // Fire and forget (don't await in critical path usually, but here we await to log result)
+    fetch(LOGPUSH_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(err => console.error("Logger fetch failed:", err));
+
+  } catch (err) {
+    console.error("Logger execution failed:", err);
+  }
+}
+
+export const logger = {
+  info: (message, extraData) => sendLog("info", message, extraData),
+  error: (message, extraData) => sendLog("error", message, extraData),
+  warn: (message, extraData) => sendLog("warn", message, extraData),
+  debug: (message, extraData) => sendLog("debug", message, extraData),
+};

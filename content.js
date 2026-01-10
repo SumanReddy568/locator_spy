@@ -59,13 +59,38 @@ if (window.seleniumLocatorHelperInjected) {
       console.error("Failed to initialize:", error.message);
     });
 
+  // Helper to send logs to background
+  window.logToBackground = function (level, message, data = {}) {
+    try {
+      if (chrome.runtime?.id) {
+        chrome.runtime.sendMessage({
+          action: 'log',
+          log_type: level,
+          message: message,
+          extra_data: data
+        });
+      }
+    } catch (e) {
+      // Ignore logging errors to prevent loops
+    }
+  };
+
+  // Initial log
+  window.logToBackground('info', 'Content script initialized', {
+    url: window.location.href
+  });
+
+
   function loadBestLocatorPreference(callback) {
     try {
       chrome.storage.local.get("isBestLocatorEnabled", (result) => {
         isBestLocatorEnabled = result.hasOwnProperty("isBestLocatorEnabled")
           ? result.isBestLocatorEnabled
           : true;
+
+        window.logToBackground('info', 'Loaded best locator preference', { isBestLocatorEnabled });
         console.log("Loaded best locator preference:", isBestLocatorEnabled);
+
 
         // Force immediate banner cleanup if disabled
         if (!isBestLocatorEnabled) {
@@ -99,6 +124,9 @@ if (window.seleniumLocatorHelperInjected) {
       // Suppress repeated error logs
       let extensionContextInvalidated = false;
       let locatorGeneratorMissing = false;
+
+      window.logToBackground('info', 'Initializing content script', { url: window.location.href });
+
 
       if (typeof window.generateLocators !== "function") {
         if (!locatorGeneratorMissing) {
@@ -400,6 +428,8 @@ if (window.seleniumLocatorHelperInjected) {
 
         // First, test each locator for uniqueness and reliability
         const testedLocators = [];
+        window.logToBackground('debug', 'Determining best locator', { locatorCount: Object.keys(locators).length });
+
 
         // Test function to check if a locator uniquely identifies an element
         function testLocatorUniqueness(type, value) {
@@ -776,6 +806,12 @@ if (window.seleniumLocatorHelperInjected) {
           htmlContext: clickedElement.outerHTML,
           trigger: "click"
         });
+
+        window.logToBackground('info', 'Locator selected via click', {
+          locators: locators,
+          xpath: locators.xpath
+        });
+
 
         // Deactivate locator mode but keep the highlight and banner if enabled
         isLocatorModeActive = false;

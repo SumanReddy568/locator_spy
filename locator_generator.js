@@ -1,6 +1,15 @@
 window.generateLocators = function generateLocators(element) {
   if (!element || element.nodeType !== 1) return {};
 
+  const safeLog = (level, message, data) => {
+    if (typeof window.logToBackground === 'function') {
+      window.logToBackground(level, message, data);
+    }
+  };
+
+  safeLog('debug', 'Generating locators', { tagName: element.tagName });
+
+
   /** -----------------------------------------------------
    * Utilities
    * -----------------------------------------------------*/
@@ -321,7 +330,7 @@ window.generateLocators = function generateLocators(element) {
 
   const linkPaths = getLinkTextXPaths(element);
 
-  return {
+  const result = {
     cssSelector: getCssSelector(element),
     absoluteXPath: absoluteXPath(element),
     relativeXPath: getRelativeXPath(element),
@@ -349,4 +358,6 @@ window.generateLocators = function generateLocators(element) {
       ? element.innerText.slice(0, 15) + "..."
       : null,
   };
+
+  return result;
 };

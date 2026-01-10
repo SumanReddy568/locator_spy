@@ -1,3 +1,5 @@
+import { logger } from './utils/analytics.js';
+
 // Add export statement at the start
 export const initializeServiceWorker = () => {
   // Store connections from devtools panels
@@ -32,12 +34,14 @@ export const initializeServiceWorker = () => {
 
   // Listen for runtime suspend
   chrome.runtime.onSuspend.addListener(() => {
+    logger.info('Service worker suspending, attempting to preserve state...');
     console.log('Service worker suspending, attempting to preserve state...');
     chrome.storage.local.set({ connectionState: connections });
   });
 
   // Handle wake-up
   chrome.runtime.onStartup.addListener(async () => {
+    logger.info('Service worker starting up, restoring state...');
     console.log('Service worker starting up, restoring state...');
     const state = await chrome.storage.local.get('connectionState');
     if (state.connectionState) {
@@ -103,6 +107,7 @@ export const initializeServiceWorker = () => {
   chrome.runtime.onConnect.addListener(function (port) {
     if (port.name !== "panel-page") return;
 
+    logger.info("DevTools panel connected");
     console.log("DevTools panel connected");
 
     // Send immediate ping to establish connection
@@ -140,6 +145,7 @@ export const initializeServiceWorker = () => {
           if (typeof sendResponse === 'function') {
             sendResponse({ status: 'connected' });
           }
+          logger.info("Initialized connection with DevTools", { tabId });
           return;
         }
 
@@ -208,6 +214,16 @@ export const initializeServiceWorker = () => {
   // Listen for messages from content scripts
   chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     try {
+      if (message.action === 'log') {
+        const { log_type, message: logMsg, extra_data } = message;
+        if (logger[log_type]) {
+          logger[log_type](logMsg, extra_data);
+        } else {
+          logger.info(logMsg, extra_data);
+        }
+        return;
+      }
+
       if (!sender.tab) return;
 
       const tabId = sender.tab.id;

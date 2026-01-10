@@ -82,7 +82,7 @@ function storeAuthData(token, email, hash, userId = null) {
     if (userId) {
         localStorage.setItem(AUTH_CONFIG.STORAGE_KEYS.USER_ID, userId);
     }
-    
+
     // Also store in Chrome extension storage for analytics
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         const chromeData = {
@@ -93,11 +93,12 @@ function storeAuthData(token, email, hash, userId = null) {
         if (userId) {
             chromeData.user_id = userId;
         }
-        
+
         chrome.storage.local.set(chromeData, () => {
             if (chrome.runtime.lastError) {
                 console.warn('Failed to store auth data in Chrome storage:', chrome.runtime.lastError);
             } else {
+                if (window.Logger) window.Logger.info("Auth data stored in Chrome storage");
                 console.log('Auth data stored in Chrome storage successfully');
             }
         });
@@ -111,7 +112,7 @@ function clearAuthData() {
     localStorage.removeItem(AUTH_CONFIG.STORAGE_KEYS.USER_EMAIL);
     localStorage.removeItem(AUTH_CONFIG.STORAGE_KEYS.USER_HASH);
     localStorage.removeItem(AUTH_CONFIG.STORAGE_KEYS.USER_ID);
-    
+
     // Also clear Chrome extension storage
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         chrome.storage.local.remove(['auth_token', 'user_email', 'user_hash', 'user_id'], () => {
@@ -208,8 +209,10 @@ async function signup(email, password) {
             throw new Error(data.error || 'Signup failed. Please try again.');
         }
 
+        if (window.Logger) window.Logger.info("Signup successful", { email });
         return { success: true, hash, email };
     } catch (error) {
+        if (window.Logger) window.Logger.error("Signup error", { error: error.message });
         console.error('Signup error:', error);
         throw error;
     }
@@ -253,8 +256,10 @@ async function login(email, password) {
         // Include userId from response if available
         const userId = data.user_id || data.userId || email; // fallback to email as userId
 
+        if (window.Logger) window.Logger.info("Login successful", { email, userId });
         return { success: true, token: data.token, hash, email, userId };
     } catch (error) {
+        if (window.Logger) window.Logger.error("Login error", { error: error.message });
         console.error('Login error:', error);
         throw error;
     }
@@ -294,8 +299,10 @@ async function logout() {
             throw new Error(data.error || 'Logout failed. Please try again.');
         }
 
+        if (window.Logger) window.Logger.info("Logout successful");
         return { success: true };
     } catch (error) {
+        if (window.Logger) window.Logger.error("Logout error", { error: error.message });
         console.error('Logout error:', error);
         throw error;
     }

@@ -15,6 +15,7 @@ async function getBasePrompt() {
     cachedBasePrompt = await response.text();
     return cachedBasePrompt;
   } catch (error) {
+    if (window.Logger) window.Logger.error("Error loading AI prompt:", { error: error.message });
     console.error("Error loading AI prompt:", error);
     // Fallback in case of failure
     return `You are a senior Automation QA Architect.
@@ -40,6 +41,10 @@ async function generateAiLocators(
   model,
   provider = "google"
 ) {
+  if (window.Logger) {
+    window.Logger.info("Starting AI Locator Generation", { provider, model });
+  }
+
   let prompt = await getBasePrompt();
 
   if (htmlContext) {
@@ -99,6 +104,10 @@ async function generateAiLocators(
     throw new Error("Unsupported provider");
   }
 
+  if (window.Logger) {
+    window.Logger.debug("Sending AI request", { url, model });
+  }
+
   const response = await fetch(url, {
     method: "POST",
     headers,
@@ -107,7 +116,9 @@ async function generateAiLocators(
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.error?.message || err.message || "AI request failed");
+    const errMsg = err.error?.message || err.message || "AI request failed";
+    if (window.Logger) window.Logger.error("AI request failed", { status: response.status, error: errMsg });
+    throw new Error(errMsg);
   }
 
   const data = await response.json();
@@ -121,9 +132,18 @@ async function generateAiLocators(
   const cleaned = text.replace(/```json|```/gi, "").trim();
 
   try {
-    return JSON.parse(cleaned);
+    const result = JSON.parse(cleaned);
+    if (window.Logger) {
+      window.Logger.info("AI Locators Generated Successfully", {
+        locators: result,
+        provider: provider,
+        model: model
+      });
+    }
+    return result;
   } catch (e) {
     console.error("Raw AI output:", cleaned);
+    if (window.Logger) window.Logger.error("Invalid JSON returned by AI", { rawOutput: cleaned });
     throw new Error("Invalid JSON returned by AI");
   }
 }

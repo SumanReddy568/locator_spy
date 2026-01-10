@@ -1,4 +1,8 @@
-import { trackLocatorModeActive, trackOptimizeWithAI, trackAiSettingsOpened, trackAutoOptimizeToggle, trackAutoValidatorToggle, trackLogout } from '../utils/analytics.js';
+import { trackLocatorModeActive, trackOptimizeWithAI, trackAiSettingsOpened, trackAutoOptimizeToggle, trackAutoValidatorToggle, trackLogout, logger } from '../utils/analytics.js';
+
+// Expose logger globally for non-module scripts
+window.Logger = logger;
+
 
 document.addEventListener("DOMContentLoaded", function () {
   const locatorModeBtn = document.getElementById("locatorModeBtn");
@@ -208,6 +212,11 @@ document.addEventListener("DOMContentLoaded", function () {
         '<p class="placeholder">No locators found for this element</p>';
       return;
     }
+
+    // Track generation
+    const locatorCount = Object.keys(locators).length;
+    // Removed redundant logging to avoid duplication with content script and service interactions
+
 
     // Sanitize XPath values
     if (locators.xpath) {
@@ -828,6 +837,7 @@ document.addEventListener("DOMContentLoaded", function () {
     };
 
     chrome.storage.local.set(settings, () => {
+      logger.info("API Key Saved", { provider });
       aiSettingsModal.classList.remove("show");
       showCopyNotification("Settings saved!");
     });
