@@ -1,3 +1,6 @@
+## [1.2.9] - 2026-01-10
+- log line remove
+
 ## [1.2.8] - 2026-01-10
 - add log push events
 
