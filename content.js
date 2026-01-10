@@ -428,11 +428,12 @@ if (window.seleniumLocatorHelperInjected) {
 
         // First, test each locator for uniqueness and reliability
         const testedLocators = [];
-        window.logToBackground('debug', 'Determining best locator', { locatorCount: Object.keys(locators).length });
+
 
 
         // Test function to check if a locator uniquely identifies an element
         function testLocatorUniqueness(type, value) {
+          window.logToBackground('debug', 'testLocatorUniqueness called', { type, value });
           if (!value || value.trim() === "") return false;
 
           try {
@@ -458,14 +459,17 @@ if (window.seleniumLocatorHelperInjected) {
               elements = Array.from(document.querySelectorAll(selector));
             }
 
-            return {
+            const result = {
               isUnique: elements.length === 1,
               count: elements.length,
               complexity: value.length,
               value: value,
               type: type,
             };
+            window.logToBackground('debug', 'testLocatorUniqueness result', result);
+            return result;
           } catch (e) {
+            window.logToBackground('error', 'testLocatorUniqueness failed', { type, value, error: e.message });
             if (e instanceof DOMException) {
               console.warn(`Error testing locator ${type}: ${value}`, e.message);
             } else {
@@ -998,7 +1002,7 @@ if (window.seleniumLocatorHelperInjected) {
               return;
             }
 
-            console.log("Content script received message:", request);
+
 
             if (request.action === "activateLocatorMode") {
               if (request.isActive) {

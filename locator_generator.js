@@ -7,7 +7,7 @@ window.generateLocators = function generateLocators(element) {
     }
   };
 
-  safeLog('debug', 'Generating locators', { tagName: element.tagName });
+
 
 
   /** -----------------------------------------------------

@@ -1,3 +1,5 @@
+import { logger } from '../utils/analytics.js';
+
 const CLOUDFLARE_WORKER_URL = "https://cloud-fare-ai-gateway.sumanreddy568.workers.dev";
 
 let cachedBasePrompt = null;
@@ -7,15 +9,20 @@ let cachedBasePrompt = null;
  * @returns {Promise<string>}
  */
 async function getBasePrompt() {
+  logger.info("getBasePrompt called");
   if (cachedBasePrompt) return cachedBasePrompt;
   try {
     const url = chrome.runtime.getURL("devtools/prompt/v1.txt");
     const response = await fetch(url);
-    if (!response.ok) throw new Error("Could not fetch prompt file");
+    if (!response.ok) {
+      logger.error("Could not fetch prompt file", { status: response.status });
+      throw new Error("Could not fetch prompt file");
+    }
     cachedBasePrompt = await response.text();
+    logger.info("Base prompt loaded successfully");
     return cachedBasePrompt;
   } catch (error) {
-    if (window.Logger) window.Logger.error("Error loading AI prompt:", { error: error.message });
+    logger.error("Error loading AI prompt:", { error: error.message });
     console.error("Error loading AI prompt:", error);
     // Fallback in case of failure
     return `You are a senior Automation QA Architect.
@@ -41,109 +48,113 @@ async function generateAiLocators(
   model,
   provider = "google"
 ) {
-  if (window.Logger) {
-    window.Logger.info("Starting AI Locator Generation", { provider, model });
-  }
-
-  let prompt = await getBasePrompt();
-
-  if (htmlContext) {
-    prompt += `
-    HTML Context:
-    ${htmlContext}
-    `;
-  }
-
-  if (existingLocators && Object.keys(existingLocators).length > 0) {
-    prompt += `
-    Existing Locators (reference only, do not repeat unless improved):
-    ${JSON.stringify(existingLocators, null, 2)}
-    `;
-  }
-
-  // Default model fallback
-  if (!model) {
-    model =
-      provider === "google"
-        ? "gemini-1.5-flash"
-        : "google/gemini-2.5-flash-exp:free";
-  }
-
-  let url, headers, body;
-
-  if (provider === "google") {
-    url = `${CLOUDFLARE_WORKER_URL}/compat/chat/completions`;
-
-    const fullModelName = model.includes("/") ? model : `google-ai-studio/${model}`;
-
-    headers = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    };
-    body = JSON.stringify({
-      model: fullModelName,
-      messages: [
-        { role: "user", content: prompt }
-      ],
-      temperature: 1,
-    });
-  } else if (provider === "openrouter") {
-    url = `${CLOUDFLARE_WORKER_URL}/openrouter/chat/completions`;
-    headers = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-      "HTTP-Referer": "https://github.com/SumanReddy568/locator_spy",
-      "X-Title": "Locator Spy",
-    };
-    body = JSON.stringify({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 1,
-    });
-  } else {
-    throw new Error("Unsupported provider");
-  }
-
-  if (window.Logger) {
-    window.Logger.debug("Sending AI request", { url, model });
-  }
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body,
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    const errMsg = err.error?.message || err.message || "AI request failed";
-    if (window.Logger) window.Logger.error("AI request failed", { status: response.status, error: errMsg });
-    throw new Error(errMsg);
-  }
-
-  const data = await response.json();
-  const text = data?.choices?.[0]?.message?.content;
-
-  if (!text) {
-    throw new Error("Empty AI response");
-  }
-
-  // Strip accidental markdown
-  const cleaned = text.replace(/```json|```/gi, "").trim();
+  logger.info("Starting AI Locator Generation", { provider, model });
 
   try {
-    const result = JSON.parse(cleaned);
-    if (window.Logger) {
-      window.Logger.info("AI Locators Generated Successfully", {
+    let prompt = await getBasePrompt();
+
+    if (htmlContext) {
+      prompt += `
+      HTML Context:
+      ${htmlContext}
+      `;
+    }
+
+    if (existingLocators && Object.keys(existingLocators).length > 0) {
+      prompt += `
+      Existing Locators (reference only, do not repeat unless improved):
+      ${JSON.stringify(existingLocators, null, 2)}
+      `;
+    }
+
+    // Default model fallback
+    if (!model) {
+      model =
+        provider === "google"
+          ? "gemini-1.5-flash"
+          : "google/gemini-2.5-flash-exp:free";
+    }
+
+    let url, headers, body;
+
+    if (provider === "google") {
+      url = `${CLOUDFLARE_WORKER_URL}/compat/chat/completions`;
+
+      const fullModelName = model.includes("/") ? model : `google-ai-studio/${model}`;
+
+      headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      };
+      body = JSON.stringify({
+        model: fullModelName,
+        messages: [
+          { role: "user", content: prompt }
+        ],
+        temperature: 1,
+      });
+    } else if (provider === "openrouter") {
+      url = `${CLOUDFLARE_WORKER_URL}/openrouter/chat/completions`;
+      headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://github.com/SumanReddy568/locator_spy",
+        "X-Title": "Locator Spy",
+      };
+      body = JSON.stringify({
+        model,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 1,
+      });
+    } else {
+      logger.error("Unsupported provider requested", { provider });
+      throw new Error("Unsupported provider");
+    }
+
+    logger.debug("Sending AI request", { url, model });
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      const errMsg = err.error?.message || err.message || "AI request failed";
+      logger.error("AI request failed", { status: response.status, error: errMsg });
+      throw new Error(errMsg);
+    }
+
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content;
+
+    if (!text) {
+      logger.error("Empty AI response received");
+      throw new Error("Empty AI response");
+    }
+
+    // Strip accidental markdown
+    const cleaned = text.replace(/```json|```/gi, "").trim();
+
+    try {
+      const result = JSON.parse(cleaned);
+      logger.info("AI Locators Generated Successfully", {
         locators: result,
         provider: provider,
         model: model
       });
+      return result;
+    } catch (e) {
+      logger.error("Invalid JSON returned by AI", { rawOutput: cleaned, error: e.message });
+      console.error("Raw AI output:", cleaned);
+      throw new Error("Invalid JSON returned by AI");
     }
-    return result;
-  } catch (e) {
-    console.error("Raw AI output:", cleaned);
-    if (window.Logger) window.Logger.error("Invalid JSON returned by AI", { rawOutput: cleaned });
-    throw new Error("Invalid JSON returned by AI");
+  } catch (error) {
+    logger.error("Error in generateAiLocators:", { error: error.message });
+    throw error;
   }
 }
+
+// Expose to window for coexistence with non-module scripts if needed
+window.generateAiLocators = generateAiLocators;

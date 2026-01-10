@@ -1,7 +1,21 @@
 const TRACK_URL = "https://multi-product-analytics.sumanreddy568.workers.dev/";
 
+// Cache user info to avoid hitting chrome.storage.local too frequently
+let userInfoCache = null;
+let userInfoCacheTime = 0;
+const CACHE_TTL = 5000; // 5 seconds
+
+// Log queue to prevent request throttling
+const LOG_QUEUE = [];
+let isProcessingQueue = false;
+
 // Function to get user info when needed
 async function getUserInfo() {
+  const now = Date.now();
+  if (userInfoCache && (now - userInfoCacheTime < CACHE_TTL)) {
+    return userInfoCache;
+  }
+
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     try {
       // Use Chrome extension storage (not localStorage)
@@ -12,14 +26,17 @@ async function getUserInfo() {
         );
       });
 
-      console.log("Chrome storage data:", storageData);
+      // console.log("Chrome storage data:", storageData); // Reduce noise
 
-      return {
+      userInfoCache = {
         userId: storageData.user_id || null,
         email: storageData.user_email || null,
         userHash: storageData.user_hash || null,
         authToken: storageData.auth_token || null,
       };
+      userInfoCacheTime = now;
+      return userInfoCache;
+
     } catch (e) {
       console.warn("Failed to fetch user info from Chrome storage:", e);
 
@@ -31,7 +48,7 @@ async function getUserInfo() {
           userHash: localStorage.getItem("user_hash"),
           authToken: localStorage.getItem("auth_token"),
         };
-        console.log("LocalStorage fallback data:", localData);
+        // console.log("LocalStorage fallback data:", localData);
         return localData;
       } catch (localError) {
         console.warn("Failed to fetch from localStorage as well:", localError);
@@ -42,13 +59,47 @@ async function getUserInfo() {
   return {};
 }
 
+// Process the log queue sequentially
+async function processLogQueue() {
+  if (isProcessingQueue) return;
+  isProcessingQueue = true;
+
+  while (LOG_QUEUE.length > 0) {
+    const payload = LOG_QUEUE[0]; // Peek
+
+    // Using the same base URL but appending api/logpush
+    const baseUrl = TRACK_URL.endsWith('/') ? TRACK_URL.slice(0, -1) : TRACK_URL;
+    const LOGPUSH_ENDPOINT = `${baseUrl}/api/logpush`;
+
+    try {
+      await fetch(LOGPUSH_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      // Remove from queue only on success or if we decide to ignore errors
+      LOG_QUEUE.shift();
+    } catch (err) {
+      console.error("Logger fetch failed:", err);
+      // Drop the log if it fails to avoid blocking the queue forever?
+      // Or maybe retry once? For now, we shift to prevent infinite loops.
+      LOG_QUEUE.shift();
+    }
+
+    // Small delay to be nice to the browser and server resources (100ms)
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  isProcessingQueue = false;
+}
+
 export async function track(eventName, options = {}) {
   try {
-    console.log("Analytics track called for:", eventName);
+    // console.log("Analytics track called for:", eventName);
 
     // Get user info when tracking (not at module load time)
     const currentUserInfo = await getUserInfo();
-    console.log("Got user info:", currentUserInfo);
+    // console.log("Got user info:", currentUserInfo);
 
     const systemInfo =
       typeof window !== "undefined"
@@ -78,7 +129,7 @@ export async function track(eventName, options = {}) {
       },
     };
 
-    console.log("Sending analytics payload:", payload);
+    // console.log("Sending analytics payload:", payload);
 
     const response = await fetch(TRACK_URL, {
       method: "POST",
@@ -87,7 +138,7 @@ export async function track(eventName, options = {}) {
     });
 
     const result = await response.json();
-    console.log("Analytics response:", result);
+    // console.log("Analytics response:", result);
     return result;
   } catch (err) {
     console.error("Analytics failed", err);
@@ -139,6 +190,8 @@ export function trackLogin(meta = {}) {
 }
 
 export function trackLogout(meta = {}) {
+  // Clear cache on logout
+  userInfoCache = null;
   return track("user_logout", {
     feature: "auth",
     meta,
@@ -178,18 +231,11 @@ async function sendLog(level, message, extraData = {}) {
       }),
     };
 
-    // Using the same base URL but appending api/logpush
-    // The base URL ends with / so we append api/logpush
-    // Remove trailing slash if present to avoid double slash
-    const baseUrl = TRACK_URL.endsWith('/') ? TRACK_URL.slice(0, -1) : TRACK_URL;
-    const LOGPUSH_ENDPOINT = `${baseUrl}/api/logpush`;
+    // Push to queue instead of sending immediately
+    LOG_QUEUE.push(payload);
 
-    // Fire and forget (don't await in critical path usually, but here we await to log result)
-    fetch(LOGPUSH_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }).catch(err => console.error("Logger fetch failed:", err));
+    // Trigger processing if not running
+    processLogQueue();
 
   } catch (err) {
     console.error("Logger execution failed:", err);

@@ -141,7 +141,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Listen for messages from the background page
   backgroundPageConnection.onMessage.addListener(function (message) {
-    console.log("Received message in panel:", message);
+
 
     if (message.action === "getLocators") {
       displayLocators(message.locators, false, message.trigger);
@@ -371,7 +371,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const refreshBtn = document.getElementById("refreshBtn");
 
   refreshBtn.addEventListener("click", () => {
-    console.log("Refresh button clicked. Clearing locators...");
+
 
     // Clear selected locators
     locatorResults.innerHTML =
@@ -559,7 +559,7 @@ document.addEventListener("DOMContentLoaded", function () {
   bestLocatorToggle.addEventListener("change", (event) => {
     const isEnabled = event.target.checked;
     chrome.storage.local.set({ isBestLocatorEnabled: isEnabled }, () => {
-      console.log("Best locator setting updated in storage:", isEnabled);
+
       backgroundPageConnection.postMessage({
         action: "toggleBestLocator",
         enable: isEnabled,
@@ -617,7 +617,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const isEnabled = event.target.checked;
     trackAutoValidatorToggle(isEnabled);
     chrome.storage.local.set({ isAutoValidatorEnabled: isEnabled }, () => {
-      console.log("Auto Validator setting updated in storage:", isEnabled);
+
     });
   });
 
@@ -635,7 +635,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const isEnabled = event.target.checked;
     trackAutoOptimizeToggle(isEnabled);
     chrome.storage.local.set({ isAutoOptimizeEnabled: isEnabled }, () => {
-      console.log("Auto Optimize setting updated in storage:", isEnabled);
+
     });
   });
 
@@ -846,12 +846,14 @@ document.addEventListener("DOMContentLoaded", function () {
   // Optimize AI Button Click
   if (optimizeAiBtn) {
     optimizeAiBtn.addEventListener("click", () => {
+      logger.info("Optimize AI Button Clicked");
       trackOptimizeWithAI();
       performAiOptimization(false);
     });
   }
 
   async function performAiOptimization(isAutoTrigger = false) {
+    logger.info("performAiOptimization called", { isAutoTrigger });
     if (optimizeAiBtn) {
       optimizeAiBtn.innerHTML = `Improving...`;
       optimizeAiBtn.classList.add("pulse-animation");
@@ -864,12 +866,14 @@ document.addEventListener("DOMContentLoaded", function () {
       const model = provider === "openrouter" ? result.openRouterModel : result.aiModel;
 
       if (!apiKey) {
+        logger.warn("AI Optimization aborted: API Key missing", { provider });
         if (!isAutoTrigger) openAiSettings();
         resetOptimizeBtn();
         return;
       }
 
       if (!currentHtmlContext && !currentLocators) {
+        logger.warn("AI Optimization aborted: No context/locators available");
         if (!isAutoTrigger) showCopyNotification("No element selected to optimize");
         resetOptimizeBtn();
         return;
@@ -885,10 +889,12 @@ document.addEventListener("DOMContentLoaded", function () {
         );
 
         if (locators) {
+          logger.info("AI Optimization successful", { provider, model });
           displayLocators(locators, true);
           showCopyNotification(isAutoTrigger ? "Auto-optimized by AI!" : "Optimized by AI!");
         }
       } catch (error) {
+        logger.error("AI Generation Error", { error: error.message, provider, model });
         console.error("AI Generation Error: ", error);
         if (!isAutoTrigger) showCopyNotification("AI Optimization Failed: " + error.message);
       } finally {
