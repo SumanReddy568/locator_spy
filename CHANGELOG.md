@@ -1,3 +1,6 @@
+## [1.2.8] - 2026-01-10
+- add log push events
+
 ## [1.2.7] - 2026-01-10
 - add log end point changes
 
