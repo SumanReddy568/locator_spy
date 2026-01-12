@@ -21,7 +21,7 @@ export const initializeServiceWorker = () => {
 
   // Ping all connections to keep them alive
   function pingConnections() {
-    logger.info("pingConnections called");
+    // logger.info("pingConnections called");
     for (const tabId in connections) {
       try {
         connections[tabId].postMessage({ type: 'ping' });
@@ -37,14 +37,12 @@ export const initializeServiceWorker = () => {
   // Listen for runtime suspend
   chrome.runtime.onSuspend.addListener(() => {
     logger.info('Service worker suspending, attempting to preserve state...');
-    console.log('Service worker suspending, attempting to preserve state...');
     chrome.storage.local.set({ connectionState: connections });
   });
 
   // Handle wake-up
   chrome.runtime.onStartup.addListener(async () => {
     logger.info('Service worker starting up, restoring state...');
-    console.log('Service worker starting up, restoring state...');
     const state = await chrome.storage.local.get('connectionState');
     if (state.connectionState) {
       Object.keys(state.connectionState).forEach(tabId => {
@@ -115,7 +113,6 @@ export const initializeServiceWorker = () => {
     if (port.name !== "panel-page") return;
 
     logger.info("DevTools panel connected");
-    console.log("DevTools panel connected");
 
     // Send immediate ping to establish connection
     port.postMessage({ type: 'ping' });

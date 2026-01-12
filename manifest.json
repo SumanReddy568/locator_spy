@@ -60,7 +60,8 @@
       ],
       "js": [
         "locator_generator.js",
-        "content.js"
+        "content.js",
+        "utils/analytics.js"
       ],
       "run_at": "document_idle"
     }

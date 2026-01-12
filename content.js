@@ -1,8 +1,36 @@
+const logger = {
+  info: (message, data = {}) => logAnalytics("info", message, data),
+  error: (message, data = {}) => logAnalytics("error", message, data),
+  warn: (message, data = {}) => logAnalytics("warn", message, data),
+  debug: (message, data = {}) => logAnalytics("debug", message, data),
+};
+
+function logAnalytics(level, message, data = {}) {
+  try {
+    if (
+      window.analyticsLogger &&
+      typeof window.analyticsLogger[level] === "function"
+    ) {
+      window.analyticsLogger[level](message, {
+        ...data,
+        source: "content_script",
+        url: window.location.href,
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      // Fallback to console if analytics not available
+      console[level](`[LocatorSpy] ${message}`, data);
+    }
+  } catch (error) {
+    logger.error("Analytics logging failed:", error);
+  }
+}
+
 if (window.seleniumLocatorHelperInjected) {
-  console.log("Selenium Locator Helper already injected");
+  logger.info("Selenium Locator Helper already injected");
 } else {
   window.seleniumLocatorHelperInjected = true;
-  console.log("Selenium Locator Helper content script loaded");
+  logger.info("Selenium Locator Helper content script loaded");
 
   // Function to inject and wait for helper script
   async function injectHelperScript() {
@@ -12,25 +40,27 @@ if (window.seleniumLocatorHelperInjected) {
       }
 
       // Inject the helper script
-      const script = document.createElement('script');
-      script.src = chrome.runtime.getURL('locator_helper.js');
+      const script = document.createElement("script");
+      script.src = chrome.runtime.getURL("locator_helper.js");
       const loadPromise = new Promise((resolve, reject) => {
         script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Failed to load helper script'));
+        script.onerror = () =>
+          reject(new Error("Failed to load helper script"));
       });
       document.head.appendChild(script);
       await loadPromise;
 
       // Wait for LocatorHelper to be available
-      for (let i = 0; i < 50; i++) { // 5 second timeout
+      for (let i = 0; i < 50; i++) {
+        // 5 second timeout
         if (window.LocatorHelper) {
           return window.LocatorHelper;
         }
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise((r) => setTimeout(r, 100));
       }
-      throw new Error('LocatorHelper not found after injection');
+      throw new Error("LocatorHelper not found after injection");
     } catch (err) {
-      console.error('Failed to inject helper:', err);
+      logger.error("Failed to inject helper:", err);
       throw err;
     }
   }
@@ -39,11 +69,14 @@ if (window.seleniumLocatorHelperInjected) {
   async function waitForDependencies(maxWaitTime = 10000) {
     const start = Date.now();
     while (Date.now() - start < maxWaitTime) {
-      if (typeof window.generateLocators === "function" && window.LocatorHelper) {
-        console.log("All dependencies found");
+      if (
+        typeof window.generateLocators === "function" &&
+        window.LocatorHelper
+      ) {
+        logger.info("All dependencies found");
         return;
       }
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
     }
     throw new Error("Timed out waiting for dependencies");
   }
@@ -56,7 +89,7 @@ if (window.seleniumLocatorHelperInjected) {
       loadBestLocatorPreference(initializeContentScript);
     })
     .catch((error) => {
-      console.error("Failed to initialize:", error.message);
+      logger.error("Failed to initialize:", error.message);
     });
 
   // Helper to send logs to background
@@ -64,10 +97,10 @@ if (window.seleniumLocatorHelperInjected) {
     try {
       if (chrome.runtime?.id) {
         chrome.runtime.sendMessage({
-          action: 'log',
+          action: "log",
           log_type: level,
           message: message,
-          extra_data: data
+          extra_data: data,
         });
       }
     } catch (e) {
@@ -76,10 +109,9 @@ if (window.seleniumLocatorHelperInjected) {
   };
 
   // Initial log
-  window.logToBackground('info', 'Content script initialized', {
-    url: window.location.href
+  window.logToBackground("info", "Content script initialized", {
+    url: window.location.href,
   });
-
 
   function loadBestLocatorPreference(callback) {
     try {
@@ -88,9 +120,10 @@ if (window.seleniumLocatorHelperInjected) {
           ? result.isBestLocatorEnabled
           : true;
 
-        window.logToBackground('info', 'Loaded best locator preference', { isBestLocatorEnabled });
-        console.log("Loaded best locator preference:", isBestLocatorEnabled);
-
+        window.logToBackground("info", "Loaded best locator preference", {
+          isBestLocatorEnabled,
+        });
+        logger.info("Loaded best locator preference:", isBestLocatorEnabled);
 
         // Force immediate banner cleanup if disabled
         if (!isBestLocatorEnabled) {
@@ -111,7 +144,7 @@ if (window.seleniumLocatorHelperInjected) {
         }
       });
     } catch (error) {
-      console.error("Error loading locator preference:", error);
+      logger.error("Error loading locator preference:", error);
       if (callback && typeof callback === "function") {
         callback();
       }
@@ -125,12 +158,13 @@ if (window.seleniumLocatorHelperInjected) {
       let extensionContextInvalidated = false;
       let locatorGeneratorMissing = false;
 
-      window.logToBackground('info', 'Initializing content script', { url: window.location.href });
-
+      window.logToBackground("info", "Initializing content script", {
+        url: window.location.href,
+      });
 
       if (typeof window.generateLocators !== "function") {
         if (!locatorGeneratorMissing) {
-          console.error(
+          logger.error(
             "generateLocators is not defined. Make sure locator_generator.js is loaded before content.js."
           );
           locatorGeneratorMissing = true;
@@ -343,7 +377,7 @@ if (window.seleniumLocatorHelperInjected) {
             this.observer.observe({ entryTypes: ["resource"] });
             this.isTracking = true;
           } catch (error) {
-            console.warn("PerformanceObserver not supported:", error);
+            logger.debug("PerformanceObserver not supported:", error);
           }
         }
 
@@ -386,7 +420,9 @@ if (window.seleniumLocatorHelperInjected) {
         try {
           if (!chrome.runtime?.id) {
             if (!extensionContextInvalidated) {
-              console.error("Extension context invalidated - cannot send message");
+              logger.error(
+                "Extension context invalidated - cannot send message"
+              );
               extensionContextInvalidated = true;
             }
             deactivateLocatorMode();
@@ -395,7 +431,7 @@ if (window.seleniumLocatorHelperInjected) {
 
           chrome.runtime.sendMessage(message, (response) => {
             if (chrome.runtime.lastError) {
-              console.error(
+              logger.error(
                 "Message sending error:",
                 chrome.runtime.lastError.message
               );
@@ -407,7 +443,7 @@ if (window.seleniumLocatorHelperInjected) {
           });
         } catch (error) {
           if (!extensionContextInvalidated) {
-            console.error("Error in sendMessageToBackground:", error);
+            logger.error("Error in sendMessageToBackground:", error);
             extensionContextInvalidated = true;
           }
           deactivateLocatorMode();
@@ -428,8 +464,6 @@ if (window.seleniumLocatorHelperInjected) {
 
         // First, test each locator for uniqueness and reliability
         const testedLocators = [];
-
-
 
         // Test function to check if a locator uniquely identifies an element
         function testLocatorUniqueness(type, value) {
@@ -467,11 +501,18 @@ if (window.seleniumLocatorHelperInjected) {
             };
             return result;
           } catch (e) {
-            window.logToBackground('error', 'testLocatorUniqueness failed', { type, value, error: e.message });
+            window.logToBackground("error", "testLocatorUniqueness failed", {
+              type,
+              value,
+              error: e.message,
+            });
             if (e instanceof DOMException) {
-              console.warn(`Error testing locator ${type}: ${value}`, e.message);
+              logger.debug(
+                `Error testing locator ${type}: ${value}`,
+                e.message
+              );
             } else {
-              console.error(
+              logger.error(
                 `Unexpected error testing locator ${type}: ${value}`,
                 e
               );
@@ -489,7 +530,10 @@ if (window.seleniumLocatorHelperInjected) {
         }
 
         if (locators.dataTestId) {
-          const test = testLocatorUniqueness("data-testid", locators.dataTestId);
+          const test = testLocatorUniqueness(
+            "data-testid",
+            locators.dataTestId
+          );
           if (test && test.isUnique) {
             testedLocators.push({ ...test, score: 95 }); // data-testid is second highest
           }
@@ -718,7 +762,10 @@ if (window.seleniumLocatorHelperInjected) {
       }
 
       function highlightElement(element) {
-        highlightedElement = LocatorHelper.highlightElement(element, highlightedElement);
+        highlightedElement = LocatorHelper.highlightElement(
+          element,
+          highlightedElement
+        );
       }
 
       function showBestLocator(type, value, score) {
@@ -775,7 +822,7 @@ if (window.seleniumLocatorHelperInjected) {
           action: "getLocators",
           locators: locators,
           htmlContext: hoveredElement.outerHTML,
-          trigger: "hover"
+          trigger: "hover",
         });
       }, 50); // 50ms debounce
 
@@ -806,14 +853,13 @@ if (window.seleniumLocatorHelperInjected) {
           locators: locators,
           metadata: locators._metadata,
           htmlContext: clickedElement.outerHTML,
-          trigger: "click"
+          trigger: "click",
         });
 
-        window.logToBackground('info', 'Locator selected via click', {
+        window.logToBackground("info", "Locator selected via click", {
           locators: locators,
-          xpath: locators.xpath
+          xpath: locators.xpath,
         });
-
 
         // Deactivate locator mode but keep the highlight and banner if enabled
         isLocatorModeActive = false;
@@ -851,9 +897,9 @@ if (window.seleniumLocatorHelperInjected) {
       function initializeDomDiffer() {
         try {
           domDiffer.startTracking();
-          console.log("DOMDiffer started tracking.");
+          logger.info("DOMDiffer started tracking.");
         } catch (error) {
-          console.error("Error initializing DOMDiffer:", error);
+          logger.error("Error initializing DOMDiffer:", error);
         }
       }
 
@@ -861,9 +907,9 @@ if (window.seleniumLocatorHelperInjected) {
       function initializeNetworkMapper() {
         try {
           networkMapper.startTracking();
-          console.log("NetworkRequestMapper started tracking.");
+          logger.info("NetworkRequestMapper started tracking.");
         } catch (error) {
-          console.error("Error initializing NetworkRequestMapper:", error);
+          logger.error("Error initializing NetworkRequestMapper:", error);
         }
       }
 
@@ -873,8 +919,8 @@ if (window.seleniumLocatorHelperInjected) {
           const domChanges = domDiffer.stopTracking();
           const networkRequests = networkMapper.stopTracking();
 
-          console.log("Captured DOM changes:", domChanges);
-          console.log("Captured network requests:", networkRequests);
+          logger.info("Captured DOM changes:", domChanges);
+          logger.info("Captured network requests:", networkRequests);
 
           sendMessageToBackground({
             action: "captureMetrics",
@@ -882,7 +928,7 @@ if (window.seleniumLocatorHelperInjected) {
             networkRequests,
           });
         } catch (error) {
-          console.error("Error capturing DOM and network changes:", error);
+          logger.error("Error capturing DOM and network changes:", error);
         }
       }
 
@@ -890,7 +936,7 @@ if (window.seleniumLocatorHelperInjected) {
       function activateLocatorMode() {
         if (isLocatorModeActive) return;
 
-        console.log(
+        logger.info(
           "Activating locator mode, best locator enabled:",
           isBestLocatorEnabled
         );
@@ -921,7 +967,7 @@ if (window.seleniumLocatorHelperInjected) {
       function deactivateLocatorMode() {
         if (!isLocatorModeActive) return;
 
-        console.log("Deactivating locator mode");
+        logger.info("Deactivating locator mode");
         isLocatorModeActive = false;
 
         captureDomAndNetworkChanges();
@@ -963,7 +1009,7 @@ if (window.seleniumLocatorHelperInjected) {
         try {
           if (!chrome.runtime?.id) {
             if (!extensionContextInvalidated) {
-              console.warn("Extension context invalidated - stopping retries");
+              logger.debug("Extension context invalidated - stopping retries");
               extensionContextInvalidated = true;
             }
             deactivateLocatorMode(); // Stop locator mode if context is invalid
@@ -973,13 +1019,13 @@ if (window.seleniumLocatorHelperInjected) {
           // Simple ping to check if background is responsive
           sendMessageToBackground({ action: "ping" }, (response, error) => {
             if (error) {
-              console.error("Context check failed:", error);
+              logger.error("Context check failed:", error);
               deactivateLocatorMode();
             }
           });
         } catch (error) {
           if (!extensionContextInvalidated) {
-            console.error("Error in context check:", error);
+            logger.error("Error in context check:", error);
             extensionContextInvalidated = true;
           }
           deactivateLocatorMode();
@@ -995,12 +1041,10 @@ if (window.seleniumLocatorHelperInjected) {
             sendResponse
           ) {
             if (!chrome.runtime?.id) {
-              console.error("Extension context invalidated in listener");
+              logger.error("Extension context invalidated in listener");
               deactivateLocatorMode();
               return;
             }
-
-
 
             if (request.action === "activateLocatorMode") {
               if (request.isActive) {
@@ -1025,7 +1069,7 @@ if (window.seleniumLocatorHelperInjected) {
             return true; // Keep the message channel open for sendResponse
           });
         } catch (error) {
-          console.error("Failed to setup message listener:", error);
+          logger.error("Failed to setup message listener:", error);
         }
       }
 
@@ -1040,13 +1084,18 @@ if (window.seleniumLocatorHelperInjected) {
         }
 
         let element = null;
-        console.log(`[LocatorSpy] Validating locator - Type: "${type}", Value: "${value}"`);
+        logger.info(
+          `[LocatorSpy] Validating locator - Type: "${type}", Value: "${value}"`
+        );
         const lowerType = type.toLowerCase();
 
         try {
-
           // 1. XPath Strategies
-          if (lowerType.includes("xpath") || value.startsWith("/") || value.startsWith("(")) {
+          if (
+            lowerType.includes("xpath") ||
+            value.startsWith("/") ||
+            value.startsWith("(")
+          ) {
             try {
               const result = document.evaluate(
                 value,
@@ -1057,7 +1106,7 @@ if (window.seleniumLocatorHelperInjected) {
               );
               element = result.singleNodeValue;
             } catch (e) {
-              console.warn("Invalid XPath execution:", e);
+              logger.debug("Invalid XPath execution:", e);
               // Fallback: maybe it wasn't an xpath but the value started with /? Unlikely but possible.
             }
           }
@@ -1066,29 +1115,35 @@ if (window.seleniumLocatorHelperInjected) {
             element = document.getElementById(value);
           }
           // 3. CSS Strategies (Explicit or detected)
-          else if (lowerType.includes("css") || lowerType.includes("selector")) {
+          else if (
+            lowerType.includes("css") ||
+            lowerType.includes("selector")
+          ) {
             try {
               element = document.querySelector(value);
             } catch (e) {
-              console.warn("Invalid CSS Selector:", e);
+              logger.debug("Invalid CSS Selector:", e);
             }
           }
           // 4. Specific Strategies
           else if (lowerType === "class name") {
             element = document.getElementsByClassName(value)[0];
-          }
-          else if (lowerType === "tag name") {
+          } else if (lowerType === "tag name") {
             const elements = Array.from(document.getElementsByTagName(value));
             element = elements[0];
             // ... logic for index if multiple ...
-            if (elements.length > 1 && hoveredElement && elements.includes(hoveredElement)) {
+            if (
+              elements.length > 1 &&
+              hoveredElement &&
+              elements.includes(hoveredElement)
+            ) {
               element = hoveredElement;
             }
-          }
-          else if (lowerType === "link text") {
+          } else if (lowerType === "link text") {
             // ... existing link text logic ...
-            const exactLinks = Array.from(document.getElementsByTagName("a"))
-              .filter(link => link.textContent.trim() === value);
+            const exactLinks = Array.from(
+              document.getElementsByTagName("a")
+            ).filter((link) => link.textContent.trim() === value);
             element = exactLinks[0];
             if (exactLinks.length > 1) {
               if (hoveredElement && exactLinks.includes(hoveredElement)) {
@@ -1099,14 +1154,16 @@ if (window.seleniumLocatorHelperInjected) {
                 success: true,
                 locatorType: type,
                 locatorValue: value,
-                additionalInfo: `Found ${exactLinks.length} matches. Using index ${exactLinks.indexOf(element) + 1}.`,
+                additionalInfo: `Found ${
+                  exactLinks.length
+                } matches. Using index ${exactLinks.indexOf(element) + 1}.`,
               });
             }
-          }
-          else if (lowerType === "partial link text") {
+          } else if (lowerType === "partial link text") {
             // ... existing partial link text logic ...
-            const partialLinks = Array.from(document.getElementsByTagName("a"))
-              .filter(link => link.textContent.includes(value));
+            const partialLinks = Array.from(
+              document.getElementsByTagName("a")
+            ).filter((link) => link.textContent.includes(value));
             element = partialLinks[0];
             if (partialLinks.length > 1) {
               if (hoveredElement && partialLinks.includes(hoveredElement)) {
@@ -1117,7 +1174,9 @@ if (window.seleniumLocatorHelperInjected) {
                 success: true,
                 locatorType: type,
                 locatorValue: value,
-                additionalInfo: `Found ${partialLinks.length} matches. Using index ${partialLinks.indexOf(element) + 1}.`,
+                additionalInfo: `Found ${
+                  partialLinks.length
+                } matches. Using index ${partialLinks.indexOf(element) + 1}.`,
               });
             }
           }
@@ -1132,7 +1191,7 @@ if (window.seleniumLocatorHelperInjected) {
                 const selector = `[${lowerType}="${value}"]`;
                 element = document.querySelector(selector);
               } catch (e2) {
-                console.warn("Failed to construct attribute selector:", e2);
+                logger.debug("Failed to construct attribute selector:", e2);
               }
             }
           }
@@ -1192,11 +1251,11 @@ if (window.seleniumLocatorHelperInjected) {
             url: window.location.href,
             iconUrl: chrome.runtime.getURL("popup/icons/icon48.png"),
           });
-          console.log(
+          logger.info(
             "Content script initialized successfully with preferences loaded"
           );
         } catch (error) {
-          console.error("Content script initialization failed:", error);
+          logger.error("Content script initialization failed:", error);
         }
       }
 
@@ -1219,10 +1278,9 @@ if (window.seleniumLocatorHelperInjected) {
         }
       });
 
-      if (typeof hideBestLocatorBanner === 'function') {
+      if (typeof hideBestLocatorBanner === "function") {
         hideBestLocatorBanner();
       }
-
 
       // Initialize the best locator setting on script load
       function initializeBestLocatorSetting() {
