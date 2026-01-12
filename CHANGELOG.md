@@ -1,3 +1,6 @@
+## [1.3.0] - 2026-01-12
+- Refactor logging in content script to use centralized logger and add analytics utility
+
 ## [1.2.9] - 2026-01-10
 - log line remove
 
