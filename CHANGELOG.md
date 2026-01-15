@@ -1,3 +1,6 @@
+## [1.3.4] - 2026-01-15
+- Bump version to 1.3.3 in manifest.json
+
 ## [1.3.2] - 2026-01-15
 - Bump version to 1.3.1 in manifest.json
 
