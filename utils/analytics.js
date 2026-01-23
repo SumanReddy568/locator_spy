@@ -202,6 +202,8 @@ export function trackLogout(meta = {}) {
  * Internal function to send logs to the logpush endpoint
  */
 async function sendLog(level, message, extraData = {}) {
+  // Commenting out log sending as requested
+  /*
   try {
     const currentUserInfo = await getUserInfo();
     const systemInfo =
@@ -240,6 +242,7 @@ async function sendLog(level, message, extraData = {}) {
   } catch (err) {
     console.error("Logger execution failed:", err);
   }
+  */
 }
 
 export const logger = {
