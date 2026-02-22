@@ -1,4 +1,4 @@
-import { logger } from './utils/analytics.js';
+import { logLocatorLifecycle } from './utils/analytics.js';
 
 // Add export statement at the start
 export const initializeServiceWorker = () => {
@@ -27,7 +27,6 @@ export const initializeServiceWorker = () => {
         connections[tabId].postMessage({ type: 'ping' });
 
       } catch (err) {
-        logger.warn('Connection to tab lost', { tabId, error: err.message });
         console.warn('Connection to tab lost:', tabId);
         delete connections[tabId];
       }
@@ -36,13 +35,11 @@ export const initializeServiceWorker = () => {
 
   // Listen for runtime suspend
   chrome.runtime.onSuspend.addListener(() => {
-    logger.info('Service worker suspending, attempting to preserve state...');
     chrome.storage.local.set({ connectionState: connections });
   });
 
   // Handle wake-up
   chrome.runtime.onStartup.addListener(async () => {
-    logger.info('Service worker starting up, restoring state...');
     const state = await chrome.storage.local.get('connectionState');
     if (state.connectionState) {
       Object.keys(state.connectionState).forEach(tabId => {
@@ -68,7 +65,6 @@ export const initializeServiceWorker = () => {
       const isValid = /^\/\/.*/.test(xpath) && !/\/\/\//.test(xpath);
       return isValid;
     } catch (e) {
-      logger.error('XPath validation error', { xpath, error: e.message });
       console.warn('XPath validation error:', e);
       return false;
     }
@@ -76,7 +72,6 @@ export const initializeServiceWorker = () => {
 
   // Add this helper function for script injection
   async function injectScripts(tabId) {
-    logger.info("injectScripts starting", { tabId });
     try {
       // First inject helper
       await chrome.scripting.executeScript({
@@ -99,10 +94,8 @@ export const initializeServiceWorker = () => {
       // Wait a bit to ensure scripts are initialized
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      logger.info("Scripts injected successfully", { tabId });
       return true;
     } catch (err) {
-      logger.error('Script injection failed', { tabId, error: err.message });
       console.error('Script injection failed:', err);
       return false;
     }
@@ -111,8 +104,6 @@ export const initializeServiceWorker = () => {
   // Listen for connections from the devtools page
   chrome.runtime.onConnect.addListener(function (port) {
     if (port.name !== "panel-page") return;
-
-    logger.info("DevTools panel connected");
 
     // Send immediate ping to establish connection
     port.postMessage({ type: 'ping' });
@@ -138,12 +129,7 @@ export const initializeServiceWorker = () => {
           const tabId = message.tabId;
           connections[tabId] = port;
 
-          logger.info("Initialized connection with DevTools", { tabId });
-          console.log("Initialized connection with DevTools for tab:", tabId);
-
           port.onDisconnect.addListener(() => {
-            logger.info("DevTools disconnected", { tabId });
-            console.log("DevTools disconnected from tab:", tabId);
             delete connections[tabId];
             pendingResponses.delete(tabId);
           });
@@ -157,8 +143,6 @@ export const initializeServiceWorker = () => {
         // Handle activating locator mode
         if (message.action === 'activateLocatorMode') {
           const tabId = message.tabId;
-          logger.info("activateLocatorMode message received", { tabId, isActive: message.isActive });
-          console.log("Activating locator mode for tab:", tabId, "isActive:", message.isActive);
 
           // Store the sendResponse function
           pendingResponses.set(tabId, sendResponse);
@@ -195,7 +179,6 @@ export const initializeServiceWorker = () => {
               }
             }
           } catch (err) {
-            logger.error("Error in locator mode activation", { tabId, error: err.message });
             console.error("Error in locator mode activation:", err);
             const responseFn = pendingResponses.get(tabId);
             if (typeof responseFn === 'function') {
@@ -221,17 +204,10 @@ export const initializeServiceWorker = () => {
   // Listen for messages from content scripts
   chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     try {
-      if (message.action === 'log') {
-        // Log forwarding already has logger usage
-        const { log_type, message: logMsg, extra_data } = message;
-        if (logger[log_type]) {
-          logger[log_type](logMsg, extra_data);
-        } else {
-          logger.info(logMsg, extra_data);
-        }
+      if (message.action === 'locatorLifecycle') {
+        logLocatorLifecycle(message.eventName, message.data || {});
         return;
       }
-
 
       if (!sender.tab) return;
 
@@ -258,7 +234,6 @@ export const initializeServiceWorker = () => {
 
       // Handle locator saving
       if (message.action === 'saveLocator') {
-        logger.info("saveLocator message received", { url: message.url });
         chrome.storage.local.get({ locators: [] }, (result) => {
           const locators = result.locators;
           locators.push({
@@ -269,13 +244,11 @@ export const initializeServiceWorker = () => {
 
           chrome.storage.local.set({ locators: locators }, () => {
             if (chrome.runtime.lastError) {
-              logger.error("Storage error during saveLocator", { error: chrome.runtime.lastError.message });
               console.error("Storage error:", chrome.runtime.lastError);
               if (typeof sendResponse === 'function') {
                 sendResponse({ status: 'error', error: chrome.runtime.lastError.message });
               }
             } else {
-              logger.info("Locator saved successfully");
               if (typeof sendResponse === 'function') {
                 sendResponse({ status: 'success' });
               }
@@ -322,7 +295,6 @@ export const initializeServiceWorker = () => {
         sendResponse({ status: 'received' });
       }
     } catch (err) {
-      logger.error("Error in chrome.runtime.onMessage handler", { error: err.message, action: message.action });
       console.error("Error in message handler:", err);
       if (typeof sendResponse === 'function') {
         sendResponse({ status: 'error', error: err.message });

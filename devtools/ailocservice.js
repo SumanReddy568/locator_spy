@@ -1,28 +1,16 @@
-import { logger } from '../utils/analytics.js';
-
 const CLOUDFLARE_WORKER_URL = "https://cloud-fare-ai-gateway.sumanreddy568.workers.dev";
 
 let cachedBasePrompt = null;
 
-/**
- * Fetches the base prompt from the external text file.
- * @returns {Promise<string>}
- */
 async function getBasePrompt() {
-  logger.info("getBasePrompt called");
   if (cachedBasePrompt) return cachedBasePrompt;
   try {
     const url = chrome.runtime.getURL("devtools/prompt/v1.txt");
     const response = await fetch(url);
-    if (!response.ok) {
-      logger.error("Could not fetch prompt file", { status: response.status });
-      throw new Error("Could not fetch prompt file");
-    }
+    if (!response.ok) throw new Error("Could not fetch prompt file");
     cachedBasePrompt = await response.text();
-    logger.info("Base prompt loaded successfully");
     return cachedBasePrompt;
   } catch (error) {
-    logger.error("Error loading AI prompt:", { error: error.message });
     console.error("Error loading AI prompt:", error);
     // Fallback in case of failure
     return `You are a senior Automation QA Architect.
@@ -48,8 +36,6 @@ async function generateAiLocators(
   model,
   provider = "google"
 ) {
-  logger.info("Starting AI Locator Generation", { provider, model });
-
   try {
     let prompt = await getBasePrompt();
 
@@ -107,11 +93,8 @@ async function generateAiLocators(
         temperature: 1,
       });
     } else {
-      logger.error("Unsupported provider requested", { provider });
       throw new Error("Unsupported provider");
     }
-
-    logger.debug("Sending AI request", { url, model });
 
     const response = await fetch(url, {
       method: "POST",
@@ -122,36 +105,24 @@ async function generateAiLocators(
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       const errMsg = err.error?.message || err.message || "AI request failed";
-      logger.error("AI request failed", { status: response.status, error: errMsg });
       throw new Error(errMsg);
     }
 
     const data = await response.json();
     const text = data?.choices?.[0]?.message?.content;
 
-    if (!text) {
-      logger.error("Empty AI response received");
-      throw new Error("Empty AI response");
-    }
+    if (!text) throw new Error("Empty AI response");
 
     // Strip accidental markdown
     const cleaned = text.replace(/```json|```/gi, "").trim();
 
     try {
-      const result = JSON.parse(cleaned);
-      logger.info("AI Locators Generated Successfully", {
-        locators: result,
-        provider: provider,
-        model: model
-      });
-      return result;
+      return JSON.parse(cleaned);
     } catch (e) {
-      logger.error("Invalid JSON returned by AI", { rawOutput: cleaned, error: e.message });
       console.error("Raw AI output:", cleaned);
       throw new Error("Invalid JSON returned by AI");
     }
   } catch (error) {
-    logger.error("Error in generateAiLocators:", { error: error.message });
     throw error;
   }
 }

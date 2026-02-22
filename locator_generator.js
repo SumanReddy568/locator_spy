@@ -1,14 +1,18 @@
 window.generateLocators = function generateLocators(element) {
   if (!element || element.nodeType !== 1) return {};
 
-  const safeLog = (level, message, data) => {
-    if (typeof window.logToBackground === 'function') {
-      window.logToBackground(level, message, data);
-    }
-  };
-
-
-
+  const elementForLog = element
+    ? {
+        tagName: element.tagName?.toLowerCase(),
+        id: element.id || null,
+        className: (element.className && String(element.className).slice(0, 100)) || null,
+        name: element.getAttribute("name") || null,
+        dataTestId: element.getAttribute("data-testid") || element.getAttribute("data-test-id") || null,
+      }
+    : null;
+  if (typeof window.sendLifecycleEvent === "function") {
+    window.sendLifecycleEvent("generation_started", { element: elementForLog });
+  }
 
   /** -----------------------------------------------------
    * Utilities
@@ -358,6 +362,13 @@ window.generateLocators = function generateLocators(element) {
       ? element.innerText.slice(0, 15) + "..."
       : null,
   };
+
+  if (typeof window.sendLifecycleEvent === "function") {
+    window.sendLifecycleEvent("generation_completed", {
+      generatedLocators: result,
+      element: elementForLog,
+    });
+  }
 
   return result;
 };

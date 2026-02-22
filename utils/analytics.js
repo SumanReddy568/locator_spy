@@ -5,28 +5,21 @@ let userInfoCache = null;
 let userInfoCacheTime = 0;
 const CACHE_TTL = 5000; // 5 seconds
 
-// Log queue to prevent request throttling
-const LOG_QUEUE = [];
-let isProcessingQueue = false;
-
 // Function to get user info when needed
 async function getUserInfo() {
   const now = Date.now();
-  if (userInfoCache && (now - userInfoCacheTime < CACHE_TTL)) {
+  if (userInfoCache && now - userInfoCacheTime < CACHE_TTL) {
     return userInfoCache;
   }
 
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     try {
-      // Use Chrome extension storage (not localStorage)
       const storageData = await new Promise((resolve) => {
         chrome.storage.local.get(
           ["auth_token", "user_email", "user_hash", "user_id"],
           resolve
         );
       });
-
-      // console.log("Chrome storage data:", storageData); // Reduce noise
 
       userInfoCache = {
         userId: storageData.user_id || null,
@@ -36,11 +29,8 @@ async function getUserInfo() {
       };
       userInfoCacheTime = now;
       return userInfoCache;
-
     } catch (e) {
       console.warn("Failed to fetch user info from Chrome storage:", e);
-
-      // Fallback to localStorage if Chrome storage fails
       try {
         const localData = {
           userId: localStorage.getItem("user_id"),
@@ -48,7 +38,6 @@ async function getUserInfo() {
           userHash: localStorage.getItem("user_hash"),
           authToken: localStorage.getItem("auth_token"),
         };
-        // console.log("LocalStorage fallback data:", localData);
         return localData;
       } catch (localError) {
         console.warn("Failed to fetch from localStorage as well:", localError);
@@ -59,58 +48,20 @@ async function getUserInfo() {
   return {};
 }
 
-// Process the log queue sequentially
-async function processLogQueue() {
-  if (isProcessingQueue) return;
-  isProcessingQueue = true;
-
-  while (LOG_QUEUE.length > 0) {
-    const payload = LOG_QUEUE[0]; // Peek
-
-    // Using the same base URL but appending api/logpush
-    const baseUrl = TRACK_URL.endsWith('/') ? TRACK_URL.slice(0, -1) : TRACK_URL;
-    const LOGPUSH_ENDPOINT = `${baseUrl}/api/logpush`;
-
-    try {
-      await fetch(LOGPUSH_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      // Remove from queue only on success or if we decide to ignore errors
-      LOG_QUEUE.shift();
-    } catch (err) {
-      console.error("Logger fetch failed:", err);
-      // Drop the log if it fails to avoid blocking the queue forever?
-      // Or maybe retry once? For now, we shift to prevent infinite loops.
-      LOG_QUEUE.shift();
-    }
-
-    // Small delay to be nice to the browser and server resources (100ms)
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-
-  isProcessingQueue = false;
-}
-
 export async function track(eventName, options = {}) {
   try {
-    // console.log("Analytics track called for:", eventName);
-
-    // Get user info when tracking (not at module load time)
     const currentUserInfo = await getUserInfo();
-    // console.log("Got user info:", currentUserInfo);
 
     const systemInfo =
       typeof window !== "undefined"
         ? {
-          ua: navigator.userAgent,
-          lang: navigator.language,
-          platform: navigator.platform,
-          screen: `${window.screen.width}x${window.screen.height}`,
-          viewport: `${window.innerWidth}x${window.innerHeight}`,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        }
+            ua: navigator.userAgent,
+            lang: navigator.language,
+            platform: navigator.platform,
+            screen: `${window.screen.width}x${window.screen.height}`,
+            viewport: `${window.innerWidth}x${window.innerHeight}`,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }
         : { ua: "service-worker" };
 
     const payload = {
@@ -129,8 +80,6 @@ export async function track(eventName, options = {}) {
       },
     };
 
-    // console.log("Sending analytics payload:", payload);
-
     const response = await fetch(TRACK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -138,11 +87,9 @@ export async function track(eventName, options = {}) {
     });
 
     const result = await response.json();
-    // console.log("Analytics response:", result);
     return result;
   } catch (err) {
     console.error("Analytics failed", err);
-    // Don't throw the error, just log it so it doesn't break the app
     return null;
   }
 }
@@ -190,7 +137,6 @@ export function trackLogin(meta = {}) {
 }
 
 export function trackLogout(meta = {}) {
-  // Clear cache on logout
   userInfoCache = null;
   return track("user_logout", {
     feature: "auth",
@@ -198,56 +144,73 @@ export function trackLogout(meta = {}) {
   });
 }
 
-/**
- * Internal function to send logs to the logpush endpoint
- */
-async function sendLog(level, message, extraData = {}) {
-  // Commenting out log sending as requested
-  /*
+// ---------------------------------------------------------------------------
+// Locator Generation Lifecycle Logger
+// Only logs meaningful user actions - never on page load/refresh.
+// Events: mode_activated (select element) | element_sent_to_generation |
+//         generation_started | generation_completed | element_selected |
+//         mode_deactivated | ai_optimization_*
+// ---------------------------------------------------------------------------
+async function logPushLifecycle(entry) {
   try {
     const currentUserInfo = await getUserInfo();
     const systemInfo =
       typeof window !== "undefined"
         ? {
-          ua: navigator.userAgent,
-          lang: navigator.language,
-          platform: navigator.platform,
-          screen: `${window.screen.width}x${window.screen.height}`,
-          viewport: `${window.innerWidth}x${window.innerHeight}`,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        }
+            ua: navigator.userAgent,
+            lang: navigator.language,
+            platform: navigator.platform,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }
         : { ua: "service-worker" };
 
     const payload = {
       product: "locator_spy",
-      log_type: level,
+      log_type: "lifecycle",
       user_id: currentUserInfo.userId || "anonymous",
-      message: message,
+      user_email: currentUserInfo.email || null,
+      user_hash: currentUserInfo.userHash || null,
+      message: entry.event,
       extra_data: JSON.stringify({
-        ...extraData,
-        ...currentUserInfo,
-        system: systemInfo,
-        extensionId: chrome?.runtime?.id || "web_user",
-        version: chrome?.runtime?.getManifest?.()?.version || "1.0.0",
-        page: typeof window !== "undefined" ? window.location.href : "background",
+        ...entry,
+        metadata: {
+          user_id: currentUserInfo.userId || "anonymous",
+          user_email: currentUserInfo.email || null,
+          user_hash: currentUserInfo.userHash || null,
+          system: systemInfo,
+          extensionId: chrome?.runtime?.id || "web_user",
+          version: chrome?.runtime?.getManifest?.()?.version || "1.0.0",
+          page: typeof window !== "undefined" ? window.location.href : "background",
+        },
       }),
     };
 
-    // Push to queue instead of sending immediately
-    LOG_QUEUE.push(payload);
-
-    // Trigger processing if not running
-    processLogQueue();
-
+    const baseUrl = TRACK_URL.endsWith("/") ? TRACK_URL.slice(0, -1) : TRACK_URL;
+    await fetch(`${baseUrl}/api/logpush`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
   } catch (err) {
-    console.error("Logger execution failed:", err);
+    console.warn("[LocatorSpy] Lifecycle log push failed:", err);
   }
-  */
 }
 
+export function logLocatorLifecycle(eventName, data = {}) {
+  const entry = {
+    event: eventName,
+    product: "locator_spy",
+    timestamp: new Date().toISOString(),
+    ...data,
+  };
+  console.log("[LocatorLifecycle]", eventName, entry);
+  logPushLifecycle(entry);
+}
+
+// Minimal logger - no-op to avoid log spam. Use logLocatorLifecycle for locator flow.
 export const logger = {
-  info: (message, extraData) => sendLog("info", message, extraData),
-  error: (message, extraData) => sendLog("error", message, extraData),
-  warn: (message, extraData) => sendLog("warn", message, extraData),
-  debug: (message, extraData) => sendLog("debug", message, extraData),
+  info: () => {},
+  error: (msg, data) => console.error("[LocatorSpy]", msg, data),
+  warn: (msg, data) => console.warn("[LocatorSpy]", msg, data),
+  debug: () => {},
 };

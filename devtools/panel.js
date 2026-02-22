@@ -1,7 +1,4 @@
-import { trackLocatorModeActive, trackOptimizeWithAI, trackAiSettingsOpened, trackAutoOptimizeToggle, trackAutoValidatorToggle, trackLogout, logger } from '../utils/analytics.js';
-
-// Expose logger globally for non-module scripts
-window.Logger = logger;
+import { trackLocatorModeActive, trackOptimizeWithAI, trackAiSettingsOpened, trackAutoOptimizeToggle, trackAutoValidatorToggle, trackLogout, logLocatorLifecycle } from '../utils/analytics.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -837,7 +834,6 @@ document.addEventListener("DOMContentLoaded", function () {
     };
 
     chrome.storage.local.set(settings, () => {
-      logger.info("API Key Saved", { provider });
       aiSettingsModal.classList.remove("show");
       showCopyNotification("Settings saved!");
     });
@@ -846,14 +842,12 @@ document.addEventListener("DOMContentLoaded", function () {
   // Optimize AI Button Click
   if (optimizeAiBtn) {
     optimizeAiBtn.addEventListener("click", () => {
-      logger.info("Optimize AI Button Clicked");
       trackOptimizeWithAI();
       performAiOptimization(false);
     });
   }
 
   async function performAiOptimization(isAutoTrigger = false) {
-    logger.info("performAiOptimization called", { isAutoTrigger });
     if (optimizeAiBtn) {
       optimizeAiBtn.innerHTML = `Improving...`;
       optimizeAiBtn.classList.add("pulse-animation");
@@ -866,20 +860,27 @@ document.addEventListener("DOMContentLoaded", function () {
       const model = provider === "openrouter" ? result.openRouterModel : result.aiModel;
 
       if (!apiKey) {
-        logger.warn("AI Optimization aborted: API Key missing", { provider });
+        logLocatorLifecycle("ai_optimization_failed", { reason: "api_key_missing", provider });
         if (!isAutoTrigger) openAiSettings();
         resetOptimizeBtn();
         return;
       }
 
       if (!currentHtmlContext && !currentLocators) {
-        logger.warn("AI Optimization aborted: No context/locators available");
+        logLocatorLifecycle("ai_optimization_failed", { reason: "no_context" });
         if (!isAutoTrigger) showCopyNotification("No element selected to optimize");
         resetOptimizeBtn();
         return;
       }
 
       try {
+        logLocatorLifecycle("ai_optimization_started", {
+          provider,
+          model,
+          isAutoTrigger,
+          inputLocators: currentLocators,
+          htmlContextPreview: currentHtmlContext ? String(currentHtmlContext).slice(0, 500) : null,
+        });
         const locators = await generateAiLocators(
           currentHtmlContext,
           currentLocators,
@@ -889,12 +890,17 @@ document.addEventListener("DOMContentLoaded", function () {
         );
 
         if (locators) {
-          logger.info("AI Optimization successful", { provider, model });
+          logLocatorLifecycle("ai_optimization_completed", {
+            provider,
+            model,
+            success: true,
+            generatedLocators: locators,
+          });
           displayLocators(locators, true);
           showCopyNotification(isAutoTrigger ? "Auto-optimized by AI!" : "Optimized by AI!");
         }
       } catch (error) {
-        logger.error("AI Generation Error", { error: error.message, provider, model });
+        logLocatorLifecycle("ai_optimization_failed", { reason: "generation_error", error: error.message, provider, model });
         console.error("AI Generation Error: ", error);
         if (!isAutoTrigger) showCopyNotification("AI Optimization Failed: " + error.message);
       } finally {
