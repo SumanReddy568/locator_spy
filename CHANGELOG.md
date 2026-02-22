@@ -1,3 +1,6 @@
+## [1.3.6] - 2026-02-22
+- Refactor logging to use centralized lifecycle events and remove direct logger calls in background, content, and devtools scripts. Introduce `sendLifecycleEvent` for improved analytics tracking.
+
 ## [1.3.5] - 2026-01-23
 - disable log push
 
