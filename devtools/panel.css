@@ -194,6 +194,15 @@ body {
   margin: 6px 0;
 }
 
+.dropdown-section-label {
+  padding: 4px 16px 6px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
 .version-info {
   display: flex;
   justify-content: center;
@@ -413,9 +422,13 @@ body {
 }
 
 .locator-item {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
+  padding: 10px 14px;
+  margin: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, 4fr) auto;
+  column-gap: 12px;
   align-items: center;
   transition: all var(--transition-speed);
   background-color: var(--section-bg);
@@ -431,24 +444,56 @@ body {
 
 .locator-type {
   font-weight: 600;
-  width: 120px;
   color: var(--text-color);
   font-size: 13px;
-  flex-shrink: 0;
+}
+
+.locator-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.locator-badges {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.locator-main {
+  overflow: hidden;
+}
+
+.locator-code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge-pill {
+  border-radius: 999px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-color);
+  background-color: var(--hover-bg);
+}
+
+.badge-ai {
+  background-color: rgba(37, 99, 235, 0.12);
+  color: var(--primary-dark-color);
 }
 
 .locator-value {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 13px;
   color: var(--text-color);
-  flex-grow: 1;
-  word-break: break-all;
-  margin-right: 12px;
-  line-height: 1.5;
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  white-space: normal;
+  gap: 6px;
 }
 
 .copy-btn {

@@ -136,6 +136,13 @@ export function trackLogin(meta = {}) {
   });
 }
 
+export function trackSignup(meta = {}) {
+  return track("user_signup", {
+    feature: "auth",
+    meta,
+  });
+}
+
 export function trackLogout(meta = {}) {
   userInfoCache = null;
   return track("user_logout", {
@@ -204,6 +211,18 @@ export function logLocatorLifecycle(eventName, data = {}) {
     ...data,
   };
   console.log("[LocatorLifecycle]", eventName, entry);
+  logPushLifecycle(entry);
+}
+
+export function logAuthLifecycle(eventName, data = {}) {
+  const entry = {
+    event: eventName,
+    product: "locator_spy",
+    flow: "auth",
+    timestamp: new Date().toISOString(),
+    ...data,
+  };
+  console.log("[AuthLifecycle]", eventName, entry);
   logPushLifecycle(entry);
 }
 

@@ -1,4 +1,4 @@
-import { logger } from '../utils/analytics.js';
+import { logger, trackLogin, trackSignup, logAuthLifecycle } from '../utils/analytics.js';
 
 /**
  * Authentication Module for Locator Spy
@@ -192,6 +192,7 @@ async function getUserDetails() {
 // Signup API call
 async function signup(email, password) {
     logger.info('signup called', { email });
+    logAuthLifecycle('signup_started', { email });
     try {
         const hash = await generateHash(email, password);
 
@@ -214,6 +215,7 @@ async function signup(email, password) {
         // Handle specific status codes before checking content type
         if (response.status === 409) {
             logger.warn('Signup conflict: user already exists', { email });
+            logAuthLifecycle('signup_conflict', { email, status: 409 });
             throw new Error('An account with this email already exists. Please login instead.');
         }
 
@@ -222,6 +224,7 @@ async function signup(email, password) {
         if (!contentType || !contentType.includes("application/json")) {
             const text = await response.text();
             logger.error('API Error (Non-JSON response)', { status: response.status, responseText: text });
+            logAuthLifecycle('signup_api_non_json', { email, status: response.status });
             console.error('API Error (Non-JSON response):', text);
             throw new Error(`Server returned unexpected format (Status: ${response.status}). Please check API URL.`);
         }
@@ -230,13 +233,17 @@ async function signup(email, password) {
 
         if (!response.ok) {
             logger.error('Signup failed', { error: data.error, status: response.status });
+            logAuthLifecycle('signup_failed', { email, status: response.status, error: data.error });
             throw new Error(data.error || 'Signup failed. Please try again.');
         }
 
         logger.info('Signup successful', { email });
+        trackSignup({ status: 'success', email });
+        logAuthLifecycle('signup_succeeded', { email });
         return { success: true, hash, email };
     } catch (error) {
         logger.error('Signup error', { error: error.message });
+        logAuthLifecycle('signup_error', { email, error: error.message });
         console.error('Signup error:', error);
         throw error;
     }
@@ -245,6 +252,7 @@ async function signup(email, password) {
 // Login API call
 async function login(email, password) {
     logger.info('login called', { email });
+    logAuthLifecycle('login_started', { email });
     try {
         const hash = await generateHash(email, password);
 
@@ -262,6 +270,8 @@ async function login(email, password) {
         // Handle specific status codes before checking content type
         if (response.status === 401) {
             logger.warn('Login failed: invalid credentials', { email });
+            logAuthLifecycle('login_invalid_credentials', { email, status: 401 });
+            trackLogin({ status: 'invalid_credentials', email });
             throw new Error('Invalid email or password. Please try again.');
         }
 
@@ -271,6 +281,7 @@ async function login(email, password) {
             const text = await response.text();
             logger.error('API Error (Non-JSON response)', { status: response.status, responseText: text });
             console.error('API Error (Non-JSON response):', text);
+            logAuthLifecycle('login_api_non_json', { email, status: response.status });
             throw new Error(`Server returned unexpected format (Status: ${response.status}). Please check API URL.`);
         }
 
@@ -278,6 +289,7 @@ async function login(email, password) {
 
         if (!response.ok) {
             logger.error('Login failed', { error: data.error, status: response.status });
+            logAuthLifecycle('login_failed', { email, status: response.status, error: data.error });
             throw new Error(data.error || 'Login failed. Please try again.');
         }
 
@@ -285,9 +297,12 @@ async function login(email, password) {
         const userId = data.user_id || data.userId || email; // fallback to email as userId
 
         logger.info('Login successful', { email, userId });
+        trackLogin({ status: 'success', email, userId, source: 'auth_login' });
+        logAuthLifecycle('login_succeeded', { email, userId });
         return { success: true, token: data.token, hash, email, userId };
     } catch (error) {
         logger.error('Login error', { error: error.message });
+        logAuthLifecycle('login_error', { email, error: error.message });
         console.error('Login error:', error);
         throw error;
     }
@@ -296,11 +311,13 @@ async function login(email, password) {
 // Logout API call
 async function logout() {
     logger.info('logout called');
+    logAuthLifecycle('logout_started', {});
     try {
         const token = getStoredToken();
 
         if (!token) {
             logger.warn('Logout attempted without active session');
+            logAuthLifecycle('logout_no_active_session', {});
             throw new Error('No active session found.');
         }
 
@@ -321,6 +338,7 @@ async function logout() {
             logger.warn('API Warning (Non-JSON response for logout)');
             console.warn('API Warning (Non-JSON response for logout)');
             // For logout, we can just proceed
+            logAuthLifecycle('logout_non_json_response', { status: response.status });
             return { success: true };
         }
 
@@ -328,13 +346,16 @@ async function logout() {
 
         if (!response.ok) {
             logger.error('Logout API failed', { error: data.error, status: response.status });
+            logAuthLifecycle('logout_failed', { status: response.status, error: data.error });
             throw new Error(data.error || 'Logout failed. Please try again.');
         }
 
         logger.info('Logout successful');
+        logAuthLifecycle('logout_succeeded', {});
         return { success: true };
     } catch (error) {
         logger.error('Logout error', { error: error.message });
+        logAuthLifecycle('logout_error', { error: error.message });
         console.error('Logout error:', error);
         throw error;
     }
@@ -348,6 +369,7 @@ async function validateSession() {
 
         if (!token) {
             logger.info('No token found during session validation');
+            logAuthLifecycle('session_validation_no_token', {});
             return { valid: false };
         }
 
@@ -360,14 +382,17 @@ async function validateSession() {
 
         if (!response.ok) {
             logger.warn('Session validation failed on server', { status: response.status });
+            logAuthLifecycle('session_validation_failed', { status: response.status });
             return { valid: false };
         }
 
         const data = await response.json();
         logger.info('Session validation result', { valid: data.valid });
+        logAuthLifecycle('session_validation_result', { valid: data.valid });
         return { valid: data.valid };
     } catch (error) {
         logger.error('Session validation error', { error: error.message });
+        logAuthLifecycle('session_validation_error', { error: error.message });
         console.error('Session validation error:', error);
         return { valid: false };
     }
@@ -420,18 +445,21 @@ function initSignup() {
             // Validation
             if (!email || !password || !confirmPassword) {
                 logger.warn('Signup validation failed: missing fields');
+                logAuthLifecycle('signup_validation_failed_missing_fields', {});
                 showError('Please fill in all fields.');
                 return;
             }
 
             if (password.length < 8) {
                 logger.warn('Signup validation failed: password too short');
+                logAuthLifecycle('signup_validation_failed_password_too_short', {});
                 showError('Password must be at least 8 characters long.');
                 return;
             }
 
             if (password !== confirmPassword) {
                 logger.warn('Signup validation failed: passwords do not match');
+                logAuthLifecycle('signup_validation_failed_password_mismatch', {});
                 showError('Passwords do not match.');
                 return;
             }
@@ -440,6 +468,7 @@ function initSignup() {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(email)) {
                 logger.warn('Signup validation failed: invalid email format');
+                logAuthLifecycle('signup_validation_failed_invalid_email', {});
                 showError('Please enter a valid email address.');
                 return;
             }
@@ -451,6 +480,7 @@ function initSignup() {
 
                 if (result.success) {
                     logger.info('Signup API success, starting auto-login');
+                    logAuthLifecycle('auto_login_after_signup_scheduled', { email });
                     showSuccess('Account created successfully! Logging you in...');
 
                     // Auto-login after signup
@@ -461,6 +491,8 @@ function initSignup() {
                                 // Pass userId to storeAuthData
                                 storeAuthData(loginResult.token, loginResult.email, loginResult.hash, loginResult.userId);
                                 logger.info('Auto-login successful after signup');
+                                trackLogin({ status: 'success', email, userId: loginResult.userId, source: 'auto_after_signup' });
+                                logAuthLifecycle('auto_login_after_signup_succeeded', { email, userId: loginResult.userId });
                                 showSuccess('Login successful! Redirecting...');
                                 setTimeout(() => {
                                     window.location.href = 'panel.html';
@@ -468,6 +500,7 @@ function initSignup() {
                             }
                         } catch (error) {
                             logger.error('Auto-login failed after signup', { error: error.message });
+                            logAuthLifecycle('auto_login_after_signup_failed', { email, error: error.message });
                             showError(error.message);
                             setTimeout(() => {
                                 window.location.href = 'login.html';
@@ -479,6 +512,7 @@ function initSignup() {
                 }
             } catch (error) {
                 logger.error('Signup process error', { error: error.message });
+                logAuthLifecycle('signup_process_error', { email, error: error.message });
                 showError(error.message);
                 setButtonLoading('signup-btn', false);
             }
@@ -516,6 +550,7 @@ function initLogin() {
             // Validation
             if (!email || !password) {
                 logger.warn('Login validation failed: missing fields');
+                logAuthLifecycle('login_validation_failed_missing_fields', {});
                 showError('Please fill in all fields.');
                 return;
             }
@@ -536,6 +571,7 @@ function initLogin() {
                 }
             } catch (error) {
                 logger.error('Login process error', { error: error.message });
+                logAuthLifecycle('login_process_error', { email, error: error.message });
                 showError(error.message);
                 setButtonLoading('login-btn', false);
             }

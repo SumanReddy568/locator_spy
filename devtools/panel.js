@@ -254,28 +254,34 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       if (locators.allXPaths && locators.allXPaths.length > 0) {
-        html += `<div class="locator-item"><span class="locator-type">All XPaths:</span></div>`;
         locators.allXPaths.forEach((xpath) => {
           html += `
-              <div class="locator-item">
-                <span class="locator-value">${xpath}</span>
-                <div class="locator-actions">
-                  <button class="validate-btn" data-type="XPath" data-value="${escapeHtml(xpath)}" title="Validate locator">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1-7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
-                    </svg>
-                    Validate
-                  </button>
-                  <button class="copy-btn" data-value="${escapeHtml(xpath)}">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                    </svg>
-                    Copy
-                  </button>
-                </div>
-              </div>
-            `;
+          <div class="locator-item">
+            <div class="locator-meta">
+              <span class="locator-type">XPath</span>
+            </div>
+            <div class="locator-main" title="${escapeHtml(xpath)}">
+              <span class="locator-value">
+                <code class="locator-code">${xpath}</code>
+              </span>
+            </div>
+            <div class="locator-actions">
+              <button class="validate-btn" data-type="XPath" data-value="${escapeHtml(xpath)}" title="Validate locator">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1-7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+                </svg>
+                Validate
+              </button>
+              <button class="copy-btn" data-value="${escapeHtml(xpath)}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                Copy
+              </button>
+            </div>
+          </div>
+        `;
         });
       }
 
@@ -309,14 +315,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Helper function to create locator item
   function createLocatorItem(type, value, isAiGenerated = false) {
-    const badge = isAiGenerated
-      ? '<img src="../images/ai1.png" class="ai-badge" alt="AI" title="AI Generated">'
+    const aiBadge = isAiGenerated
+      ? '<span class="badge-pill badge-ai">AI</span>'
       : '';
 
     return `
       <div class="locator-item">
-        <span class="locator-type">${type}:</span>
-        <span class="locator-value">${value} ${badge}</span>
+        <div class="locator-meta">
+          <span class="locator-type">${type}</span>
+          <span class="locator-badges">
+            ${aiBadge}
+          </span>
+        </div>
+        <div class="locator-main" title="${escapeHtml(value)}">
+          <span class="locator-value">
+            <code class="locator-code">${value}</code>
+          </span>
+        </div>
         <div class="locator-actions">
           <button class="validate-btn" data-type="${type}" data-value="${escapeHtml(value)}" title="Validate locator">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
