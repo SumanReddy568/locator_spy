@@ -1,3 +1,6 @@
+## [1.3.7] - 2026-02-25
+- Enhance UI with new gradients, improved layout, and added section titles for better clarity. Introduce visual indicators for the best locator and update related JavaScript functionality for dynamic content updates.
+
 ## [1.3.6] - 2026-02-22
 - Refactor logging to use centralized lifecycle events and remove direct logger calls in background, content, and devtools scripts. Introduce `sendLifecycleEvent` for improved analytics tracking.
 
