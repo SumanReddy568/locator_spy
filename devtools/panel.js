@@ -18,6 +18,8 @@ document.addEventListener("DOMContentLoaded", function () {
   const autoValidatorToggle = document.getElementById("autoValidatorToggle");
   const autoOptimizeToggle = document.getElementById("autoOptimizeToggle");
   const logoutBtn = document.getElementById("logoutBtn");
+  const locatorSectionTitle = document.getElementById("locatorSectionTitle");
+  const locatorSectionSubtitle = document.getElementById("locatorSectionSubtitle");
 
   // Auth Status Check
   if (window.AuthModule) {
@@ -207,6 +209,10 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!locators || Object.keys(locators).length === 0) {
       locatorResults.innerHTML =
         '<p class="placeholder">No locators found for this element</p>';
+      if (locatorSectionTitle && locatorSectionSubtitle) {
+        locatorSectionTitle.textContent = "Element Locators";
+        locatorSectionSubtitle.textContent = "No locators for the current selection";
+      }
       return;
     }
 
@@ -228,6 +234,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
     let html = "";
     html += '<div class="locators-table">';
+
+    if (locatorSectionTitle && locatorSectionSubtitle) {
+      locatorSectionTitle.textContent = isAiGenerated ? "AI Optimized Locators" : "Element Locators";
+      const countLabel = `${locatorCount} locator${locatorCount === 1 ? "" : "s"}`;
+      locatorSectionSubtitle.textContent = isAiGenerated
+        ? `${countLabel} · AI refined for robustness`
+        : `${countLabel} · Generated directly from the DOM`;
+    }
 
     if (isAiGenerated) {
       // Dynamic rendering for AI results (can be many types)
@@ -291,6 +305,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
     html += "</div>";
     locatorResults.innerHTML = html;
+
+    // Visually highlight "best" locator when enabled (first item)
+    if (!isAiGenerated && bestLocatorToggle && bestLocatorToggle.checked) {
+      const firstItem = locatorResults.querySelector(".locator-item");
+      if (firstItem) {
+        firstItem.classList.add("best-locator");
+      }
+    }
 
     // Add event listeners to copy and validate buttons
     document.querySelectorAll(".copy-btn").forEach((btn) => {
@@ -388,6 +410,11 @@ document.addEventListener("DOMContentLoaded", function () {
     // Clear selected locators
     locatorResults.innerHTML =
       '<p class="placeholder">Activate locator mode and hover over elements to see locators</p>';
+
+    if (locatorSectionTitle && locatorSectionSubtitle) {
+      locatorSectionTitle.textContent = "Element Locators";
+      locatorSectionSubtitle.textContent = "Activate locator mode and hover on the page";
+    }
 
     // Reset locator mode if it's active
     if (isLocatorModeActive) {
