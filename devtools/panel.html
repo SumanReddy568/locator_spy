@@ -116,6 +116,44 @@
         </div>
       </div>
     </div>
+    
+    <div id="updateAlertDev" class="update-alert hidden">
+      <div class="update-content">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+        </svg>
+        <span>Update available!</span>
+        <button id="updateNowBtnDev" class="update-btn">Update Now</button>
+      </div>
+      <button id="closeUpdateAlertDev" class="close-alert">&times;</button>
+    </div>
+
+    <!-- Feedback Rating Container (Inline) -->
+    <div id="feedbackRatingContainer" class="feedback-rating-container" style="display: none;">
+      <p>How do you like Locator Spy?</p>
+      <div class="rating-buttons">
+        <button id="thumbsUp" class="rating-btn" title="I love it!">👍</button>
+        <button id="thumbsDown" class="rating-btn" title="Needs improvement">👎</button>
+      </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedbackModal" class="modal feedback-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Share your feedback</h3>
+          <button id="feedbackClose" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p id="feedbackPrompt">What do you think about Locator Spy?</p>
+          <textarea id="feedbackText" placeholder="Your feedback helps us improve..."></textarea>
+          <p id="feedbackStatus"></p>
+        </div>
+        <div class="modal-footer">
+          <button id="submitFeedback" class="btn primary-btn">Submit Feedback</button>
+        </div>
+      </div>
+    </div>
 
     <div class="controls">
       <button id="locatorModeBtn" class="btn pulse-animation">
@@ -304,6 +342,7 @@
     </div>
   </div>
 
+  <script src="feedback-service.js"></script>
   <script type="module" src="auth.js"></script>
   <script type="module" src="ailocservice.js"></script>
   <script type="module" src="panel.js"></script>

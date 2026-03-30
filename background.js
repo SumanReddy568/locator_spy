@@ -305,39 +305,6 @@ export const initializeServiceWorker = () => {
   chrome.runtime.onInstalled.addListener(() => {
     console.log("Selenium Locator Helper installed");
   });
-
-  const CURRENT_VERSION = '1.1.3';
-
-  // Function to check and show update notification
-  async function checkAndShowUpdateNotification() {
-    const lastVersion = await chrome.storage.local.get('lastVersion');
-    const lastNotificationShown = await chrome.storage.local.get('lastNotificationShown');
-    const now = Date.now();
-
-    if (!lastVersion.lastVersion || lastVersion.lastVersion !== CURRENT_VERSION) {
-      // Show notification for update or new installation
-      chrome.notifications.create('version-update', {
-        type: 'basic',
-        iconUrl: 'popup/icons/icon48.png',
-        title: 'Locator Spy Updated!',
-        message: 'Click here to see what\'s new in version ' + CURRENT_VERSION,
-        priority: 2
-      });
-
-      // Update stored version
-      await chrome.storage.local.set({
-        'lastVersion': CURRENT_VERSION,
-        'lastNotificationShown': now
-      });
-    }
-  }
-
-  // Listen for notification clicks
-  chrome.notifications.onClicked.addListener((notificationId) => {
-    if (notificationId === 'version-update') {
-      chrome.tabs.create({ url: 'https://example.com/changelog' });
-    }
-  });
 };
 
 // Initialize service worker registration

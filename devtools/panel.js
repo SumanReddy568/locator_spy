@@ -96,7 +96,19 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // Toggle locator mode with animation
-  locatorModeBtn.addEventListener("click", function () {
+  locatorModeBtn.addEventListener("click", async function () {
+    // Check if user is gated by feedback
+    if (window.FeedbackService) {
+      const needsFeedback = await FeedbackService.checkIfNeedsFeedback();
+      if (needsFeedback) {
+        FeedbackService.selectedRating = "positive";
+        const feedbackPrompt = document.getElementById("feedbackPrompt");
+        if (feedbackPrompt) feedbackPrompt.textContent = "Please share your feedback to continue generating locators.";
+        const feedbackModal = document.getElementById("feedbackModal");
+        if (feedbackModal) feedbackModal.style.display = "block";
+        return;
+      }
+    }
     isLocatorModeActive = !isLocatorModeActive;
 
     if (isLocatorModeActive) {
@@ -138,11 +150,21 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
+  // Initialize Feedback Service
+  if (window.FeedbackService) {
+    FeedbackService.setupFeedbackHandlers();
+    FeedbackService.checkFeedbackStatus();
+  }
+
+
   // Listen for messages from the background page
   backgroundPageConnection.onMessage.addListener(function (message) {
 
 
     if (message.action === "getLocators") {
+      if (window.FeedbackService) {
+        FeedbackService.incrementLocatorCount();
+      }
       displayLocators(message.locators, false, message.trigger);
     }
 
@@ -967,4 +989,58 @@ document.addEventListener("DOMContentLoaded", function () {
     const releaseNotesPanel = document.querySelector(".release-notes-panel");
     releaseNotesPanel.classList.add("show");
   }
+
+  // Check for updates
+  checkVersionUpdate();
+
+  async function checkVersionUpdate() {
+    try {
+      const response = await fetch('https://multi-product-analytics.sumanreddy568.workers.dev/api/latest-version?source=locator-spy');
+      const data = await response.json();
+      const latestVersion = data.version;
+      const currentVersion = chrome.runtime.getManifest().version;
+
+      if (isNewerVersion(latestVersion, currentVersion)) {
+        showUpdateAlert(latestVersion);
+      }
+    } catch (error) {
+      console.error('Error checking for updates:', error);
+    }
+  }
+
+  function isNewerVersion(latest, current) {
+    const latestParts = latest.split('.').map(Number);
+    const currentParts = current.split('.').map(Number);
+    
+    for (let i = 0; i < Math.max(latestParts.length, currentParts.length); i++) {
+      const v1 = latestParts[i] || 0;
+      const v2 = currentParts[i] || 0;
+      if (v1 > v2) return true;
+      if (v1 < v2) return false;
+    }
+    return false;
+  }
+
+  function showUpdateAlert(version) {
+    const updateAlert = document.getElementById('updateAlertDev');
+    if (!updateAlert) return;
+    
+    const versionSpan = updateAlert.querySelector('span');
+    versionSpan.textContent = `Update available! v${version} is now live.`;
+    updateAlert.classList.remove('hidden');
+    
+    document.getElementById('updateNowBtnDev').addEventListener('click', () => {
+      window.open('https://chromewebstore.google.com/detail/locator-finder-ai-powered/gpgjidcedjiphbgagldchpcliacmanjf', '_blank');
+    });
+
+    document.getElementById('closeUpdateAlertDev').addEventListener('click', () => {
+      updateAlert.classList.add('hidden');
+    });
+  }
+
+  // Listen for feedback submission to unlock button
+  window.addEventListener('feedbackSubmitted', () => {
+    // Optionally trigger something here
+    // But the modal will close and the next click will work
+  });
 });
