@@ -1,3 +1,6 @@
+## [1.3.8] - 2026-03-30
+- feat: implement popup UI for locator management and integrate feedback service gating
+
 ## [1.3.7] - 2026-02-25
 - Enhance UI with new gradients, improved layout, and added section titles for better clarity. Introduce visual indicators for the best locator and update related JavaScript functionality for dynamic content updates.
 
