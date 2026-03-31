@@ -138,8 +138,13 @@ zip -r "$EXTENSIONS_DIR/$NEW_ZIP_FILENAME" ./* -x "*.git*" -x ".github/*" -x "*.
 
 echo "Successfully created new extension: $EXTENSIONS_DIR/$NEW_ZIP_FILENAME"
 
-# No need for symlink - the new version is already in the root directory
-# and old versions are properly archived in backlog
+# Notify analytics worker of the new version
+echo "Notifying analytics worker of new version $NEW_VERSION..."
+curl -X POST https://multi-product-analytics.sumanreddy568.workers.dev/api/latest-version \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer analytics-secret-key-2024" \
+     -d "{\"source\": \"locator-spy\", \"version\": \"$NEW_VERSION\", \"publish\": true}"
+echo "Notification sent."
 
 # Configure git
 git config --global user.name "GitHub Actions"
