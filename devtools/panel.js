@@ -14,7 +14,6 @@ document.addEventListener("DOMContentLoaded", function () {
   const copyAllBtn = document.querySelector(
     '.section-actions .action-btn[title="Copy All"]'
   );
-  const bestLocatorToggle = document.getElementById("bestLocatorToggle");
   const autoValidatorToggle = document.getElementById("autoValidatorToggle");
   const autoOptimizeToggle = document.getElementById("autoOptimizeToggle");
   const logoutBtn = document.getElementById("logoutBtn");
@@ -238,9 +237,24 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    // Track generation
-    const locatorCount = Object.keys(locators).length;
-    // Removed redundant logging to avoid duplication with content script and service interactions
+    // Count only the locators that will actually render (truthy string fields
+    // + the entries in allXPaths). The result object always has the same
+    // shape with null fields, so a raw key count is misleading.
+    const RENDERED_FIELDS = [
+      "id", "dataTestId", "cssSelector", "cssByAttrPair",
+      "relativeXPath", "absoluteXPath",
+      "xpathById", "xpathByName", "xpathByDataTestId", "xpathByAriaLabel",
+      "xpathByPlaceholder", "xpathByText", "xpathByLinkText",
+      "xpathByPartialLinkText", "partialTextXPath",
+      "xpathByClassName", "xpathByTagName",
+    ];
+    let locatorCount = 0;
+    for (const key of RENDERED_FIELDS) {
+      if (locators[key]) locatorCount++;
+    }
+    if (Array.isArray(locators.allXPaths)) {
+      locatorCount += locators.allXPaths.filter(Boolean).length;
+    }
 
 
     // Sanitize XPath values
@@ -278,9 +292,14 @@ document.addEventListener("DOMContentLoaded", function () {
       if (locators.id) html += createLocatorItem("ID", locators.id);
       if (locators.dataTestId) html += createLocatorItem("Data Test ID", locators.dataTestId);
       if (locators.cssSelector) html += createLocatorItem("CSS Selector", locators.cssSelector);
+      if (locators.cssByAttrPair) html += createLocatorItem("CSS by Attr Pair", locators.cssByAttrPair);
       if (locators.relativeXPath) html += createLocatorItem("Relative XPath", locators.relativeXPath);
       if (locators.absoluteXPath) html += createLocatorItem("Absolute XPath", locators.absoluteXPath);
+      if (locators.xpathById) html += createLocatorItem("XPath by ID", locators.xpathById);
       if (locators.xpathByName) html += createLocatorItem("XPath by Name", locators.xpathByName);
+      if (locators.xpathByDataTestId) html += createLocatorItem("XPath by Data Test ID", locators.xpathByDataTestId);
+      if (locators.xpathByAriaLabel) html += createLocatorItem("XPath by Aria Label", locators.xpathByAriaLabel);
+      if (locators.xpathByPlaceholder) html += createLocatorItem("XPath by Placeholder", locators.xpathByPlaceholder);
       if (locators.xpathByText) html += createLocatorItem("XPath by Text", locators.xpathByText);
       if (locators.xpathByLinkText) html += createLocatorItem("XPath by Link Text", locators.xpathByLinkText);
       if (locators.xpathByPartialLinkText) html += createLocatorItem("XPath by Partial Link Text", locators.xpathByPartialLinkText);
@@ -327,14 +346,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     html += "</div>";
     locatorResults.innerHTML = html;
-
-    // Visually highlight "best" locator when enabled (first item)
-    if (!isAiGenerated && bestLocatorToggle && bestLocatorToggle.checked) {
-      const firstItem = locatorResults.querySelector(".locator-item");
-      if (firstItem) {
-        firstItem.classList.add("best-locator");
-      }
-    }
 
     // Add event listeners to copy and validate buttons
     document.querySelectorAll(".copy-btn").forEach((btn) => {
@@ -609,36 +620,6 @@ document.addEventListener("DOMContentLoaded", function () {
     return xpath;
   }
 
-  chrome.storage.local.get("isBestLocatorEnabled", (result) => {
-    const isEnabled = result.hasOwnProperty("isBestLocatorEnabled")
-      ? result.isBestLocatorEnabled
-      : false;
-    chrome.storage.local.set({ isBestLocatorEnabled: isEnabled }); // Ensure default is true
-    bestLocatorToggle.checked = isEnabled;
-  });
-
-  bestLocatorToggle.addEventListener("change", (event) => {
-    const isEnabled = event.target.checked;
-    chrome.storage.local.set({ isBestLocatorEnabled: isEnabled }, () => {
-
-      backgroundPageConnection.postMessage({
-        action: "toggleBestLocator",
-        enable: isEnabled,
-        tabId: chrome.devtools.inspectedWindow.tabId,
-      });
-    });
-  });
-
-  chrome.storage.local.get("isBestLocatorEnabled", (result) => {
-    bestLocatorToggle.checked = result.isBestLocatorEnabled ?? true;
-  });
-
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes.isBestLocatorEnabled) {
-      bestLocatorToggle.checked = changes.isBestLocatorEnabled.newValue;
-    }
-  });
-
   // Release notes panel functionality
   const releaseNotesBtn = document.getElementById("releaseNotesBtn");
   const releaseNotesPanel = document.querySelector(".release-notes-panel");
@@ -700,6 +681,21 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
+  // Engine selector (v1 / v2). Persisted in chrome.storage.local; content.js
+  // mirrors it into window.LocatorSpyConfig so the dispatcher routes correctly.
+  const engineSelect = document.getElementById("engineSelect");
+  if (engineSelect) {
+    chrome.storage.local.get("locatorEngine", (result) => {
+      const engine = result.locatorEngine || "v2";
+      engineSelect.value = engine;
+      chrome.storage.local.set({ locatorEngine: engine });
+    });
+    engineSelect.addEventListener("change", (event) => {
+      const engine = event.target.value === "v1" ? "v1" : "v2";
+      chrome.storage.local.set({ locatorEngine: engine });
+    });
+  }
+
   // Automatically validate locators if "Auto Validator" is enabled
   function autoValidateLocators(locators) {
     chrome.storage.local.get("isAutoValidatorEnabled", (result) => {
@@ -709,18 +705,20 @@ document.addEventListener("DOMContentLoaded", function () {
       if (locators.id) allLocators.push({ type: 'ID', value: locators.id });
       if (locators.dataTestId) allLocators.push({ type: 'Data Test ID', value: locators.dataTestId });
       if (locators.cssSelector) allLocators.push({ type: 'CSS Selector', value: locators.cssSelector });
+      if (locators.cssByAttrPair) allLocators.push({ type: 'CSS by Attr Pair', value: locators.cssByAttrPair });
       if (locators.relativeXPath) allLocators.push({ type: 'Relative XPath', value: locators.relativeXPath });
       if (locators.absoluteXPath) allLocators.push({ type: 'Absolute XPath', value: locators.absoluteXPath });
+      if (locators.xpathById) allLocators.push({ type: 'XPath by ID', value: locators.xpathById });
       if (locators.xpathByName) allLocators.push({ type: 'XPath by Name', value: locators.xpathByName });
+      if (locators.xpathByDataTestId) allLocators.push({ type: 'XPath by Data Test ID', value: locators.xpathByDataTestId });
+      if (locators.xpathByAriaLabel) allLocators.push({ type: 'XPath by Aria Label', value: locators.xpathByAriaLabel });
+      if (locators.xpathByPlaceholder) allLocators.push({ type: 'XPath by Placeholder', value: locators.xpathByPlaceholder });
       if (locators.xpathByText) allLocators.push({ type: 'XPath by Text', value: locators.xpathByText });
       if (locators.xpathByLinkText) allLocators.push({ type: 'XPath by Link Text', value: locators.xpathByLinkText });
       if (locators.xpathByPartialLinkText) allLocators.push({ type: 'XPath by Partial Link Text', value: locators.xpathByPartialLinkText });
       if (locators.partialTextXPath) allLocators.push({ type: 'XPath by Partial Text', value: locators.partialTextXPath });
-      // Add lower priority locators
-      if (locators.className) allLocators.push({ type: 'Class Name', value: locators.className });
-      if (locators.tagName) allLocators.push({ type: 'Tag Name', value: locators.tagName });
-      if (locators.linkText) allLocators.push({ type: 'Link Text', value: locators.linkText });
-      if (locators.partialLinkText) allLocators.push({ type: 'Partial Link Text', value: locators.partialLinkText });
+      if (locators.xpathByClassName) allLocators.push({ type: 'XPath by Class Name', value: locators.xpathByClassName });
+      if (locators.xpathByTagName) allLocators.push({ type: 'XPath by Tag Name', value: locators.xpathByTagName });
       if (locators.allXPaths) {
         locators.allXPaths.forEach(xpath => allLocators.push({ type: 'XPath', value: xpath }));
       }

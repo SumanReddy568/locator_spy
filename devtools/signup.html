@@ -3,65 +3,96 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Sign Up - Locator Spy</title>
+    <title>Create account · Locator Spy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="panel.css">
     <link rel="stylesheet" href="auth.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
 </head>
 
-<body class="auth-page">
+<body class="auth-page light-mode">
     <div class="auth-scroll-wrapper">
         <div class="auth-container">
+
+            <!-- Brand pane -->
             <div class="auth-header">
-                <img src="../images/zoomai.png" alt="Locator Spy Logo" class="auth-logo">
-                <h2>Create Account</h2>
-                <p>Join thousands of developers using Locator Spy</p>
+                <div class="auth-mark">
+                    <img src="../images/zoomai.png" alt="" class="auth-logo">
+                    <h1 class="auth-wordmark">
+                        <span class="brand-script">locator</span><span class="brand-mono">.spy</span>
+                    </h1>
+                </div>
+                <h2>Make every locator <em>stable</em>.</h2>
+                <p>Create an account and ship tests that survive the next refactor.</p>
+
+                <ul class="auth-features">
+                    <li><span class="dot"></span>Anchor-first selector engine, validated live.</li>
+                    <li><span class="dot"></span>CSS, XPath &amp; aria-driven locators in one click.</li>
+                    <li><span class="dot"></span>AI optimization when human conventions fail.</li>
+                </ul>
+
+                <p class="auth-footnote">A test-locator studio for QA engineers.</p>
             </div>
 
+            <!-- Form pane -->
             <div class="auth-form-wrapper">
-                <div id="error-message" class="alert error" style="display: none;"></div>
-                <div id="success-message" class="alert success" style="display: none;"></div>
-                <form id="signup-form">
+                <div class="auth-form-eyebrow">CREATE&nbsp;ACCOUNT</div>
+                <h3 class="auth-form-title">A few details &mdash; and you're in.</h3>
+
+                <div id="error-message" class="alert error" style="display: none;">
+                    <svg class="alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <span></span>
+                </div>
+                <div id="success-message" class="alert success" style="display: none;">
+                    <svg class="alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span></span>
+                </div>
+
+                <form id="signup-form" novalidate>
                     <div class="form-group">
-                        <label for="email">Email Address</label>
+                        <label for="email">Email</label>
                         <div class="input-icon-wrapper">
-                            <i class="fas fa-envelope input-icon"></i>
-                            <input type="email" id="email" placeholder="name@example.com" required>
+                            <span class="input-icon icon-mail" aria-hidden="true"></span>
+                            <input type="email" id="email" placeholder="name@company.com" autocomplete="email" required>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="password">Password</label>
                         <div class="input-icon-wrapper">
-                            <i class="fas fa-lock input-icon"></i>
-                            <input type="password" id="password" placeholder="Create a password" required>
-                            <button type="button" id="toggle-password" class="toggle-password">
-                                <i class="fas fa-eye"></i>
+                            <span class="input-icon icon-lock" aria-hidden="true"></span>
+                            <input type="password" id="password" placeholder="At least 8 characters" autocomplete="new-password" required>
+                            <button type="button" id="toggle-password" class="toggle-password" title="Show / hide password">
+                                <i class="fa-eye"></i>
                             </button>
                         </div>
-                        <small class="hint">At least 8 characters</small>
+                        <small class="hint">Use 8+ characters, mixing letters and numbers.</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="confirm-password">Confirm Password</label>
+                        <label for="confirm-password">Confirm password</label>
                         <div class="input-icon-wrapper">
-                            <i class="fas fa-lock input-icon"></i>
-                            <input type="password" id="confirm-password" placeholder="Confirm your password" required>
-                            <button type="button" id="toggle-confirm-password" class="toggle-password">
-                                <i class="fas fa-eye"></i>
+                            <span class="input-icon icon-lock" aria-hidden="true"></span>
+                            <input type="password" id="confirm-password" placeholder="Re-type your password" autocomplete="new-password" required>
+                            <button type="button" id="toggle-confirm-password" class="toggle-password" title="Show / hide password">
+                                <i class="fa-eye"></i>
                             </button>
                         </div>
                     </div>
 
                     <button type="submit" id="signup-btn" class="btn primary-btn full-width">
-                        <span class="button-text">Sign Up</span>
-                        <span class="button-loader" style="display: none;"><i class="fas fa-spinner fa-spin"></i></span>
+                        <span class="button-text">Create account</span>
+                        <span class="button-loader" style="display: none;">
+                            <i class="fa-spinner"></i>
+                        </span>
                     </button>
                 </form>
 
                 <div class="auth-footer">
-                    <p>Already have an account? <a href="login.html">Log in</a></p>
+                    <p>Already a member? <a href="login.html">Sign in &rarr;</a></p>
                 </div>
             </div>
         </div>

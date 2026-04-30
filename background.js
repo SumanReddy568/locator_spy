@@ -282,14 +282,6 @@ export const initializeServiceWorker = () => {
         }
       }
 
-      // Handle toggleBestLocator message
-      if (message.action === 'toggleBestLocator') {
-        chrome.storage.local.set({ 'isBestLocatorEnabled': message.enable }, () => {
-          console.log("Best locator setting updated in storage:", message.enable);
-        });
-        return;
-      }
-
       // For other messages
       if (typeof sendResponse === 'function') {
         sendResponse({ status: 'received' });

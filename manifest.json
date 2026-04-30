@@ -36,6 +36,7 @@
       "resources": [
         "locator_helper.js",
         "locator_generator.js",
+        "locator_engine_v2.js",
         "popup/icons/*"
       ],
       "matches": [
@@ -60,6 +61,7 @@
       ],
       "js": [
         "locator_generator.js",
+        "locator_engine_v2.js",
         "content.js",
         "utils/analytics.js"
       ],

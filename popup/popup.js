@@ -196,6 +196,10 @@ document.addEventListener("DOMContentLoaded", function () {
       html += createLocatorItem("CSS Selector", locators.cssSelector);
     }
 
+    if (locators.cssByAttrPair) {
+      html += createLocatorItem("CSS by Attr Pair", locators.cssByAttrPair);
+    }
+
     // Display all XPath related locators
     if (locators.relativeXPath) {
       html += createLocatorItem("Relative XPath", locators.relativeXPath);
@@ -205,8 +209,24 @@ document.addEventListener("DOMContentLoaded", function () {
       html += createLocatorItem("Absolute XPath", locators.absoluteXPath);
     }
 
+    if (locators.xpathById) {
+      html += createLocatorItem("XPath by ID", locators.xpathById);
+    }
+
     if (locators.xpathByName) {
       html += createLocatorItem("XPath by Name", locators.xpathByName);
+    }
+
+    if (locators.xpathByDataTestId) {
+      html += createLocatorItem("XPath by Data Test ID", locators.xpathByDataTestId);
+    }
+
+    if (locators.xpathByAriaLabel) {
+      html += createLocatorItem("XPath by Aria Label", locators.xpathByAriaLabel);
+    }
+
+    if (locators.xpathByPlaceholder) {
+      html += createLocatorItem("XPath by Placeholder", locators.xpathByPlaceholder);
     }
 
     if (locators.xpathByText) {

@@ -13,6 +13,27 @@ function sendLifecycleEvent(eventName, data = {}) {
 }
 window.sendLifecycleEvent = sendLifecycleEvent;
 
+// Mirror the user-selected engine (chrome.storage.local.locatorEngine) into
+// window.LocatorSpyConfig so the v2 dispatcher routes calls correctly.
+function applyEngineConfig(engine) {
+  const e = engine === "v1" ? "v1" : "v2";
+  window.LocatorSpyConfig = Object.assign({}, window.LocatorSpyConfig, { engine: e });
+}
+try {
+  if (chrome.storage?.local) {
+    chrome.storage.local.get("locatorEngine", (result) => {
+      applyEngineConfig(result.locatorEngine || "v2");
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === "local" && changes.locatorEngine) {
+        applyEngineConfig(changes.locatorEngine.newValue);
+      }
+    });
+  }
+} catch (e) {
+  // Ignore — fall back to dispatcher default (v2).
+}
+
 if (window.seleniumLocatorHelperInjected) {
   // Already injected, skip
 } else {
@@ -70,45 +91,11 @@ if (window.seleniumLocatorHelperInjected) {
   injectHelperScript()
     .then(() => waitForDependencies())
     .then(() => {
-      // Start main functionality
-      loadBestLocatorPreference(initializeContentScript);
+      initializeContentScript();
     })
     .catch((error) => {
       console.error("[LocatorSpy] Failed to initialize:", error.message);
     });
-
-  function loadBestLocatorPreference(callback) {
-    try {
-      chrome.storage.local.get("isBestLocatorEnabled", (result) => {
-        isBestLocatorEnabled = result.hasOwnProperty("isBestLocatorEnabled")
-          ? result.isBestLocatorEnabled
-          : true;
-
-        // Force immediate banner cleanup if disabled
-        if (!isBestLocatorEnabled) {
-          if (typeof hideBestLocatorBanner === "function") {
-            hideBestLocatorBanner();
-          }
-          if (typeof removeHighlight === "function") {
-            removeHighlight();
-          }
-          if (typeof bestLocatorBanner !== "undefined" && bestLocatorBanner) {
-            bestLocatorBanner.remove(); // Completely remove the banner element
-            bestLocatorBanner = null;
-          }
-        }
-
-        if (callback && typeof callback === "function") {
-          callback();
-        }
-      });
-    } catch (error) {
-      console.error("[LocatorSpy] Error loading locator preference:", error);
-      if (callback && typeof callback === "function") {
-        callback();
-      }
-    }
-  }
 
   function initializeContentScript() {
     // Main functionality wrapped in an IIFE to prevent global scope pollution
@@ -361,8 +348,6 @@ if (window.seleniumLocatorHelperInjected) {
       let highlightedElement = null;
       let hoveredElement = null;
       let contextCheckInterval = null;
-      let bestLocatorBanner = null;
-      let isBestLocatorEnabled = true;
       let lastValidatedElement = null;
 
       // Initialize utility instances
@@ -401,259 +386,6 @@ if (window.seleniumLocatorHelperInjected) {
         }
       }
 
-      // Hide the best locator banner
-      function hideBestLocatorBanner() {
-        if (bestLocatorBanner) {
-          bestLocatorBanner.style.display = "none";
-        }
-      }
-
-      // Analyze and determine the best locator with improved accuracy
-      function determineBestLocator(locators) {
-        if (!locators) return null;
-
-        // First, test each locator for uniqueness and reliability
-        const testedLocators = [];
-
-        // Test function to check if a locator uniquely identifies an element
-        function testLocatorUniqueness(type, value) {
-          if (!value || value.trim() === "") return false;
-
-          try {
-            let elements = [];
-            if (type.toLowerCase().includes("xpath")) {
-              const result = document.evaluate(
-                value,
-                document,
-                null,
-                XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-                null
-              );
-              for (let i = 0; i < result.snapshotLength; i++) {
-                elements.push(result.snapshotItem(i));
-              }
-            } else if (type.toLowerCase().includes("css")) {
-              elements = Array.from(document.querySelectorAll(value));
-            } else {
-              const selector =
-                type === "ID"
-                  ? `#${value}`
-                  : `[${type.toLowerCase()}="${value}"]`;
-              elements = Array.from(document.querySelectorAll(selector));
-            }
-
-            const result = {
-              isUnique: elements.length === 1,
-              count: elements.length,
-              complexity: value.length,
-              value: value,
-              type: type,
-            };
-            return result;
-          } catch (e) {
-            if (!(e instanceof DOMException)) {
-              console.warn(`[LocatorSpy] testLocatorUniqueness failed: ${type}`, e.message);
-            }
-            return false;
-          }
-        }
-
-        // Test each locator type
-        if (locators.id) {
-          const test = testLocatorUniqueness("ID", locators.id);
-          if (test && test.isUnique) {
-            testedLocators.push({ ...test, score: 100 }); // ID is highest priority if unique
-          }
-        }
-
-        if (locators.dataTestId) {
-          const test = testLocatorUniqueness(
-            "data-testid",
-            locators.dataTestId
-          );
-          if (test && test.isUnique) {
-            testedLocators.push({ ...test, score: 95 }); // data-testid is second highest
-          }
-        }
-
-        if (locators.ariaLabel) {
-          const test = testLocatorUniqueness("aria-label", locators.ariaLabel);
-          if (test && test.isUnique) {
-            testedLocators.push({ ...test, score: 90 });
-          }
-        }
-
-        if (locators.name) {
-          const test = testLocatorUniqueness("name", locators.name);
-          if (test && test.isUnique) {
-            testedLocators.push({ ...test, score: 85 });
-          }
-        }
-
-        if (locators.cssSelector) {
-          const test = testLocatorUniqueness(
-            "CSS Selector",
-            locators.cssSelector
-          );
-          if (test && test.isUnique) {
-            const score = test.complexity < 100 ? 80 : 0; // Penalize long CSS selectors
-            testedLocators.push({ ...test, score });
-          }
-        }
-
-        if (locators.xpathByName) {
-          const test = testLocatorUniqueness(
-            "XPath by Name",
-            locators.xpathByName
-          );
-          if (test) {
-            const uniquenessScore = test.isUnique ? 75 : (1 / test.count) * 45;
-            const complexityScore = Math.max(0, 25 - test.complexity / 10);
-            testedLocators.push({
-              ...test,
-              score: uniquenessScore + complexityScore,
-            });
-          }
-        }
-
-        if (locators.xpathByLinkText && locators.tagName === "a") {
-          const test = testLocatorUniqueness(
-            "XPath by Link Text",
-            locators.xpathByLinkText
-          );
-          if (test) {
-            const uniquenessScore = test.isUnique ? 70 : (1 / test.count) * 40;
-            const complexityScore = Math.max(0, 20 - test.complexity / 10);
-            testedLocators.push({
-              ...test,
-              score: uniquenessScore + complexityScore,
-            });
-          }
-        }
-
-        if (locators.xpathByPartialLinkText && locators.tagName === "a") {
-          const test = testLocatorUniqueness(
-            "XPath by Partial Link Text",
-            locators.xpathByPartialLinkText
-          );
-          if (test) {
-            const uniquenessScore = test.isUnique ? 65 : (1 / test.count) * 35;
-            const complexityScore = Math.max(0, 15 - test.complexity / 10);
-            testedLocators.push({
-              ...test,
-              score: uniquenessScore + complexityScore,
-            });
-          }
-        }
-
-        if (locators.relativeXPath) {
-          const test = testLocatorUniqueness(
-            "Relative XPath",
-            locators.relativeXPath
-          );
-          if (test) {
-            const uniquenessScore = test.isUnique ? 60 : (1 / test.count) * 30;
-            const complexityScore = Math.max(0, 20 - test.complexity / 15);
-            testedLocators.push({
-              ...test,
-              score: uniquenessScore + complexityScore,
-            });
-          }
-        }
-
-        // Test more complex XPaths as a last resort
-        if (locators.allXPaths && locators.allXPaths.length) {
-          // Test first few XPaths (most likely to be good)
-          const xpathsToTest = locators.allXPaths.slice(0, 3);
-          for (let i = 0; i < xpathsToTest.length; i++) {
-            const xpath = xpathsToTest[i];
-            const test = testLocatorUniqueness("XPath", xpath);
-            if (test && test.isUnique) {
-              const baseScore = 55 - i * 5; // Decreasing score for each subsequent XPath
-              const complexityScore = Math.max(0, 20 - test.complexity / 15);
-              testedLocators.push({
-                ...test,
-                score: baseScore + complexityScore,
-              });
-            }
-          }
-        }
-
-        // Sort by score (highest first)
-        testedLocators.sort((a, b) => b.score - a.score);
-
-        // Adjust star rating based on score
-        if (testedLocators.length > 0) {
-          const bestLocator = testedLocators[0];
-          let stars = 1;
-          if (bestLocator.score >= 90) stars = 5;
-          else if (bestLocator.score >= 70) stars = 4;
-          else if (bestLocator.score >= 50) stars = 3;
-          else if (bestLocator.score >= 30) stars = 2;
-
-          return {
-            type: bestLocator.type,
-            value: bestLocator.value,
-            score: bestLocator.score,
-            stars,
-          };
-        }
-
-        // If the best locator is a long CSS selector, fallback to the second-best
-        if (
-          testedLocators.length > 1 &&
-          testedLocators[0].type === "CSS Selector" &&
-          testedLocators[0].complexity >= 100
-        ) {
-          return {
-            type: testedLocators[1].type,
-            value: testedLocators[1].value,
-            score: testedLocators[1].score,
-          };
-        }
-
-        // Return the highest scoring locator
-        if (testedLocators.length > 0) {
-          return {
-            type: testedLocators[0].type,
-            value: testedLocators[0].value,
-            score: testedLocators[0].score.toFixed(1), // Include the score for debugging
-          };
-        }
-
-        // Fallback to original priority-based selection if testing didn't work
-        const priorityOrder = [
-          { key: "id", type: "ID" },
-          { key: "dataTestId", type: "Data Test ID" },
-          { key: "ariaLabel", type: "ARIA Label" },
-          { key: "cssSelector", type: "CSS Selector" },
-          { key: "xpathByName", type: "XPath by Name" },
-          { key: "xpathByLinkText", type: "XPath by Link Text" },
-          { key: "xpathByPartialLinkText", type: "XPath by Partial Link Text" },
-          { key: "relativeXPath", type: "Relative XPath" },
-          { key: "absoluteXPath", type: "Absolute XPath" },
-        ];
-
-        // Find the first available locator in priority order
-        for (const { key, type } of priorityOrder) {
-          if (locators[key] && locators[key].trim()) {
-            return { type, value: locators[key] };
-          }
-        }
-
-        // If no prioritized locator found, try to find a good CSS selector
-        if (locators.cssSelector) {
-          return { type: "CSS Selector", value: locators.cssSelector };
-        }
-
-        // Fallback to first available XPath
-        if (locators.allXPaths && locators.allXPaths.length > 0) {
-          return { type: "XPath", value: locators.allXPaths[0] };
-        }
-
-        return null;
-      }
-
       // Import generateLocators from locator_generator.js
       // (Assume locator_generator.js is loaded as a content script before this file)
       // If using modules, you could use: import { generateLocators } from './locator_generator.js';
@@ -672,32 +404,7 @@ if (window.seleniumLocatorHelperInjected) {
         };
       }
 
-      // Highlight element with a border using transform for better performance
-      function highlightElement(element) {
-        if (!element || !element.style) return;
-
-        // Remove previous highlight with RAF
-        requestAnimationFrame(() => {
-          if (highlightedElement) {
-            highlightedElement.style.outline = "";
-            highlightedElement.style.outlineOffset = "";
-          }
-
-          // Add new highlight
-          element.style.outline = "2px solid #4285F4";
-          element.style.outlineOffset = "2px";
-          highlightedElement = element;
-        });
-      }
-
-      // Remove highlight from element
-      function removeHighlight() {
-        if (highlightedElement) {
-          LocatorHelper.removeHighlight(highlightedElement);
-          highlightedElement = null;
-        }
-      }
-
+      // Highlight element with a border (delegates to LocatorHelper).
       function highlightElement(element) {
         highlightedElement = LocatorHelper.highlightElement(
           element,
@@ -705,18 +412,11 @@ if (window.seleniumLocatorHelperInjected) {
         );
       }
 
-      function showBestLocator(type, value, score) {
-        if (!LocatorHelper.isEnabled) return;
-        LocatorHelper.showBestLocator(type, value, score);
-      }
-
-      function hideBestLocatorBanner() {
-        LocatorHelper.hideBestLocatorBanner();
-      }
-
-      function toggleBestLocator(enable) {
-        LocatorHelper.setBannerEnabled(enable);
-        // ...rest of toggle logic...
+      function removeHighlight() {
+        if (highlightedElement) {
+          LocatorHelper.removeHighlight(highlightedElement);
+          highlightedElement = null;
+        }
       }
 
       // Handle mouseover events in locator mode with debounce
@@ -726,35 +426,13 @@ if (window.seleniumLocatorHelperInjected) {
         // Ignore if same element
         if (hoveredElement === event.target) return;
 
-        // Always ignore banner events
-        if (event.target.closest("#best-locator-banner")) return;
-
         event.stopPropagation();
         event.preventDefault();
 
         hoveredElement = event.target;
         highlightElement(hoveredElement);
 
-        // Hide banner immediately if feature is disabled
-        if (!isBestLocatorEnabled) {
-          hideBestLocatorBanner();
-          // Still send locators to background for other features
-          sendMessageToBackground({
-            action: "getLocators",
-            locators: generateLocators(hoveredElement),
-          });
-          return;
-        }
-
         const locators = generateLocators(hoveredElement);
-        const bestLocator = determineBestLocator(locators);
-        if (bestLocator) {
-          showBestLocator(bestLocator.type, bestLocator.value);
-        } else {
-          hideBestLocatorBanner();
-        }
-
-        // Send locators to background
         sendMessageToBackground({
           action: "getLocators",
           locators: locators,
@@ -766,9 +444,6 @@ if (window.seleniumLocatorHelperInjected) {
       // Handle click events in locator mode
       function handleClick(event) {
         if (!isLocatorModeActive) return;
-
-        // Always ignore banner events
-        if (event.target.closest("#best-locator-banner")) return;
 
         event.stopPropagation();
         event.preventDefault();
@@ -806,45 +481,28 @@ if (window.seleniumLocatorHelperInjected) {
           trigger: "click",
         });
 
-        const bestLocator = determineBestLocator(locators);
         sendLifecycleEvent("element_selected", {
-          bestLocator: bestLocator?.type || "unknown",
-          bestValue: bestLocator?.value ? String(bestLocator.value).slice(0, 80) : null,
           tagName: locators.tagName,
           generatedLocators: locators,
         });
 
-        // Deactivate locator mode but keep the highlight and banner if enabled
+        // Deactivate locator mode but keep the highlight briefly so the user
+        // can still see the selection in the page.
         isLocatorModeActive = false;
         document.removeEventListener("mouseover", debouncedMouseOver, true);
         document.body.style.cursor = "";
 
-        // Signal completion
-        sendMessageToBackground({
-          action: "locatorSelected",
-          keepBannerVisible: isBestLocatorEnabled,
-        });
+        sendMessageToBackground({ action: "locatorSelected" });
 
-        // Don't remove highlight or banner immediately to allow copying
-        if (!isBestLocatorEnabled) {
-          // If banner is disabled, clean up immediately
+        setTimeout(() => {
           removeHighlight();
-          hideBestLocatorBanner();
-        } else {
-          // Auto-cleanup after delay if banner is enabled
-          setTimeout(() => {
-            removeHighlight();
-            hideBestLocatorBanner();
-            if (contextCheckInterval) {
-              clearInterval(contextCheckInterval);
-              contextCheckInterval = null;
-            }
-            sendLifecycleEvent("mode_deactivated", { trigger: "auto_cleanup" });
-            sendMessageToBackground({
-              action: "locatorModeDeactivated",
-            });
-          }, 10000); // 10 seconds delay
-        }
+          if (contextCheckInterval) {
+            clearInterval(contextCheckInterval);
+            contextCheckInterval = null;
+          }
+          sendLifecycleEvent("mode_deactivated", { trigger: "auto_cleanup" });
+          sendMessageToBackground({ action: "locatorModeDeactivated" });
+        }, 10000);
       }
 
       // Ensure DOMDiffer starts tracking properly
@@ -882,10 +540,7 @@ if (window.seleniumLocatorHelperInjected) {
       function activateLocatorMode() {
         if (isLocatorModeActive) return;
 
-        sendLifecycleEvent("mode_activated", {
-          message: "select element",
-          bestLocatorEnabled: isBestLocatorEnabled,
-        });
+        sendLifecycleEvent("mode_activated", { message: "select element" });
         isLocatorModeActive = true;
 
         initializeDomDiffer();
@@ -897,11 +552,6 @@ if (window.seleniumLocatorHelperInjected) {
         });
         document.addEventListener("click", handleClick, true);
         document.body.style.cursor = "crosshair";
-
-        // If best locator is disabled, ensure the banner is hidden
-        if (!isBestLocatorEnabled) {
-          hideBestLocatorBanner();
-        }
 
         // Start context validity checks
         if (!contextCheckInterval) {
@@ -922,14 +572,7 @@ if (window.seleniumLocatorHelperInjected) {
         document.removeEventListener("click", handleClick, true);
         document.body.style.cursor = "";
 
-        // Always clean up banner and highlight
         removeHighlight();
-        hideBestLocatorBanner();
-        if (!isBestLocatorEnabled && bestLocatorBanner) {
-          bestLocatorBanner.remove();
-          bestLocatorBanner = null;
-        }
-
         hoveredElement = null;
 
         // Clear any remaining validation highlights
@@ -998,11 +641,6 @@ if (window.seleniumLocatorHelperInjected) {
               } else {
                 deactivateLocatorMode();
               }
-            }
-
-            if (request.action === "toggleBestLocator") {
-              toggleBestLocator(request.enable);
-              sendResponse({ success: true }); // Add response to ensure message is handled
             }
 
             if (request.action === "validateLocator") {
@@ -1200,42 +838,6 @@ if (window.seleniumLocatorHelperInjected) {
 
       // Start the content script
       initialize();
-
-      // Listen for storage changes to update the state in real-time
-      chrome.storage.onChanged.addListener((changes, area) => {
-        if (area === "local" && changes.isBestLocatorEnabled) {
-          const isEnabled = changes.isBestLocatorEnabled.newValue;
-          isBestLocatorEnabled = isEnabled;
-
-          if (!isEnabled) {
-            hideBestLocatorBanner();
-            if (bestLocatorBanner) {
-              bestLocatorBanner.remove();
-              bestLocatorBanner = null;
-            }
-          }
-        }
-      });
-
-      if (typeof hideBestLocatorBanner === "function") {
-        hideBestLocatorBanner();
-      }
-
-      // Initialize the best locator setting on script load
-      function initializeBestLocatorSetting() {
-        chrome.storage.local.get("isBestLocatorEnabled", (result) => {
-          isBestLocatorEnabled = result.isBestLocatorEnabled ?? true;
-          if (!isBestLocatorEnabled) {
-            hideBestLocatorBanner();
-            if (bestLocatorBanner) {
-              bestLocatorBanner.remove();
-              bestLocatorBanner = null;
-            }
-          }
-        });
-      }
-
-      initializeBestLocatorSetting();
     })();
   }
 }

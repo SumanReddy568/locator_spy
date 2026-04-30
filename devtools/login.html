@@ -3,55 +3,84 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Login - Locator Spy</title>
+    <title>Sign in · Locator Spy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="panel.css">
     <link rel="stylesheet" href="auth.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
 </head>
 
-<body class="auth-page">
+<body class="auth-page light-mode">
     <div class="auth-scroll-wrapper">
         <div class="auth-container">
+
+            <!-- Brand pane -->
             <div class="auth-header">
-                <img src="../images/zoomai.png" alt="Locator Spy Logo" class="auth-logo">
-                <h2>Welcome Back</h2>
-                <p>Login to continue using Locator Spy</p>
+                <div class="auth-mark">
+                    <img src="../images/zoomai.png" alt="" class="auth-logo">
+                    <h1 class="auth-wordmark">
+                        <span class="brand-script">locator</span><span class="brand-mono">.spy</span>
+                    </h1>
+                </div>
+                <h2><em>Welcome</em> back.</h2>
+                <p>Sign in to continue building stable test locators.</p>
+
+                <ul class="auth-features">
+                    <li><span class="dot"></span>Instant element locators &mdash; CSS, XPath, and more.</li>
+                    <li><span class="dot"></span>Validated against the live DOM in real time.</li>
+                    <li><span class="dot"></span>AI-refined when convention isn't enough.</li>
+                </ul>
+
+                <p class="auth-footnote">A test-locator studio for QA engineers.</p>
             </div>
 
-
-
+            <!-- Form pane -->
             <div class="auth-form-wrapper">
-                <div id="error-message" class="alert error" style="display: none;"></div>
-                <div id="success-message" class="alert success" style="display: none;"></div>
-                <form id="login-form">
+                <div class="auth-form-eyebrow">SIGN&nbsp;IN</div>
+                <h3 class="auth-form-title">Use your account</h3>
+
+                <div id="error-message" class="alert error" style="display: none;">
+                    <svg class="alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <span></span>
+                </div>
+                <div id="success-message" class="alert success" style="display: none;">
+                    <svg class="alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span></span>
+                </div>
+
+                <form id="login-form" novalidate>
                     <div class="form-group">
-                        <label for="email">Email Address</label>
+                        <label for="email">Email</label>
                         <div class="input-icon-wrapper">
-                            <i class="fas fa-envelope input-icon"></i>
-                            <input type="email" id="email" placeholder="name@example.com" required>
+                            <span class="input-icon icon-mail" aria-hidden="true"></span>
+                            <input type="email" id="email" placeholder="name@company.com" autocomplete="email" required>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="password">Password</label>
                         <div class="input-icon-wrapper">
-                            <i class="fas fa-lock input-icon"></i>
-                            <input type="password" id="password" placeholder="Enter your password" required>
-                            <button type="button" id="toggle-password" class="toggle-password">
-                                <i class="fas fa-eye"></i>
+                            <span class="input-icon icon-lock" aria-hidden="true"></span>
+                            <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" required>
+                            <button type="button" id="toggle-password" class="toggle-password" title="Show / hide password">
+                                <i class="fa-eye"></i>
                             </button>
                         </div>
                     </div>
 
                     <button type="submit" id="login-btn" class="btn primary-btn full-width">
-                        <span class="button-text">Log In</span>
-                        <span class="button-loader" style="display: none;"><i class="fas fa-spinner fa-spin"></i></span>
+                        <span class="button-text">Sign in</span>
+                        <span class="button-loader" style="display: none;">
+                            <i class="fa-spinner"></i>
+                        </span>
                     </button>
                 </form>
 
                 <div class="auth-footer">
-                    <p>Don't have an account? <a href="signup.html">Sign up</a></p>
+                    <p>New to Locator Spy? <a href="signup.html">Create an account &rarr;</a></p>
                 </div>
             </div>
         </div>

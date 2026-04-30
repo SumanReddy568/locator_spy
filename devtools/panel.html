@@ -3,10 +3,12 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Locator Finder</title>
+  <title>Locator Spy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="panel.css">
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet">
 </head>
 
@@ -23,8 +25,8 @@
     <div class="header">
       <div class="logo-title">
         <img src="../images/zoomai.png" class="logo" width="24" height="24" alt="Logo">
-        <h1>LOCATOR SPY</h1>
-        <span class="badge">AI Powered Locator Generator</span>
+        <h1><span class="brand-script">locator</span><span class="brand-mono">.spy</span></h1>
+        <span class="badge">AI&nbsp;·&nbsp;test locator studio</span>
       </div>
       <div class="header-controls">
         <button id="logoutBtn" class="icon-btn" title="Logout" style="display: none;">
@@ -179,16 +181,21 @@
         <input type="text" placeholder="Filter locators...">
       </div>
       <label class="toggle-container">
-        <input type="checkbox" id="bestLocatorToggle">
-        <span class="toggle-label">Best Locator</span>
-      </label>
-      <label class="toggle-container">
         <input type="checkbox" id="autoValidatorToggle">
-        <span class="toggle-label">Auto Validator</span>
+        <span class="toggle-track" aria-hidden="true"></span>
+        <span class="toggle-label">Auto&nbsp;Validate</span>
       </label>
       <label class="toggle-container">
         <input type="checkbox" id="autoOptimizeToggle">
-        <span class="toggle-label">Auto Optimize</span>
+        <span class="toggle-track" aria-hidden="true"></span>
+        <span class="toggle-label">Auto&nbsp;Optimize</span>
+      </label>
+      <label class="toggle-container engine-select-wrap" title="Locator generation engine">
+        <span class="toggle-label engine-select-label">Engine</span>
+        <select id="engineSelect" class="engine-select">
+          <option value="v2">v2 · anchor-first</option>
+          <option value="v1">v1 · legacy</option>
+        </select>
       </label>
     </div>
 
@@ -202,28 +209,41 @@
             </p>
           </div>
           <div class="section-actions">
-            <button class="action-btn" title="Copy All">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button class="action-btn icon-only" title="Copy All">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
               </svg>
             </button>
-            <button id="optimizeAiBtn" class="action-btn" title="Optimize using AI">
-              <img src="../images/ai2.png" width="16" height="16" alt="AI">
-              <b>Optimize Using AI</b>
+            <button id="optimizeAiBtn" class="action-btn ai-btn" title="Optimize using AI">
+              <img src="../images/ai2.png" width="14" height="14" alt="">
+              <span>Optimize&nbsp;with&nbsp;AI</span>
             </button>
-            <button id="aiSettingsBtn" class="action-btn" title="AI Settings">
-              <b>AI Settings</b>
+            <button id="aiSettingsBtn" class="action-btn ghost" title="AI Settings">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.05a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.05a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.05a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              <span>Settings</span>
             </button>
-            <button id="scrollDownBtn" class="action-btn" title="Scroll Down" data-target="#locatorResults">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button id="scrollDownBtn" class="action-btn icon-only" title="Scroll Down" data-target="#locatorResults">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
             </button>
           </div>
         </div>
         <div id="locatorResults">
-          <p class="placeholder">Activate locator mode and hover over elements to see locators</p>
+          <div class="placeholder">
+            <svg class="placeholder-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+              <circle cx="11" cy="11" r="7"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              <line x1="11" y1="8" x2="11" y2="14"></line>
+              <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+            <p class="placeholder-line">Activate <em>Locator Mode</em>, then hover<br>any element on the page.</p>
+            <p class="placeholder-hint">Selectors are validated against the live DOM and ranked by stability.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -324,20 +344,20 @@
   <div id="logoutModal" class="modal">
     <div class="modal-content small-modal">
       <div class="modal-header">
-        <h3>Confirm Logout</h3>
+        <h3>Sign out?</h3>
         <button class="close-modal-btn" id="cancelLogoutBtnX">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
       </div>
       <div class="modal-body">
-        <p>Are you sure you want to log out of Locator Spy?</p>
+        <p>You're about to sign out of <strong>Locator Spy</strong>. You'll need to sign back in to keep generating locators.</p>
       </div>
       <div class="modal-footer">
         <button id="cancelLogoutBtn" class="btn secondary-btn">Cancel</button>
-        <button id="confirmLogoutBtn" class="btn primary-btn destructive-btn">Log Out</button>
+        <button id="confirmLogoutBtn" class="btn primary-btn destructive-btn">Sign out</button>
       </div>
     </div>
   </div>

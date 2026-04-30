@@ -22,3 +22,6 @@ extensions/
 .DS_Store
 
 .lh/
+
+# Claude Code local settings
+.claude/
