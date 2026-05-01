@@ -75,6 +75,14 @@ document.addEventListener("DOMContentLoaded", function () {
         window.location.href = 'login.html';
       }
     }, 300000);
+
+    // Opportunistic two-way reconcile: pulls server data into any missing
+    // local slots, OR pushes local keys up if the server is reachable but
+    // empty (first-run upgrade for users who saved keys before this feature
+    // existed). `fillOnly: true` so we never clobber unsaved local edits.
+    if (typeof AuthModule.syncUserSettings === 'function') {
+      AuthModule.syncUserSettings({ fillOnly: true }).catch(() => { /* non-fatal */ });
+    }
   }
 
   let isLocatorModeActive = false;
@@ -898,6 +906,11 @@ document.addEventListener("DOMContentLoaded", function () {
     chrome.storage.local.set(settings, () => {
       aiSettingsModal.classList.remove("show");
       showCopyNotification("Settings saved!");
+      // Sync to the auth backend so the same account picks them up on
+      // other devices. Fire-and-forget — local save is the source of truth.
+      if (window.AuthModule && typeof AuthModule.pushUserSettings === 'function') {
+        AuthModule.pushUserSettings(settings).catch(() => { /* non-fatal */ });
+      }
     });
   });
 

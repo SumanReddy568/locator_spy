@@ -62,8 +62,7 @@
       "js": [
         "locator_generator.js",
         "locator_engine_v2.js",
-        "content.js",
-        "utils/analytics.js"
+        "content.js"
       ],
       "run_at": "document_idle"
     }

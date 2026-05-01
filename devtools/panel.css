@@ -1477,59 +1477,58 @@ body.dark-mode .primary-btn:hover {
 .dock-warning svg { flex-shrink: 0; }
 
 /* -------- Feedback rating ----------------------------------------------*/
+/* Compact, centered pill — sits unobtrusively in the toolbar slot rather
+ * than spanning the full panel width. Toggled via JS by setting
+ * `display: none` to hide and clearing the inline style to show, so the
+ * stylesheet's `display: flex` is what governs the visible state. */
 .feedback-rating-container {
-  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: max-content;
+  max-width: 100%;
+  margin: 8px auto;
+  padding: 6px 10px 6px 14px;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--radius);
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.feedback-rating-container::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 3px;
-  background: var(--accent);
+  border-radius: 999px;
 }
 
 .feedback-rating-container p {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 16px;
-  font-weight: 400;
-  margin-bottom: 10px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--ink-1);
-  letter-spacing: -0.005em;
+  white-space: nowrap;
 }
 
 .rating-buttons {
-  display: flex;
-  justify-content: center;
-  gap: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .rating-btn {
   background: var(--surface-2);
   border: 1px solid var(--hairline);
-  font-size: 18px;
-  width: 40px;
-  height: 40px;
+  font-size: 14px;
+  line-height: 1;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: transform var(--transition), background var(--transition), border-color var(--transition), box-shadow var(--transition);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
 .rating-btn:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   background: var(--surface);
   border-color: var(--accent-line);
-  box-shadow: 0 4px 12px var(--hairline-glow);
+  box-shadow: 0 2px 6px var(--hairline-glow);
 }
 
 #feedbackStatus {

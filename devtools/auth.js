@@ -17,6 +17,16 @@ const AUTH_CONFIG = {
     }
 };
 
+// Keys that sync across devices via the auth worker.
+// Anything not in this list stays local (e.g. UI toggles).
+const SYNCED_SETTING_KEYS = [
+    'aiProvider',
+    'googleApiKey',
+    'aiModel',
+    'openRouterApiKey',
+    'openRouterModel'
+];
+
 /**
  * Utility Functions
  */
@@ -122,9 +132,15 @@ function clearAuthData() {
     localStorage.removeItem(AUTH_CONFIG.STORAGE_KEYS.USER_HASH);
     localStorage.removeItem(AUTH_CONFIG.STORAGE_KEYS.USER_ID);
 
-    // Also clear Chrome extension storage
+    // Also clear Chrome extension storage — including any synced settings
+    // so that a different account on the same device doesn't inherit the
+    // previous user's API keys.
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.remove(['auth_token', 'user_email', 'user_hash', 'user_id'], () => {
+        const keysToClear = [
+            'auth_token', 'user_email', 'user_hash', 'user_id',
+            ...SYNCED_SETTING_KEYS
+        ];
+        chrome.storage.local.remove(keysToClear, () => {
             if (chrome.runtime.lastError) {
                 logger.error('Failed to clear auth data from Chrome storage', { error: chrome.runtime.lastError });
                 console.warn('Failed to clear auth data from Chrome storage:', chrome.runtime.lastError);
@@ -361,6 +377,165 @@ async function logout() {
     }
 }
 
+// Read the synced subset of settings from chrome.storage.local
+function readSyncedSettingsFromStorage() {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+            resolve({});
+            return;
+        }
+        chrome.storage.local.get(SYNCED_SETTING_KEYS, (result) => {
+            const filtered = {};
+            for (const key of SYNCED_SETTING_KEYS) {
+                if (result[key] !== undefined && result[key] !== null && result[key] !== '') {
+                    filtered[key] = result[key];
+                }
+            }
+            resolve(filtered);
+        });
+    });
+}
+
+// Write the synced subset of settings into chrome.storage.local. When
+// `fillOnly` is true, existing non-empty local values are preserved — used
+// for opportunistic pulls so we don't clobber edits made between sessions.
+function writeSyncedSettingsToStorage(settings, { fillOnly = false } = {}) {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+            resolve();
+            return;
+        }
+        chrome.storage.local.get(SYNCED_SETTING_KEYS, (existing) => {
+            const toWrite = {};
+            for (const key of SYNCED_SETTING_KEYS) {
+                if (settings[key] === undefined) continue;
+                if (fillOnly && existing[key] !== undefined && existing[key] !== '') continue;
+                toWrite[key] = settings[key];
+            }
+            if (Object.keys(toWrite).length === 0) {
+                resolve();
+                return;
+            }
+            chrome.storage.local.set(toWrite, () => resolve());
+        });
+    });
+}
+
+// Fetch the user's settings blob from the auth worker. Returns the data
+// object (possibly empty `{}`) on success, or `null` on any failure
+// (network, 401, malformed response). Callers use the null vs `{}`
+// distinction to decide whether the server is reachable-but-empty.
+async function fetchUserSettings() {
+    const token = getStoredToken();
+    if (!token) return null;
+
+    try {
+        const response = await fetch(
+            `${AUTH_CONFIG.API_BASE_URL}/settings?source=${AUTH_CONFIG.SOURCE}`,
+            {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${token}` }
+            }
+        );
+        if (!response.ok) {
+            logger.warn('fetchUserSettings: server rejected', { status: response.status });
+            return null;
+        }
+        const payload = await response.json();
+        return payload && typeof payload.data === 'object' && payload.data !== null
+            ? payload.data
+            : {};
+    } catch (err) {
+        logger.error('fetchUserSettings error', { error: err.message });
+        return null;
+    }
+}
+
+// Apply server settings to local storage. `fillOnly: true` preserves any
+// non-empty local values. Returns true if anything was applied.
+async function pullUserSettings({ fillOnly = false } = {}) {
+    logger.info('pullUserSettings called', { fillOnly });
+    const data = await fetchUserSettings();
+    if (!data || Object.keys(data).length === 0) return false;
+
+    await writeSyncedSettingsToStorage(data, { fillOnly });
+    logger.info('pullUserSettings: applied remote settings', {
+        keys: Object.keys(data),
+        fillOnly
+    });
+    return true;
+}
+
+// Reconcile local and server settings:
+//   - If the server has data → apply to local (fillOnly governs overwrites).
+//   - If the server is reachable-but-empty AND local has keys → push them up.
+//     This handles existing users who saved API keys before cross-device sync
+//     existed; without it they'd have to manually re-save once.
+//   - If the server is unreachable → leave both sides alone.
+async function syncUserSettings({ fillOnly = false } = {}) {
+    logger.info('syncUserSettings called', { fillOnly });
+    const remote = await fetchUserSettings();
+    if (remote === null) return false;
+
+    if (Object.keys(remote).length > 0) {
+        await writeSyncedSettingsToStorage(remote, { fillOnly });
+        logger.info('syncUserSettings: applied remote', { keys: Object.keys(remote) });
+        return true;
+    }
+
+    const local = await readSyncedSettingsFromStorage();
+    if (Object.keys(local).length === 0) return false;
+
+    logger.info('syncUserSettings: bootstrapping server from local', {
+        keys: Object.keys(local)
+    });
+    return await pushUserSettings(local);
+}
+
+// Push the synced subset of settings to the auth worker. Pass an explicit
+// `settings` object, or omit to read the current state from storage.
+async function pushUserSettings(settings) {
+    logger.info('pushUserSettings called');
+    const token = getStoredToken();
+    if (!token) return false;
+
+    const data = settings
+        ? Object.fromEntries(
+            SYNCED_SETTING_KEYS
+                .filter((k) => settings[k] !== undefined)
+                .map((k) => [k, settings[k]])
+        )
+        : await readSyncedSettingsFromStorage();
+
+    if (Object.keys(data).length === 0) {
+        logger.info('pushUserSettings: nothing to push');
+        return false;
+    }
+
+    try {
+        const response = await fetch(
+            `${AUTH_CONFIG.API_BASE_URL}/settings?source=${AUTH_CONFIG.SOURCE}`,
+            {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ data })
+            }
+        );
+        if (!response.ok) {
+            logger.warn('pushUserSettings: server rejected', { status: response.status });
+            return false;
+        }
+        logger.info('pushUserSettings: synced', { keys: Object.keys(data) });
+        return true;
+    } catch (err) {
+        logger.error('pushUserSettings error', { error: err.message });
+        return false;
+    }
+}
+
 // Validate session API call
 async function validateSession() {
     logger.info('validateSession called');
@@ -493,6 +668,9 @@ function initSignup() {
                                 logger.info('Auto-login successful after signup');
                                 trackLogin({ status: 'success', email, userId: loginResult.userId, source: 'auto_after_signup' });
                                 logAuthLifecycle('auto_login_after_signup_succeeded', { email, userId: loginResult.userId });
+                                // New signup → no remote settings expected, but reconcile
+                                // anyway so a re-used account on a fresh device still pulls.
+                                await syncUserSettings({ fillOnly: false });
                                 showSuccess('Login successful! Redirecting...');
                                 setTimeout(() => {
                                     window.location.href = 'panel.html';
@@ -564,6 +742,10 @@ function initLogin() {
                     logger.info('Login successful, preparing redirect');
                     // Pass userId to storeAuthData
                     storeAuthData(result.token, result.email, result.hash, result.userId);
+                    // Reconcile synced settings (e.g. AI keys): pulls from the
+                    // server, or pushes local-only keys up for first-time
+                    // upgraders. Server is canonical for this fresh session.
+                    await syncUserSettings({ fillOnly: false });
                     showSuccess('Login successful! Redirecting...');
                     setTimeout(() => {
                         window.location.href = 'panel.html';
@@ -664,6 +846,9 @@ window.AuthModule = {
     checkSession,
     getStoredEmail,
     getStoredToken,
+    pullUserSettings,
+    pushUserSettings,
+    syncUserSettings,
     logout: async () => {
         logger.info('AuthModule.logout called');
         try {

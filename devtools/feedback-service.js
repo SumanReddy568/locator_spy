@@ -83,7 +83,9 @@ window.FeedbackService = {
       if (hasSubmitted) {
         feedbackRatingContainer.style.display = "none";
       } else if (needsFeedback) {
-        feedbackRatingContainer.style.display = "block";
+        // Clear the inline style so the stylesheet's display rule
+        // (currently `flex`) governs the visible layout.
+        feedbackRatingContainer.style.display = "";
       } else {
         feedbackRatingContainer.style.display = "none";
       }

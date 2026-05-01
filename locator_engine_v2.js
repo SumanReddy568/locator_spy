@@ -602,13 +602,97 @@
   window.LocatorSpyV2 = { generate, DEFAULT_CONFIG, SCORES };
   window.generateLocatorsV2 = generate;
 
-  // Single entry-point used by content.js. Routes to the configured engine.
+  // -------------------- IN-MEMORY CACHE --------------------
+  // Caches generation output keyed by element reference + an outerHTML
+  // fingerprint. WeakMap means entries auto-GC when the element leaves the
+  // DOM, and the entire cache dies on page navigation — both are desirable
+  // since locator output depends on the live DOM and would go stale
+  // otherwise. We deliberately do NOT use chrome.storage.local for this
+  // cache: generation is synchronous, hover-driven calls would blow past
+  // storage write quotas, and persisted locators can be subtly wrong after
+  // the DOM has changed.
+  const RULE_ENGINE_CACHE = new WeakMap();
+  let ruleEngineCacheHits = 0;
+  let ruleEngineCacheMisses = 0;
+
+  function ruleEngineCfgKey(cfg) {
+    return (cfg.engine || "v2") + "|" + JSON.stringify(cfg || {});
+  }
+
+  // Locator Spy injects `outline` / `outline-offset` inline styles via
+  // locator_helper.highlightElement to draw the hover/validator highlight.
+  // That mutation happens in a requestAnimationFrame, so the same element
+  // produces a different `outerHTML` between hover-time (pre-RAF, no outline)
+  // and click-time (post-RAF, outline present). Strip those properties before
+  // fingerprinting so the cache actually hits on re-generation.
+  function ruleEngineFingerprint(element) {
+    let html = element.outerHTML || "";
+    html = html.replace(/outline\s*:\s*[^;"]+;?/gi, "");
+    html = html.replace(/outline-offset\s*:\s*[^;"]+;?/gi, "");
+    html = html.replace(/style="\s*"/gi, "");
+    html = html.replace(/style="\s*;+\s*"/gi, "");
+    return html;
+  }
+
+  // Single entry-point used by content.js. Routes to the configured engine,
+  // returning a memoised result when the same element + same config + same
+  // outerHTML has been generated already in this page load.
   window.generateLocators = function (element) {
+    if (!element || typeof element !== "object") return null;
+
     const cfg = readConfig();
-    const engine = cfg.engine || "v2";
-    if (engine === "v1" && typeof window.generateLocatorsV1 === "function") {
-      return window.generateLocatorsV1(element);
+    const cfgKey = ruleEngineCfgKey(cfg);
+    // outerHTML captures attribute + child mutations, with our own outline
+    // highlight stripped so it doesn't poison the fingerprint.
+    const fingerprint = ruleEngineFingerprint(element);
+
+    const cached = RULE_ENGINE_CACHE.get(element);
+    if (cached && cached.cfgKey === cfgKey && cached.fingerprint === fingerprint) {
+      ruleEngineCacheHits++;
+      if (typeof window.sendLifecycleEvent === "function") {
+        window.sendLifecycleEvent("rule_engine_cache_hit", {
+          engine: cfg.engine || "v2",
+          tagName: element.tagName ? element.tagName.toLowerCase() : null,
+          fingerprintLen: fingerprint.length,
+          totalHits: ruleEngineCacheHits,
+        });
+      }
+      return cached.locators;
     }
-    return generate(element, cfg);
+    ruleEngineCacheMisses++;
+    if (typeof window.sendLifecycleEvent === "function") {
+      window.sendLifecycleEvent("rule_engine_cache_miss", {
+        engine: cfg.engine || "v2",
+        tagName: element.tagName ? element.tagName.toLowerCase() : null,
+        fingerprintLen: fingerprint.length,
+        reason: cached ? "fingerprint_or_cfg_changed" : "no_entry",
+        totalMisses: ruleEngineCacheMisses,
+      });
+    }
+
+    const engine = cfg.engine || "v2";
+    let locators;
+    if (engine === "v1" && typeof window.generateLocatorsV1 === "function") {
+      locators = window.generateLocatorsV1(element);
+    } else {
+      locators = generate(element, cfg);
+    }
+
+    RULE_ENGINE_CACHE.set(element, { cfgKey, fingerprint, locators });
+    return locators;
+  };
+
+  // Debug surface for inspection from the page console:
+  //   window.locatorRuleEngineCache.stats()
+  //   window.locatorRuleEngineCache.has(element)
+  window.locatorRuleEngineCache = {
+    has: (element) => RULE_ENGINE_CACHE.has(element),
+    stats: () => ({
+      hits: ruleEngineCacheHits,
+      misses: ruleEngineCacheMisses,
+      hitRate: ruleEngineCacheHits + ruleEngineCacheMisses === 0
+        ? 0
+        : (ruleEngineCacheHits / (ruleEngineCacheHits + ruleEngineCacheMisses)).toFixed(3),
+    }),
   };
 })();
