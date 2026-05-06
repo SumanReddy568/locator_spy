@@ -1,3 +1,6 @@
+## [1.4.1] - 2026-05-06
+- fix: update analytics and service files
+
 ## [1.4.0] - 2026-05-01
 - enhancements: chacing and key stoarge aspects
 
