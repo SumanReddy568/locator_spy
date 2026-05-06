@@ -738,6 +738,343 @@ body.dark-mode .action-btn.ai-btn img { filter: brightness(0) invert(0); }
 
 .ai-badge { display: none; }
 
+/* Free-credit indicator on the Optimize AI button. Shows e.g. "3 free"
+ * while the user is on the server-side path and hides once they switch
+ * to a BYO key. The pill gets a softer treatment when low (1 left). */
+.credits-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.18);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.credits-badge[data-state="low"] {
+  background: rgba(255, 196, 0, 0.22);
+  border-color: rgba(255, 196, 0, 0.45);
+}
+.credits-badge[data-state="empty"] {
+  background: rgba(255, 90, 90, 0.22);
+  border-color: rgba(255, 90, 90, 0.45);
+}
+body.dark-mode .credits-badge {
+  background: rgba(0, 0, 0, 0.18);
+  border-color: rgba(0, 0, 0, 0.22);
+}
+
+/* Free-credits banner inside the AI Settings modal. */
+.credits-banner {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--border-1, rgba(0, 0, 0, 0.08));
+}
+.credits-banner-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.credits-banner-icon {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--ink-1);
+}
+.credits-banner-icon img { filter: brightness(0) invert(1); }
+.credits-banner-text { flex: 1 1 auto; min-width: 0; }
+.credits-banner-text strong { display: block; font-size: 12px; font-weight: 600; }
+.credits-banner-text p { margin: 2px 0 0; font-size: 11px; line-height: 1.35; }
+.credits-pill {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  background: var(--ink-1);
+  color: var(--ink-inverse);
+}
+.credits-banner[data-state="empty"] {
+  background: rgba(255, 90, 90, 0.10);
+  border-color: rgba(255, 90, 90, 0.35);
+}
+.credits-banner[data-state="empty"] .credits-pill {
+  background: rgba(255, 90, 90, 0.85);
+}
+.credits-banner[data-state="low"] {
+  background: rgba(255, 196, 0, 0.10);
+  border-color: rgba(255, 196, 0, 0.40);
+}
+.credits-banner[data-state="low"] .credits-pill {
+  background: rgba(200, 140, 0, 0.95);
+}
+.optional-tag {
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-left: 4px;
+}
+
+/* ---- In-panel free-credits banner ----------------------------------------
+ * Shown above the locator results so the offer is always visible — not
+ * hidden behind the AI Settings modal. Collapses to nothing once the user
+ * configures their own API key, or after they dismiss it. */
+/* The default `[hidden]` attribute applies `display: none`, but our
+ * banner / badge set `display: flex|inline-flex` which wins specificity.
+ * This explicit override makes JS `el.hidden = true` actually hide them. */
+.ai-credits-banner[hidden],
+.credits-badge[hidden],
+.credits-banner[hidden] { display: none !important; }
+
+.ai-credits-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 10px 12px 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(125deg, #2a0f5e 0%, #4f1ec1 35%, #7d2bd9 65%, #d83bb2 100%);
+  background-size: 220% 220%;
+  animation: ai-credits-bg-pan 14s ease-in-out infinite;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.10) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 14px 30px -14px rgba(80, 20, 180, 0.55),
+    0 4px 12px -6px rgba(216, 59, 178, 0.35);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+@keyframes ai-credits-bg-pan {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.ai-credits-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(140% 90% at 100% 0%, rgba(255, 255, 255, 0.18), transparent 55%),
+    radial-gradient(80% 60% at 0% 100%, rgba(216, 59, 178, 0.30), transparent 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+.ai-credits-shimmer {
+  position: absolute;
+  top: -50%;
+  left: -30%;
+  width: 40%;
+  height: 200%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.18) 50%, transparent 100%);
+  transform: skewX(-18deg);
+  animation: ai-credits-shimmer 6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes ai-credits-shimmer {
+  0%   { left: -40%; opacity: 0; }
+  20%  { opacity: 0.9; }
+  60%  { left: 130%; opacity: 0; }
+  100% { left: 130%; opacity: 0; }
+}
+.ai-credits-spark {
+  position: absolute;
+  color: rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+  z-index: 0;
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6));
+  animation: ai-credits-twinkle 2.6s ease-in-out infinite;
+}
+.ai-credits-spark--1 { top: 8px; right: 36%; animation-delay: 0s; }
+.ai-credits-spark--2 { bottom: 10px; right: 28%; animation-delay: 0.9s; }
+.ai-credits-spark--3 { top: 50%; right: 20%; animation-delay: 1.7s; }
+@keyframes ai-credits-twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.7); }
+  50%      { opacity: 1;    transform: scale(1.15); }
+}
+.ai-credits-banner > *:not(.ai-credits-shimmer):not(.ai-credits-spark) {
+  position: relative;
+  z-index: 1;
+}
+.ai-credits-banner-icon {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06));
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 6px 14px -6px rgba(0, 0, 0, 0.45);
+  animation: ai-credits-icon-pulse 3.2s ease-in-out infinite;
+}
+@keyframes ai-credits-icon-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset, 0 0 0 0 rgba(255,255,255,0.35); }
+  50%      { box-shadow: 0 0 0 1px rgba(255,255,255,0.12) inset, 0 0 0 6px rgba(255,255,255,0.06); }
+}
+.ai-credits-banner-body { flex: 1 1 auto; min-width: 0; }
+.ai-credits-banner-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.ai-credits-banner-sub {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.82);
+}
+.ai-credits-banner-sub b { color: #fff; font-weight: 600; }
+.ai-credits-banner-meter {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(4px);
+}
+.ai-credit-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.18),
+    0 0 8px rgba(255, 255, 255, 0.55);
+  animation: ai-credit-pulse 2.4s ease-in-out infinite;
+  transition: all 240ms ease;
+}
+.ai-credit-dot[data-i="2"] { animation-delay: 0.3s; }
+.ai-credit-dot[data-i="3"] { animation-delay: 0.6s; }
+.ai-credit-dot[data-spent="true"] {
+  background: rgba(255, 255, 255, 0.20);
+  box-shadow: none;
+  transform: scale(0.78);
+  animation: none;
+}
+@keyframes ai-credit-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(255,255,255,0.18), 0 0 4px  rgba(255,255,255,0.40); }
+  50%      { box-shadow: 0 0 0 2px rgba(255,255,255,0.25), 0 0 12px rgba(255,255,255,0.85); }
+}
+.ai-credits-banner-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ai-credits-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #3a0d8a;
+  border: 0;
+  padding: 7px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  letter-spacing: 0.005em;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 6px 14px -6px rgba(0, 0, 0, 0.30);
+  transition: transform 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+.ai-credits-cta:hover {
+  background: #fff;
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 10px 18px -6px rgba(0, 0, 0, 0.35);
+}
+.ai-credits-cta:active { transform: translateY(0); }
+.ai-credits-cta svg { color: #b842dd; }
+.ai-credits-banner-close {
+  background: transparent;
+  border: 0;
+  padding: 5px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease, background-color 120ms ease, transform 200ms ease;
+}
+.ai-credits-banner-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  transform: rotate(90deg);
+}
+
+.ai-credits-banner[data-state="signed-out"] {
+  background: linear-gradient(125deg, #1f2937 0%, #374151 60%, #4b5563 100%);
+  background-size: 220% 220%;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 12px 26px -14px rgba(0, 0, 0, 0.55);
+}
+.ai-credits-banner[data-state="signed-out"] .ai-credits-cta { color: #1f2937; }
+.ai-credits-banner[data-state="signed-out"] .ai-credits-cta svg { color: #6b7280; }
+
+.ai-credits-banner[data-state="low"] {
+  background: linear-gradient(125deg, #6b3a00 0%, #b46a00 50%, #f59e0b 100%);
+  background-size: 220% 220%;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.10) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 14px 28px -14px rgba(180, 100, 0, 0.55);
+}
+.ai-credits-banner[data-state="low"] .ai-credits-cta { color: #7a3e00; }
+.ai-credits-banner[data-state="low"] .ai-credits-cta svg { color: #f59e0b; }
+
+.ai-credits-banner[data-state="empty"] {
+  background: linear-gradient(125deg, #4a0d18 0%, #b91c1c 50%, #ef4444 100%);
+  background-size: 220% 220%;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.10) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 14px 28px -14px rgba(185, 28, 28, 0.55);
+}
+.ai-credits-banner[data-state="empty"] .ai-credits-cta { color: #7f1d1d; }
+.ai-credits-banner[data-state="empty"] .ai-credits-cta svg { color: #ef4444; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-credits-banner,
+  .ai-credits-shimmer,
+  .ai-credits-spark,
+  .ai-credit-dot,
+  .ai-credits-banner-icon { animation: none !important; }
+}
+
+@media (max-width: 600px) {
+  .ai-credits-banner { flex-wrap: wrap; padding: 10px 12px; }
+  .ai-credits-banner-body { flex: 1 1 100%; }
+  .ai-credits-banner-meter { order: 4; }
+  .ai-credits-banner-actions { order: 5; margin-left: auto; }
+  .ai-credits-spark { display: none; }
+}
+
 .action-btn[title="Scroll Down"] svg { transition: transform var(--transition); }
 .action-btn[title="Scroll Down"]:hover svg { transform: translateY(2px); }
 

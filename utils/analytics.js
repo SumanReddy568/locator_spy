@@ -151,6 +151,54 @@ export function trackLogout(meta = {}) {
   });
 }
 
+// ---- Free credits surface ------------------------------------------------
+// Track banner-level interactions and the credit lifecycle separately from
+// the AI optimization events (which are emitted from panel.js around the
+// actual API call). These help answer: are users seeing the offer? are
+// they clicking the CTA? when do they exhaust? when does fallback kick in?
+
+export function trackFreeCreditsBannerShown(meta = {}) {
+  return track("free_credits_banner_shown", {
+    feature: "free_credits",
+    meta,
+  });
+}
+
+export function trackFreeCreditsBannerDismissed(meta = {}) {
+  return track("free_credits_banner_dismissed", {
+    feature: "free_credits",
+    meta,
+  });
+}
+
+export function trackFreeCreditsCtaClicked(meta = {}) {
+  return track("free_credits_cta_clicked", {
+    feature: "free_credits",
+    meta,
+  });
+}
+
+export function trackFreeCreditsHydrated(meta = {}) {
+  return track("free_credits_hydrated", {
+    feature: "free_credits",
+    meta,
+  });
+}
+
+export function trackFreeCreditsExhausted(meta = {}) {
+  return track("free_credits_exhausted", {
+    feature: "free_credits",
+    meta,
+  });
+}
+
+export function trackFreeCreditsFallback(meta = {}) {
+  return track("free_credits_fallback_to_byo", {
+    feature: "free_credits",
+    meta,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Locator Generation Lifecycle Logger
 // Only logs meaningful user actions - never on page load/refresh.

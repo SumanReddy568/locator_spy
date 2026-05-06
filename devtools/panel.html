@@ -199,6 +199,57 @@
       </label>
     </div>
 
+    <div id="aiCreditsBanner" class="ai-credits-banner" hidden>
+      <span class="ai-credits-shimmer" aria-hidden="true"></span>
+      <span class="ai-credits-spark ai-credits-spark--1" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
+          <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
+        </svg>
+      </span>
+      <span class="ai-credits-spark ai-credits-spark--2" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor">
+          <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
+        </svg>
+      </span>
+      <span class="ai-credits-spark ai-credits-spark--3" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="6" height="6" fill="currentColor">
+          <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
+        </svg>
+      </span>
+      <div class="ai-credits-banner-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3 L13.7 9.3 L20 11 L13.7 12.7 L12 19 L10.3 12.7 L4 11 L10.3 9.3 Z" fill="currentColor" stroke="none"/>
+          <path d="M19 4 L19.7 6.3 L22 7 L19.7 7.7 L19 10 L18.3 7.7 L16 7 L18.3 6.3 Z" fill="currentColor" stroke="none" opacity="0.85"/>
+          <path d="M5 16 L5.6 17.7 L7.3 18.3 L5.6 18.9 L5 20.6 L4.4 18.9 L2.7 18.3 L4.4 17.7 Z" fill="currentColor" stroke="none" opacity="0.7"/>
+        </svg>
+      </div>
+      <div class="ai-credits-banner-body">
+        <div class="ai-credits-banner-title" id="aiCreditsBannerTitle">3 free AI optimizations on us</div>
+        <div class="ai-credits-banner-sub" id="aiCreditsBannerSub">
+          Click <b>Optimize with AI</b> on any element — no setup, no API key needed.
+        </div>
+      </div>
+      <div class="ai-credits-banner-meter" id="aiCreditsBannerMeter" aria-hidden="true">
+        <span class="ai-credit-dot" data-i="1"></span>
+        <span class="ai-credit-dot" data-i="2"></span>
+        <span class="ai-credit-dot" data-i="3"></span>
+      </div>
+      <div class="ai-credits-banner-actions">
+        <button id="aiCreditsBannerCta" class="btn ai-credits-cta" type="button">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
+            <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
+          </svg>
+          <span>Add your API key</span>
+        </button>
+        <button id="aiCreditsBannerDismiss" class="ai-credits-banner-close" type="button" aria-label="Dismiss">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <div class="results">
       <div class="section">
         <div class="section-header">
@@ -218,6 +269,7 @@
             <button id="optimizeAiBtn" class="action-btn ai-btn" title="Optimize using AI">
               <img src="../images/ai2.png" width="14" height="14" alt="">
               <span>Optimize&nbsp;with&nbsp;AI</span>
+              <span id="aiCreditsBadge" class="credits-badge" hidden></span>
             </button>
             <button id="aiSettingsBtn" class="action-btn ghost" title="AI Settings">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -272,8 +324,20 @@
           </div>
 
           <div id="googleFields">
+            <div id="freeCreditsBanner" class="credits-banner" hidden>
+              <div class="credits-banner-row">
+                <span class="credits-banner-icon" aria-hidden="true">
+                  <img src="../images/ai2.png" width="14" height="14" alt="">
+                </span>
+                <div class="credits-banner-text">
+                  <strong id="freeCreditsTitle">Try AI optimization for free</strong>
+                  <p id="freeCreditsSub" class="help-text">Sign in to get 3 free AI optimizations using our key — no setup required.</p>
+                </div>
+                <span id="freeCreditsCount" class="credits-pill" hidden>3 / 3</span>
+              </div>
+            </div>
             <div class="form-group">
-              <label for="googleApiKey">Google API Key</label>
+              <label for="googleApiKey">Google API Key <span class="optional-tag">(optional while free credits last)</span></label>
               <input type="password" id="googleApiKey" placeholder="Enter your Google API Key">
               <p class="help-text">Get your key from <a href="https://aistudio.google.com/app/apikey"
                   target="_blank">Google AI Studio</a></p>

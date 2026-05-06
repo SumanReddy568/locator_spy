@@ -1,6 +1,9 @@
 import { logLocatorLifecycle } from "../utils/analytics.js";
 
 const CLOUDFLARE_WORKER_URL = "https://cloud-fare-ai-gateway.sumanreddy568.workers.dev";
+// Server-side free-credit AI proxy. Holds the provider key in a Cloudflare
+// secret, enforces per-user budget in D1. Client only sends auth_token.
+const FREE_TIER_WORKER_URL = "https://feedback-collector.sumanreddy568.workers.dev";
 
 // -------- Response cache ---------------------------------------------------
 // Re-running Optimize on the same element with the same provider/model and
@@ -156,19 +159,26 @@ async function generateAiLocators(
   apiKey,
   model,
   provider = "google",
-  { bypassCache = false } = {}
+  { bypassCache = false, freeCredits = null } = {}
 ) {
   try {
     // Default model fallback (mirrors the API call below). Resolved up here
     // so the cache key matches the request that would have been sent.
     const resolvedModel = model || (provider === "google"
-      ? "gemini-1.5-flash"
+      ? "gemini-2.5-flash"
       : "google/gemini-2.5-flash-exp:free");
+
+    // Cache key intentionally folds the free-tier flag into the provider
+    // bucket — the server-rendered prompt is the same content as BYO-key,
+    // so reusing cached responses across the two paths is safe and lets
+    // free-credit users see instant results when an element was already
+    // optimized in the same session.
+    const effectiveProvider = freeCredits ? "freecredits" : provider;
 
     const cacheKey = await aiCacheKey({
       htmlContext,
       existingLocators,
-      provider,
+      provider: effectiveProvider,
       model: resolvedModel,
       promptVersion: AI_PROMPT_VERSION,
     });
@@ -178,11 +188,11 @@ async function generateAiLocators(
       if (cached) {
         console.debug("[ailocservice] cache hit", {
           key: cacheKey.slice(0, 10),
-          provider,
+          provider: effectiveProvider,
           model: resolvedModel,
         });
         logLocatorLifecycle("ai_cache_hit", {
-          provider,
+          provider: effectiveProvider,
           model: resolvedModel,
           keyPrefix: cacheKey.slice(0, 10),
           promptVersion: AI_PROMPT_VERSION,
@@ -191,63 +201,84 @@ async function generateAiLocators(
       }
     }
     logLocatorLifecycle("ai_cache_miss", {
-      provider,
+      provider: effectiveProvider,
       model: resolvedModel,
       keyPrefix: cacheKey.slice(0, 10),
       promptVersion: AI_PROMPT_VERSION,
       bypassed: bypassCache,
     });
 
-    let prompt = await getBasePrompt();
-
     const cleanedHtmlContext = stripLocatorSpyHighlight(htmlContext);
-    if (cleanedHtmlContext) {
-      prompt += `
-      HTML Context:
-      ${cleanedHtmlContext}
-      `;
-    }
-
-    if (existingLocators && Object.keys(existingLocators).length > 0) {
-      prompt += `
-      Existing Locators (reference only, do not repeat unless improved):
-      ${JSON.stringify(existingLocators, null, 2)}
-      `;
-    }
+    const basePrompt = await getBasePrompt();
 
     let url, headers, body;
 
-    if (provider === "google") {
-      url = `${CLOUDFLARE_WORKER_URL}/compat/chat/completions`;
-
-      const fullModelName = resolvedModel.includes("/") ? resolvedModel : `google-ai-studio/${resolvedModel}`;
-
+    if (freeCredits) {
+      // Server-side path: the worker holds the Gemini key as a Cloudflare
+      // secret, validates auth_token via the auth-worker, enforces the
+      // per-user credit budget, and shapes the response identically to the
+      // OpenAI-compatible gateway (`choices[0].message.content`).
+      if (!freeCredits.authToken) {
+        throw new Error("Sign in required for free credits");
+      }
+      url = `${FREE_TIER_WORKER_URL}/ai/optimize`;
       headers = {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
+        "Authorization": `Bearer ${freeCredits.authToken}`,
       };
       body = JSON.stringify({
-        model: fullModelName,
-        messages: [
-          { role: "user", content: prompt }
-        ],
-        temperature: 1,
-      });
-    } else if (provider === "openrouter") {
-      url = `${CLOUDFLARE_WORKER_URL}/openrouter/chat/completions`;
-      headers = {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        "HTTP-Referer": "https://github.com/SumanReddy568/locator_spy",
-        "X-Title": "Locator Spy",
-      };
-      body = JSON.stringify({
+        basePrompt,
+        htmlContext: cleanedHtmlContext,
+        existingLocators: existingLocators || {},
         model: resolvedModel,
-        messages: [{ role: "user", content: prompt }],
-        temperature: 1,
       });
     } else {
-      throw new Error("Unsupported provider");
+      let prompt = basePrompt;
+      if (cleanedHtmlContext) {
+        prompt += `
+        HTML Context:
+        ${cleanedHtmlContext}
+        `;
+      }
+      if (existingLocators && Object.keys(existingLocators).length > 0) {
+        prompt += `
+        Existing Locators (reference only, do not repeat unless improved):
+        ${JSON.stringify(existingLocators, null, 2)}
+        `;
+      }
+
+      if (provider === "google") {
+        url = `${CLOUDFLARE_WORKER_URL}/compat/chat/completions`;
+
+        const fullModelName = resolvedModel.includes("/") ? resolvedModel : `google-ai-studio/${resolvedModel}`;
+
+        headers = {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        };
+        body = JSON.stringify({
+          model: fullModelName,
+          messages: [
+            { role: "user", content: prompt }
+          ],
+          temperature: 1,
+        });
+      } else if (provider === "openrouter") {
+        url = `${CLOUDFLARE_WORKER_URL}/openrouter/chat/completions`;
+        headers = {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+          "HTTP-Referer": "https://github.com/SumanReddy568/locator_spy",
+          "X-Title": "Locator Spy",
+        };
+        body = JSON.stringify({
+          model: resolvedModel,
+          messages: [{ role: "user", content: prompt }],
+          temperature: 1,
+        });
+      } else {
+        throw new Error("Unsupported provider");
+      }
     }
 
     const response = await fetch(url, {
@@ -258,7 +289,18 @@ async function generateAiLocators(
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      const errMsg = err.error?.message || err.message || "AI request failed";
+      const errCode = typeof err.error === "string" ? err.error : null;
+      // Surface the structured "credits used up" signal so the panel can
+      // route the user to the BYO-key settings instead of showing a raw
+      // failure toast.
+      if (response.status === 402 && errCode === "free_credits_exhausted") {
+        const e = new Error("Free credits exhausted");
+        e.code = "free_credits_exhausted";
+        e.creditsRemaining = 0;
+        e.creditsLimit = err.creditsLimit;
+        throw e;
+      }
+      const errMsg = err.error?.message || errCode || err.message || "AI request failed";
       throw new Error(errMsg);
     }
 
@@ -278,17 +320,49 @@ async function generateAiLocators(
       throw new Error("Invalid JSON returned by AI");
     }
 
+    if (freeCredits && typeof data.creditsRemaining === "number") {
+      // Non-enumerable so the existing displayLocators code that iterates
+      // over locator keys doesn't pick this up as a stray entry.
+      Object.defineProperty(parsed, "__credits", {
+        value: {
+          remaining: data.creditsRemaining,
+          used: data.creditsUsed,
+          limit: data.creditsLimit,
+        },
+        enumerable: false,
+      });
+    }
+
     // Cache only successful parses. Errors and bad JSON are not cached so a
     // retry hits the network instead of being stuck on a bad response.
-    aiCacheSet(cacheKey, parsed, { provider, model: resolvedModel }).catch(() => {});
+    aiCacheSet(cacheKey, parsed, { provider: effectiveProvider, model: resolvedModel }).catch(() => {});
     return parsed;
   } catch (error) {
     throw error;
   }
 }
 
+async function fetchFreeCredits(authToken) {
+  if (!authToken) return null;
+  try {
+    const resp = await fetch(`${FREE_TIER_WORKER_URL}/ai/credits`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return {
+      used: data.creditsUsed,
+      remaining: data.creditsRemaining,
+      limit: data.creditsLimit,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Expose to window for coexistence with non-module scripts if needed
 window.generateAiLocators = generateAiLocators;
+window.fetchFreeCredits = fetchFreeCredits;
 
 // Debug / escape hatch: clear or inspect the cache from the DevTools console.
 //   await aiLocatorCache.stats()

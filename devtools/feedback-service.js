@@ -181,11 +181,14 @@ window.FeedbackService = {
 
         feedbackStatus.textContent = "Thank you for your feedback!";
         feedbackStatus.style.color = "#28a745";
-        
+
         if (feedbackRatingContainer) feedbackRatingContainer.style.display = "none";
 
         setTimeout(() => {
-          if (feedbackModal) feedbackModal.style.display = "none";
+          if (feedbackModal) {
+            feedbackModal.classList.remove("show");
+            feedbackModal.style.display = "";
+          }
           // We don't want to reload the whole extension page usually, but we want to unlock the button
           const event = new CustomEvent('feedbackSubmitted');
           window.dispatchEvent(event);
@@ -217,32 +220,38 @@ window.FeedbackService = {
 
     if (!thumbsUp || !thumbsDown || !feedbackModal) return;
 
-    thumbsUp.addEventListener("click", () => {
-      this.selectedRating = "positive";
-      feedbackPrompt.textContent = "What did you like about Locator Spy?";
-      feedbackModal.style.display = "block";
+    // The modal uses the standard `.show` class (display: flex !important)
+    // for proper backdrop + centering. Setting `style.display = "block"`
+    // technically un-hides it but skips the flex layout, so the dialog
+    // ends up uncentered. Stick with the class-based pattern.
+    const openFeedbackModal = () => {
+      feedbackModal.classList.add("show");
+      feedbackModal.style.display = "";
       feedbackText.focus();
       feedbackStatus.textContent = "";
       feedbackText.value = "";
+    };
+    const closeFeedbackModal = () => {
+      feedbackModal.classList.remove("show");
+      feedbackModal.style.display = "";
+    };
+
+    thumbsUp.addEventListener("click", () => {
+      this.selectedRating = "positive";
+      feedbackPrompt.textContent = "What did you like about Locator Spy?";
+      openFeedbackModal();
     });
 
     thumbsDown.addEventListener("click", () => {
       this.selectedRating = "negative";
       feedbackPrompt.textContent = "What issues did you experience?";
-      feedbackModal.style.display = "block";
-      feedbackText.focus();
-      feedbackStatus.textContent = "";
-      feedbackText.value = "";
+      openFeedbackModal();
     });
 
-    feedbackClose.addEventListener("click", () => {
-      feedbackModal.style.display = "none";
-    });
+    feedbackClose.addEventListener("click", closeFeedbackModal);
 
     window.addEventListener("click", (event) => {
-      if (event.target === feedbackModal) {
-        feedbackModal.style.display = "none";
-      }
+      if (event.target === feedbackModal) closeFeedbackModal();
     });
 
     submitFeedback.addEventListener("click", () => this.submitFeedback());

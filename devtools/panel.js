@@ -1,4 +1,18 @@
-import { trackLocatorModeActive, trackOptimizeWithAI, trackAiSettingsOpened, trackAutoOptimizeToggle, trackAutoValidatorToggle, trackLogout, logLocatorLifecycle } from '../utils/analytics.js';
+import {
+  trackLocatorModeActive,
+  trackOptimizeWithAI,
+  trackAiSettingsOpened,
+  trackAutoOptimizeToggle,
+  trackAutoValidatorToggle,
+  trackLogout,
+  logLocatorLifecycle,
+  trackFreeCreditsBannerShown,
+  trackFreeCreditsBannerDismissed,
+  trackFreeCreditsCtaClicked,
+  trackFreeCreditsHydrated,
+  trackFreeCreditsExhausted,
+  trackFreeCreditsFallback,
+} from '../utils/analytics.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -112,7 +126,13 @@ document.addEventListener("DOMContentLoaded", function () {
         const feedbackPrompt = document.getElementById("feedbackPrompt");
         if (feedbackPrompt) feedbackPrompt.textContent = "Please share your feedback to continue generating locators.";
         const feedbackModal = document.getElementById("feedbackModal");
-        if (feedbackModal) feedbackModal.style.display = "block";
+        if (feedbackModal) {
+          // Use the `.show` class (display: flex) so the dialog centers
+          // properly via the modal flex layout. `style.display = "block"`
+          // un-hides it but skips centering and looks broken.
+          feedbackModal.classList.add("show");
+          feedbackModal.style.display = "";
+        }
         return;
       }
     }
@@ -815,6 +835,365 @@ document.addEventListener("DOMContentLoaded", function () {
   let currentHtmlContext = null;
   let currentLocators = null;
 
+  // ---- Free credits UI ---------------------------------------------------
+  // Single source of truth for the badge near the Optimize button and the
+  // banner inside AI Settings. We hydrate from /ai/credits on load and
+  // after every successful AI call. Cached locally so the badge can render
+  // instantly on the next panel open without a network round-trip.
+  const FREE_CREDITS_CACHE_KEY = "aiFreeCredits";
+  const FREE_CREDITS_DISMISSED_KEY = "aiFreeCreditsBannerDismissed";
+  // Tracks which user_id the cache + dismiss flag belong to. When a
+  // different user logs in on the same device, we reset both so the
+  // new account starts with a clean banner — previous user's remaining
+  // count and "dismissed" click don't carry over.
+  const FREE_CREDITS_OWNER_KEY = "aiFreeCreditsOwner";
+  let freeCreditsState = null;
+  let creditsBannerDismissed = false;
+
+  const creditsBadge = document.getElementById("aiCreditsBadge");
+  const creditsBanner = document.getElementById("freeCreditsBanner");
+  const creditsTitle = document.getElementById("freeCreditsTitle");
+  const creditsSub = document.getElementById("freeCreditsSub");
+  const creditsCount = document.getElementById("freeCreditsCount");
+
+  // Tracks the last analytics signature for the panel banner so we only
+  // emit a "shown" event when the state actually changes (e.g. fresh →
+  // low → empty), not every time refreshFreeCreditsUi re-renders.
+  let lastBannerShownSignature = null;
+  function emitBannerShown(state) {
+    const sig = `${state.bannerState}|${state.remaining}|${state.hasOwnKey ? "k" : "nk"}|${state.signedIn ? "in" : "out"}`;
+    if (sig === lastBannerShownSignature) return;
+    lastBannerShownSignature = sig;
+    trackFreeCreditsBannerShown(state);
+    logLocatorLifecycle("free_credits_banner_shown", state);
+  }
+
+  // In-panel banner (the prominent one above locator results).
+  const panelBanner = document.getElementById("aiCreditsBanner");
+  const panelBannerTitle = document.getElementById("aiCreditsBannerTitle");
+  const panelBannerSub = document.getElementById("aiCreditsBannerSub");
+  const panelBannerMeter = document.getElementById("aiCreditsBannerMeter");
+  const panelBannerCta = document.getElementById("aiCreditsBannerCta");
+  const panelBannerDismiss = document.getElementById("aiCreditsBannerDismiss");
+
+  function paintMeter(remaining, limit) {
+    if (!panelBannerMeter) return;
+    const dots = panelBannerMeter.querySelectorAll(".ai-credit-dot");
+    const total = limit || dots.length;
+    dots.forEach((dot, idx) => {
+      const ordinal = idx + 1;
+      // Light up the leftmost `remaining` dots; dim the rest.
+      const spent = ordinal > remaining || ordinal > total;
+      dot.dataset.spent = spent ? "true" : "false";
+    });
+  }
+
+  function applyPanelBanner(state, hasOwnKey, isSignedIn) {
+    if (!panelBanner) return;
+    const knownState = !!(state && typeof state.remaining === "number");
+    const remaining = knownState ? state.remaining : 3;
+    const limit = state && typeof state.limit === "number" ? state.limit : 3;
+    // Dismissal only sticks while credits remain. Once exhausted, the
+    // banner reappears so the user sees the "add your key" CTA.
+    const honorDismissed = creditsBannerDismissed && remaining > 0;
+
+    // Existing-key users: only show the banner while bonus credits are
+    // *confirmed* in play. We never speculate optimistically — if state
+    // hasn't been fetched yet, or if remaining is 0, hide entirely so the
+    // user's key takes over silently.
+    if (hasOwnKey) {
+      if (!isSignedIn || !knownState || remaining <= 0 || honorDismissed) {
+        panelBanner.hidden = true;
+        return;
+      }
+      panelBanner.hidden = false;
+      panelBanner.removeAttribute("data-state");
+      panelBannerMeter.style.opacity = "1";
+      paintMeter(remaining, limit);
+      panelBannerTitle.textContent = `${remaining} bonus AI ${remaining === 1 ? "credit" : "credits"} on us`;
+      panelBannerSub.innerHTML =
+        "We'll use these first before your key — same Optimize button, no change to your workflow.";
+      panelBannerCta.textContent = "Manage settings";
+      emitBannerShown({
+        bannerState: "byo_with_bonus",
+        remaining, limit, hasOwnKey, signedIn: isSignedIn,
+      });
+      return;
+    }
+
+    if (honorDismissed) {
+      panelBanner.hidden = true;
+      return;
+    }
+    panelBanner.hidden = false;
+
+    if (!isSignedIn) {
+      panelBanner.dataset.state = "signed-out";
+      panelBannerTitle.textContent = "Get 3 free AI optimizations";
+      panelBannerSub.innerHTML = "Sign in and click <b>Optimize with AI</b> on any element — our key, your locators.";
+      panelBannerCta.textContent = "Sign in";
+      paintMeter(3, 3);
+      panelBannerMeter.style.opacity = "0.55";
+      emitBannerShown({
+        bannerState: "signed_out",
+        remaining: 3, limit: 3, hasOwnKey, signedIn: false,
+      });
+      return;
+    }
+
+    panelBannerMeter.style.opacity = "1";
+    paintMeter(remaining, limit);
+
+    if (remaining === 0) {
+      panelBanner.dataset.state = "empty";
+      panelBannerTitle.textContent = "Free AI credits used up";
+      panelBannerSub.innerHTML = "Add your own Google API key to keep optimizing — it's free from <b>aistudio.google.com</b>.";
+      panelBannerCta.textContent = "Add your API key";
+    } else if (remaining === 1) {
+      panelBanner.dataset.state = "low";
+      panelBannerTitle.textContent = "1 free AI credit left";
+      panelBannerSub.innerHTML = "Add your own key now to avoid interruption — takes 30 seconds.";
+      panelBannerCta.textContent = "Add your API key";
+    } else {
+      panelBanner.removeAttribute("data-state");
+      panelBannerTitle.textContent = `${remaining} free AI optimizations available`;
+      panelBannerSub.innerHTML = "Click <b>Optimize with AI</b> on any element — no setup, no API key needed.";
+      panelBannerCta.textContent = "Add your API key";
+    }
+
+    const bannerState = remaining === 0 ? "empty" : remaining === 1 ? "low" : "available";
+    emitBannerShown({
+      bannerState,
+      remaining, limit, hasOwnKey, signedIn: isSignedIn,
+    });
+  }
+
+  function applyCreditsBadge(state, hasOwnKey) {
+    if (!creditsBadge) return;
+    if (!state || typeof state.remaining !== "number") {
+      creditsBadge.hidden = true;
+      creditsBadge.removeAttribute("data-state");
+      return;
+    }
+    const left = state.remaining;
+    // For existing-key users: hide once <= 0 (they won't see the banner
+    // either — their key just takes over silently). While credits remain,
+    // surface the badge so they know bonus calls are in play.
+    if (hasOwnKey && left <= 0) {
+      creditsBadge.hidden = true;
+      creditsBadge.removeAttribute("data-state");
+      return;
+    }
+    creditsBadge.hidden = false;
+    creditsBadge.textContent = left > 0 ? `${left} free` : "0 free";
+    creditsBadge.title = hasOwnKey
+      ? `${left} free AI ${left === 1 ? "credit" : "credits"} on us — used before your key`
+      : `${left} free AI ${left === 1 ? "credit" : "credits"} remaining`;
+    if (left === 0) creditsBadge.dataset.state = "empty";
+    else if (left === 1) creditsBadge.dataset.state = "low";
+    else creditsBadge.removeAttribute("data-state");
+  }
+
+  function applyCreditsBanner(state, hasOwnKey, isSignedIn) {
+    if (!creditsBanner) return;
+    if (hasOwnKey) {
+      creditsBanner.hidden = true;
+      return;
+    }
+    creditsBanner.hidden = false;
+    if (!isSignedIn) {
+      creditsBanner.removeAttribute("data-state");
+      creditsTitle.textContent = "Try AI optimization for free";
+      creditsSub.textContent = "Sign in to get 3 free AI optimizations using our key — no setup required.";
+      creditsCount.hidden = true;
+      return;
+    }
+    if (!state || typeof state.remaining !== "number") {
+      creditsBanner.removeAttribute("data-state");
+      creditsTitle.textContent = "Free AI credits";
+      creditsSub.textContent = "Use 3 free AI optimizations on us — your key never leaves the server.";
+      creditsCount.hidden = true;
+      return;
+    }
+    const { remaining, limit } = state;
+    creditsCount.hidden = false;
+    creditsCount.textContent = `${remaining} / ${limit}`;
+    if (remaining === 0) {
+      creditsBanner.dataset.state = "empty";
+      creditsTitle.textContent = "Free credits used up";
+      creditsSub.textContent = "Add your own Google API key below to keep optimizing with AI.";
+    } else if (remaining === 1) {
+      creditsBanner.dataset.state = "low";
+      creditsTitle.textContent = "1 free credit left";
+      creditsSub.textContent = "Optional: add your own key now to avoid interruption when this runs out.";
+    } else {
+      creditsBanner.removeAttribute("data-state");
+      creditsTitle.textContent = `${remaining} free AI credits available`;
+      creditsSub.textContent = "Powered by our shared key while you try things out. The key stays server-side.";
+    }
+  }
+
+  function readCachedCredits() {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get([FREE_CREDITS_CACHE_KEY], (r) =>
+          resolve(r && r[FREE_CREDITS_CACHE_KEY] ? r[FREE_CREDITS_CACHE_KEY] : null),
+        );
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
+  function writeCachedCredits(state) {
+    try {
+      chrome.storage.local.set({ [FREE_CREDITS_CACHE_KEY]: state });
+    } catch {}
+  }
+
+  async function refreshFreeCreditsUi({ networkRefresh = true } = {}) {
+    const ctx = await new Promise((resolve) =>
+      chrome.storage.local.get(
+        [
+          "aiProvider",
+          "googleApiKey",
+          "openRouterApiKey",
+          "auth_token",
+          "user_id",
+          FREE_CREDITS_DISMISSED_KEY,
+          FREE_CREDITS_OWNER_KEY,
+        ],
+        resolve,
+      ),
+    );
+    const provider = ctx.aiProvider || "google";
+    const hasOwnKey = provider === "openrouter"
+      ? !!ctx.openRouterApiKey
+      : !!ctx.googleApiKey;
+    const isSignedIn = !!ctx.auth_token;
+
+    // User-switch guard: if the cached credits / dismiss flag belong to a
+    // different user_id than the one currently signed in, blow them away.
+    const currentUserId = ctx.user_id || null;
+    const cachedOwner = ctx[FREE_CREDITS_OWNER_KEY] || null;
+    if (currentUserId && cachedOwner && cachedOwner !== currentUserId) {
+      freeCreditsState = null;
+      creditsBannerDismissed = false;
+      try {
+        chrome.storage.local.remove([FREE_CREDITS_CACHE_KEY, FREE_CREDITS_DISMISSED_KEY]);
+        chrome.storage.local.set({ [FREE_CREDITS_OWNER_KEY]: currentUserId });
+      } catch {}
+    } else if (currentUserId && !cachedOwner) {
+      try {
+        chrome.storage.local.set({ [FREE_CREDITS_OWNER_KEY]: currentUserId });
+      } catch {}
+      creditsBannerDismissed = !!ctx[FREE_CREDITS_DISMISSED_KEY];
+    } else {
+      creditsBannerDismissed = !!ctx[FREE_CREDITS_DISMISSED_KEY];
+    }
+
+    // Hide everything when the user is on OpenRouter — free credits only
+    // apply to the Google path.
+    if (provider !== "google") {
+      applyCreditsBadge(null, true);
+      applyCreditsBanner(null, true, isSignedIn);
+      applyPanelBanner(null, true, isSignedIn);
+      return;
+    }
+
+    if (!freeCreditsState) freeCreditsState = await readCachedCredits();
+    applyCreditsBadge(freeCreditsState, hasOwnKey);
+    applyCreditsBanner(freeCreditsState, hasOwnKey, isSignedIn);
+    applyPanelBanner(freeCreditsState, hasOwnKey, isSignedIn);
+
+    // Always fetch credits for signed-in Google users — including those
+    // with their own key — so existing users see the bonus credits and
+    // we can fall back transparently when they run out.
+    if (networkRefresh && isSignedIn && typeof window.fetchFreeCredits === "function") {
+      const fresh = await window.fetchFreeCredits(ctx.auth_token);
+      if (fresh) {
+        freeCreditsState = fresh;
+        writeCachedCredits(fresh);
+        applyCreditsBadge(fresh, hasOwnKey);
+        applyCreditsBanner(fresh, hasOwnKey, isSignedIn);
+        applyPanelBanner(fresh, hasOwnKey, isSignedIn);
+
+        const meta = {
+          remaining: fresh.remaining,
+          used: fresh.used,
+          limit: fresh.limit,
+          hasOwnKey,
+          provider,
+        };
+        trackFreeCreditsHydrated(meta);
+        logLocatorLifecycle("free_credits_hydrated", meta);
+        if (fresh.remaining === 0) {
+          trackFreeCreditsExhausted({ ...meta, source: "hydration" });
+          logLocatorLifecycle("free_credits_exhausted", { ...meta, source: "hydration" });
+        }
+      }
+    }
+  }
+
+  function updateCreditsFromResponse(credits) {
+    if (!credits || typeof credits.remaining !== "number") return;
+    freeCreditsState = {
+      used: credits.used,
+      remaining: credits.remaining,
+      limit: credits.limit,
+    };
+    writeCachedCredits(freeCreditsState);
+    refreshFreeCreditsUi({ networkRefresh: false });
+  }
+
+  if (panelBannerCta) {
+    panelBannerCta.addEventListener("click", async () => {
+      const ctx = await new Promise((resolve) =>
+        chrome.storage.local.get(["auth_token", "googleApiKey"], resolve),
+      );
+      const action = !ctx.auth_token
+        ? "sign_in"
+        : ctx.googleApiKey
+          ? "manage_settings"
+          : "add_api_key";
+      const meta = {
+        action,
+        remaining: freeCreditsState ? freeCreditsState.remaining : null,
+        hasOwnKey: !!ctx.googleApiKey,
+        signedIn: !!ctx.auth_token,
+      };
+      trackFreeCreditsCtaClicked(meta);
+      logLocatorLifecycle("free_credits_cta_clicked", meta);
+
+      // Signed-out state: send them to login. Otherwise: open AI Settings
+      // so they can paste their own key.
+      if (!ctx.auth_token) {
+        window.location.href = "login.html";
+        return;
+      }
+      if (typeof openAiSettings === "function") openAiSettings();
+    });
+  }
+
+  if (panelBannerDismiss) {
+    panelBannerDismiss.addEventListener("click", () => {
+      creditsBannerDismissed = true;
+      try {
+        chrome.storage.local.set({ [FREE_CREDITS_DISMISSED_KEY]: true });
+      } catch {}
+      const meta = {
+        remaining: freeCreditsState ? freeCreditsState.remaining : null,
+        used: freeCreditsState ? freeCreditsState.used : null,
+        limit: freeCreditsState ? freeCreditsState.limit : null,
+      };
+      trackFreeCreditsBannerDismissed(meta);
+      logLocatorLifecycle("free_credits_banner_dismissed", meta);
+      if (panelBanner) panelBanner.hidden = true;
+    });
+  }
+
+  refreshFreeCreditsUi();
+
   // Listen for locators message to get context
   backgroundPageConnection.onMessage.addListener(function (message) {
     if (message.action === "getLocators") {
@@ -869,6 +1248,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       aiSettingsModal.classList.add("show");
+      refreshFreeCreditsUi();
     });
   }
 
@@ -911,6 +1291,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (window.AuthModule && typeof AuthModule.pushUserSettings === 'function') {
         AuthModule.pushUserSettings(settings).catch(() => { /* non-fatal */ });
       }
+      refreshFreeCreditsUi({ networkRefresh: false });
     });
   });
 
@@ -928,60 +1309,167 @@ document.addEventListener("DOMContentLoaded", function () {
       optimizeAiBtn.classList.add("pulse-animation");
     }
 
-    chrome.storage.local.get(["aiProvider", "googleApiKey", "aiModel", "openRouterApiKey", "openRouterModel"], async (result) => {
-      const provider = result.aiProvider || "google";
+    chrome.storage.local.get(
+      ["aiProvider", "googleApiKey", "aiModel", "openRouterApiKey", "openRouterModel", "auth_token"],
+      async (result) => {
+        const provider = result.aiProvider || "google";
 
-      const apiKey = provider === "openrouter" ? result.openRouterApiKey : result.googleApiKey;
-      const model = provider === "openrouter" ? result.openRouterModel : result.aiModel;
+        const apiKey = provider === "openrouter" ? result.openRouterApiKey : result.googleApiKey;
+        const model = provider === "openrouter" ? result.openRouterModel : result.aiModel;
+        const authToken = result.auth_token;
 
-      if (!apiKey) {
-        logLocatorLifecycle("ai_optimization_failed", { reason: "api_key_missing", provider });
-        if (!isAutoTrigger) openAiSettings();
-        resetOptimizeBtn();
-        return;
-      }
+        // Backward-compat policy: free credits are tried *first* whenever
+        // they're available, even for users who already have their own key
+        // configured. When credits run out we transparently fall back to
+        // their key — no UI interruption. Free credits don't apply to
+        // OpenRouter (different provider).
+        const credits = freeCreditsState;
+        const hasFreeRemaining = credits && typeof credits.remaining === "number" && credits.remaining > 0;
+        const freeAvailable = provider === "google" && !!authToken;
+        const tryFreeFirst = freeAvailable && (hasFreeRemaining || !apiKey);
 
-      if (!currentHtmlContext && !currentLocators) {
-        logLocatorLifecycle("ai_optimization_failed", { reason: "no_context" });
-        if (!isAutoTrigger) showCopyNotification("No element selected to optimize");
-        resetOptimizeBtn();
-        return;
-      }
+        if (!apiKey && !tryFreeFirst) {
+          logLocatorLifecycle("ai_optimization_failed", { reason: "api_key_missing", provider });
+          if (!isAutoTrigger) openAiSettings();
+          resetOptimizeBtn();
+          return;
+        }
 
-      try {
+        if (!currentHtmlContext && !currentLocators) {
+          logLocatorLifecycle("ai_optimization_failed", { reason: "no_context" });
+          if (!isAutoTrigger) showCopyNotification("No element selected to optimize");
+          resetOptimizeBtn();
+          return;
+        }
+
+        const callOnce = (mode) =>
+          generateAiLocators(
+            currentHtmlContext,
+            currentLocators,
+            apiKey,
+            model,
+            provider,
+            mode === "free_credits" ? { freeCredits: { authToken } } : undefined,
+          );
+
+        let mode = tryFreeFirst ? "free_credits" : "byo_key";
+        let locators;
+        let fellBackToKey = false;
+
         logLocatorLifecycle("ai_optimization_started", {
           provider,
           model,
           isAutoTrigger,
+          mode,
           inputLocators: currentLocators,
           htmlContextPreview: currentHtmlContext ? String(currentHtmlContext).slice(0, 500) : null,
         });
-        const locators = await generateAiLocators(
-          currentHtmlContext,
-          currentLocators,
-          apiKey,
-          model,
-          provider
-        );
 
-        if (locators) {
-          logLocatorLifecycle("ai_optimization_completed", {
-            provider,
-            model,
-            success: true,
-            generatedLocators: locators,
-          });
-          displayLocators(locators, true);
-          showCopyNotification(isAutoTrigger ? "Auto-optimized by AI!" : "Optimized by AI!");
+        try {
+          try {
+            locators = await callOnce(mode);
+          } catch (err) {
+            // Transparent fallback: if free credits ran out and the user
+            // has their own key, retry with the BYO path so the click
+            // still produces a result.
+            if (err && err.code === "free_credits_exhausted" && apiKey) {
+              updateCreditsFromResponse({
+                used: err.creditsLimit,
+                remaining: 0,
+                limit: err.creditsLimit,
+              });
+              const fbMeta = {
+                provider,
+                model,
+                limit: err.creditsLimit,
+              };
+              trackFreeCreditsExhausted({ ...fbMeta, source: "optimize" });
+              trackFreeCreditsFallback(fbMeta);
+              logLocatorLifecycle("free_credits_exhausted", { ...fbMeta, source: "optimize" });
+              logLocatorLifecycle("ai_optimization_fallback", {
+                reason: "free_credits_exhausted",
+                ...fbMeta,
+              });
+              mode = "byo_key";
+              fellBackToKey = true;
+              locators = await callOnce(mode);
+            } else {
+              throw err;
+            }
+          }
+
+          if (locators) {
+            const credits = locators.__credits;
+            if (credits) updateCreditsFromResponse(credits);
+            logLocatorLifecycle("ai_optimization_completed", {
+              provider,
+              model,
+              success: true,
+              mode,
+              fellBackToKey,
+              creditsRemaining: credits ? credits.remaining : undefined,
+              generatedLocators: locators,
+            });
+            displayLocators(locators, true);
+
+            const verb = isAutoTrigger ? "Auto-optimized" : "Optimized";
+            if (fellBackToKey) {
+              showCopyNotification(
+                `${verb} by AI! Free credits used up — switched to your API key.`,
+              );
+            } else if (mode === "free_credits" && credits) {
+              const left = credits.remaining;
+              if (left > 0) {
+                const suffix = left === 1 ? "1 free AI credit left" : `${left} free AI credits left`;
+                const tail = apiKey ? " (your key kicks in after)" : "";
+                showCopyNotification(`${verb} by AI! (${suffix}${tail})`);
+              } else {
+                showCopyNotification(
+                  apiKey
+                    ? `${verb} by AI! Last free credit used — your key takes over from here.`
+                    : `${verb} by AI! Last free credit used — add your API key to continue.`,
+                );
+              }
+            } else {
+              showCopyNotification(`${verb} by AI!`);
+            }
+          }
+        } catch (error) {
+          if (error && error.code === "free_credits_exhausted") {
+            // Reaches here only when there's no apiKey to fall back to.
+            updateCreditsFromResponse({
+              used: error.creditsLimit,
+              remaining: 0,
+              limit: error.creditsLimit,
+            });
+            const meta = { provider, model, limit: error.creditsLimit, source: "optimize_no_key" };
+            trackFreeCreditsExhausted(meta);
+            logLocatorLifecycle("free_credits_exhausted", meta);
+            logLocatorLifecycle("ai_optimization_failed", {
+              reason: "free_credits_exhausted",
+              provider,
+              model,
+            });
+            if (!isAutoTrigger) {
+              showCopyNotification("Free AI credits used up — add your API key to continue.");
+              openAiSettings();
+            }
+          } else {
+            logLocatorLifecycle("ai_optimization_failed", {
+              reason: "generation_error",
+              error: error.message,
+              provider,
+              model,
+              mode,
+            });
+            console.error("AI Generation Error: ", error);
+            if (!isAutoTrigger) showCopyNotification("AI Optimization Failed: " + error.message);
+          }
+        } finally {
+          resetOptimizeBtn();
         }
-      } catch (error) {
-        logLocatorLifecycle("ai_optimization_failed", { reason: "generation_error", error: error.message, provider, model });
-        console.error("AI Generation Error: ", error);
-        if (!isAutoTrigger) showCopyNotification("AI Optimization Failed: " + error.message);
-      } finally {
-        resetOptimizeBtn();
-      }
-    });
+      },
+    );
   }
 
   function resetOptimizeBtn() {

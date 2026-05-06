@@ -138,6 +138,14 @@ function clearAuthData() {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         const keysToClear = [
             'auth_token', 'user_email', 'user_hash', 'user_id',
+            // Free-credits UI cache + dismiss flag are per-account — wipe
+            // them so the next user gets a clean banner state instead of
+            // inheriting the previous account's remaining count.
+            'aiFreeCredits', 'aiFreeCreditsBannerDismissed', 'aiFreeCreditsOwner',
+            // Feedback gate is per-account too — without these the next
+            // user inherits the previous account's "already submitted"
+            // flag and the feedback popup never fires for them.
+            'feedbackSubmitted', 'locatorCount',
             ...SYNCED_SETTING_KEYS
         ];
         chrome.storage.local.remove(keysToClear, () => {
