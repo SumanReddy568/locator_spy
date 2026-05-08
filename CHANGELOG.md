@@ -1,3 +1,6 @@
+## [1.4.2] - 2026-05-08
+- fix: gate role-name candidates and correct xpath emitter Skip role/accessible-name candidates when no emitter can render them (css/xpath
+
 ## [1.4.1] - 2026-05-06
 - fix: update analytics and service files
 
