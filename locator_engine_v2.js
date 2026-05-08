@@ -58,6 +58,12 @@
     topN: 5,
   };
 
+  // Emitters that can render role + accessible-name candidates. css/xpath
+  // can't, so adding a role-name candidate when only those are configured
+  // wastes beam-width. Add 'playwright'/'testing-library' here when those
+  // emitters land.
+  const ROLE_NAME_EMITTERS = new Set();
+
   // Stability scores. Higher = more resistant to layout, copy and refactor
   // changes. Tweak via config to fit a project's conventions.
   const SCORES = {
@@ -162,8 +168,18 @@
     if (aria && aria.trim()) return aria.trim();
     const labelledBy = el.getAttribute("aria-labelledby");
     if (labelledBy) {
-      const ref = document.getElementById(labelledBy);
-      if (ref) return (ref.textContent || "").trim();
+      // ARIA spec allows a space-separated IDREF list — concat each referent's
+      // text. Single-id is just the one-element case.
+      const text = labelledBy
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((id) => {
+          const ref = document.getElementById(id);
+          return ref ? (ref.textContent || "").trim() : "";
+        })
+        .filter(Boolean)
+        .join(" ");
+      if (text) return text;
     }
     const tag = el.tagName.toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select") {
@@ -273,17 +289,26 @@
     if (textAnchor) push([tagAnchor, textAnchor], textAnchor.score, "text");
 
     // 5. role + accessible name (Playwright getByRole / Testing Library)
-    const role = el.getAttribute("role") || implicitRole(el);
-    const accName = accessibleName(el);
-    if (role && accName && accName.length <= 80) {
-      push(
-        [
-          { kind: "role", value: role, score: SCORES.role, scope: "self" },
-          { kind: "name", value: accName, score: SCORES.text, scope: "self" },
-        ],
-        SCORES.role_name,
-        "role-name"
-      );
+    // Only emit when an emitter that can render role/name is configured.
+    // css/xpath both bail on these anchors, so without this gate the
+    // candidate just consumes a beam slot at score=role_name (80) and
+    // evicts a real candidate that would have produced output.
+    const wantsRoleName = (cfg.emitters || []).some((e) =>
+      ROLE_NAME_EMITTERS.has(e)
+    );
+    if (wantsRoleName) {
+      const role = el.getAttribute("role") || implicitRole(el);
+      const accName = accessibleName(el);
+      if (role && accName && accName.length <= 80) {
+        push(
+          [
+            { kind: "role", value: role, score: SCORES.role, scope: "self" },
+            { kind: "name", value: accName, score: SCORES.text, scope: "self" },
+          ],
+          SCORES.role_name,
+          "role-name"
+        );
+      }
     }
 
     // 6. ancestor-anchored: walk up looking for strong attrs (id, testid),
@@ -393,15 +418,18 @@
 
     const tag = selfAnchors.find((a) => a.kind === "tag")?.value || "*";
     const others = selfAnchors.filter((a) => a.kind !== "tag");
-    const nthAnchor = others.find((a) => a.kind === "nth");
     const preds = [];
     for (const a of others) {
       if (a.kind === "attr") preds.push(`@${a.name}=${escapeXp(a.value)}`);
       else if (a.kind === "class") preds.push(`contains(@class, ${escapeXp(a.value)})`);
       else if (a.kind === "text") preds.push(`normalize-space()=${escapeXp(a.value)}`);
+      // CSS :nth-of-type(N) is positional among same-tag children of the
+      // element's parent. The descendant-axis equivalent that preserves that
+      // semantic — regardless of how deep we sit under the ancestor anchor —
+      // is `count(preceding-sibling::tag) = N-1`.
+      else if (a.kind === "nth") preds.push(`count(preceding-sibling::${tag}) = ${a.value - 1}`);
     }
-    let selfXp = `${tag}${preds.length ? `[${preds.join(" and ")}]` : ""}`;
-    if (nthAnchor) selfXp = `(${ancAnchor ? "//*" : "//"}${tag})[${nthAnchor.value}]`; // rare
+    const selfXp = `${tag}${preds.length ? `[${preds.join(" and ")}]` : ""}`;
 
     const xp = ancAnchor
       ? `//*[@${ancAnchor.name}=${escapeXp(ancAnchor.value)}]//${selfXp}`
@@ -464,20 +492,32 @@
     const cssBest = bestOf("css");
     const xpBest = bestOf("xpath");
 
-    // Specialised xpath views — kept for v1 UI parity
-    const findXpWith = (predicate) => {
-      for (const c of candidates) {
-        if (!c.anchors.some(predicate)) continue;
-        const xp = emitXPath(c, element);
-        if (xp) return xp;
+    const tag = element.tagName.toLowerCase();
+
+    // Specialised xpath views — kept for v1 UI parity. These must reflect
+    // what their names promise: a *single-anchor* XPath built from the named
+    // dimension only. Reusing whole candidates would smuggle ancestor anchors
+    // into `xpathByText`, which the popup labels as a pure text locator.
+    const xpathByText = (() => {
+      const text = (element.textContent || "").trim();
+      if (!text || text.length > 80 || /[\n\t]/.test(text)) return null;
+      const xp = `//${tag}[normalize-space()=${escapeXp(text)}]`;
+      return xpMatches(xp, element) ? xp : null;
+    })();
+
+    const xpathByClassName = (() => {
+      const classes = Array.from(element.classList || []).filter((c) =>
+        isStableClass(c, cfg)
+      );
+      for (const cls of classes) {
+        const xp = `//${tag}[contains(@class, ${escapeXp(cls)})]`;
+        if (xpMatches(xp, element)) return xp;
       }
       return null;
-    };
-    const xpathByText = findXpWith((a) => a.kind === "text");
-    const xpathByClassName = findXpWith((a) => a.kind === "class");
+    })();
 
     const linkPaths = (() => {
-      if (element.tagName.toLowerCase() !== "a") return { link: null, partial: null };
+      if (tag !== "a") return { link: null, partial: null };
       const text = (element.textContent || "").trim();
       if (!text) return { link: null, partial: null };
       const link = `//a[normalize-space()=${escapeXp(text)}]`;
@@ -487,8 +527,6 @@
         partial: xpMatches(partial, element) ? partial : null,
       };
     })();
-
-    const tag = element.tagName.toLowerCase();
 
     const xpathByTagName = (() => {
       const xp = `//${tag}`;
