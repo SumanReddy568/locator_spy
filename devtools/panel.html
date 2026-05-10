@@ -119,15 +119,81 @@
       </div>
     </div>
     
-    <div id="updateAlertDev" class="update-alert hidden">
-      <div class="update-content">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-        </svg>
-        <span>Update available!</span>
-        <button id="updateNowBtnDev" class="update-btn">Update Now</button>
+    <!-- Single banner section. Each banner inside is gated by its own
+         eligibility check (version mismatch, available AI credits, copy
+         format = raw); none are user-dismissable, so users always see what
+         is currently relevant and nothing more. -->
+    <div id="topBanners" class="banner-stack">
+      <div id="updateAlertDev" class="update-alert hidden">
+        <div class="update-content">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+          <span>Update available!</span>
+          <button id="updateNowBtnDev" class="update-btn">Update Now</button>
+        </div>
+        <button id="closeUpdateAlertDev" class="close-alert" aria-label="Dismiss">&times;</button>
       </div>
-      <button id="closeUpdateAlertDev" class="close-alert">&times;</button>
+
+      <div id="newFeatureBanner" class="update-alert new-feature-alert hidden">
+        <div class="update-content">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="none" stroke-linejoin="round">
+            <path d="M12 3 L13.7 9.3 L20 11 L13.7 12.7 L12 19 L10.3 12.7 L4 11 L10.3 9.3 Z" fill="currentColor"/>
+          </svg>
+          <span><strong>New:</strong>&nbsp;<em>Recorder&nbsp;(Beta)</em> captures clicks, typing &amp; scrolls and exports Selenium / Playwright / Cypress / WebdriverIO code. <em>Copy&nbsp;as</em> does the same for single locators.</span>
+        </div>
+      </div>
+
+      <div id="aiCreditsBanner" class="ai-credits-banner" hidden>
+        <span class="ai-credits-shimmer" aria-hidden="true"></span>
+        <span class="ai-credits-spark ai-credits-spark--1" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
+            <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
+          </svg>
+        </span>
+        <span class="ai-credits-spark ai-credits-spark--2" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor">
+            <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
+          </svg>
+        </span>
+        <span class="ai-credits-spark ai-credits-spark--3" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="6" height="6" fill="currentColor">
+            <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
+          </svg>
+        </span>
+        <div class="ai-credits-banner-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3 L13.7 9.3 L20 11 L13.7 12.7 L12 19 L10.3 12.7 L4 11 L10.3 9.3 Z" fill="currentColor" stroke="none"/>
+            <path d="M19 4 L19.7 6.3 L22 7 L19.7 7.7 L19 10 L18.3 7.7 L16 7 L18.3 6.3 Z" fill="currentColor" stroke="none" opacity="0.85"/>
+            <path d="M5 16 L5.6 17.7 L7.3 18.3 L5.6 18.9 L5 20.6 L4.4 18.9 L2.7 18.3 L4.4 17.7 Z" fill="currentColor" stroke="none" opacity="0.7"/>
+          </svg>
+        </div>
+        <div class="ai-credits-banner-body">
+          <div class="ai-credits-banner-title" id="aiCreditsBannerTitle">3 free AI optimizations on us</div>
+          <div class="ai-credits-banner-sub" id="aiCreditsBannerSub">
+            Click <b>Optimize with AI</b> on any element — no setup, no API key needed.
+          </div>
+        </div>
+        <div class="ai-credits-banner-meter" id="aiCreditsBannerMeter" aria-hidden="true">
+          <span class="ai-credit-dot" data-i="1"></span>
+          <span class="ai-credit-dot" data-i="2"></span>
+          <span class="ai-credit-dot" data-i="3"></span>
+        </div>
+        <div class="ai-credits-banner-actions">
+          <button id="aiCreditsBannerCta" class="btn ai-credits-cta" type="button">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
+              <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
+            </svg>
+            <span>Add your API key</span>
+          </button>
+          <button id="aiCreditsBannerDismiss" class="ai-credits-banner-close" type="button" aria-label="Dismiss">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Feedback Rating Container (Inline) -->
@@ -172,6 +238,14 @@
         </svg>
         Refresh
       </button>
+      <button id="openRecorderBtn" class="btn" title="Open Recorder — capture clicks and generate automation code (Beta)">
+        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"></circle>
+          <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
+        </svg>
+        Recorder
+        <span class="beta-badge">Beta</span>
+      </button>
       <div class="spacer"></div>
       <div class="search-box">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -197,61 +271,21 @@
           <option value="v1">v1 · legacy</option>
         </select>
       </label>
-    </div>
-
-    <div id="aiCreditsBanner" class="ai-credits-banner" hidden>
-      <span class="ai-credits-shimmer" aria-hidden="true"></span>
-      <span class="ai-credits-spark ai-credits-spark--1" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
-          <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
-        </svg>
-      </span>
-      <span class="ai-credits-spark ai-credits-spark--2" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor">
-          <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
-        </svg>
-      </span>
-      <span class="ai-credits-spark ai-credits-spark--3" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="6" height="6" fill="currentColor">
-          <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
-        </svg>
-      </span>
-      <div class="ai-credits-banner-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3 L13.7 9.3 L20 11 L13.7 12.7 L12 19 L10.3 12.7 L4 11 L10.3 9.3 Z" fill="currentColor" stroke="none"/>
-          <path d="M19 4 L19.7 6.3 L22 7 L19.7 7.7 L19 10 L18.3 7.7 L16 7 L18.3 6.3 Z" fill="currentColor" stroke="none" opacity="0.85"/>
-          <path d="M5 16 L5.6 17.7 L7.3 18.3 L5.6 18.9 L5 20.6 L4.4 18.9 L2.7 18.3 L4.4 17.7 Z" fill="currentColor" stroke="none" opacity="0.7"/>
-        </svg>
-      </div>
-      <div class="ai-credits-banner-body">
-        <div class="ai-credits-banner-title" id="aiCreditsBannerTitle">3 free AI optimizations on us</div>
-        <div class="ai-credits-banner-sub" id="aiCreditsBannerSub">
-          Click <b>Optimize with AI</b> on any element — no setup, no API key needed.
-        </div>
-      </div>
-      <div class="ai-credits-banner-meter" id="aiCreditsBannerMeter" aria-hidden="true">
-        <span class="ai-credit-dot" data-i="1"></span>
-        <span class="ai-credit-dot" data-i="2"></span>
-        <span class="ai-credit-dot" data-i="3"></span>
-      </div>
-      <div class="ai-credits-banner-actions">
-        <button id="aiCreditsBannerCta" class="btn ai-credits-cta" type="button">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
-            <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
-          </svg>
-          <span>Add your API key</span>
-        </button>
-        <button id="aiCreditsBannerDismiss" class="ai-credits-banner-close" type="button" aria-label="Dismiss">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
+      <label class="toggle-container engine-select-wrap" title="Copy format — wraps each locator in framework code on copy">
+        <span class="toggle-label engine-select-label">Copy as</span>
+        <select id="copyFormatSelect" class="engine-select">
+          <option value="raw">Raw</option>
+          <option value="selenium-java">Selenium Java</option>
+          <option value="selenium-python">Selenium Python</option>
+          <option value="playwright">Playwright</option>
+          <option value="cypress">Cypress</option>
+          <option value="webdriverio">WebdriverIO</option>
+        </select>
+      </label>
     </div>
 
     <div class="results">
-      <div class="section">
+      <div class="section locator-view" id="locatorView">
         <div class="section-header">
           <div class="section-title">
             <h3 id="locatorSectionTitle">Element Locators</h3>
@@ -295,6 +329,72 @@
             </svg>
             <p class="placeholder-line">Activate <em>Locator Mode</em>, then hover<br>any element on the page.</p>
             <p class="placeholder-hint">Selectors are validated against the live DOM and ranked by stability.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recorder view. Sibling of the locator section; toggled visible by
+           the Recorder button in the controls strip. The user keeps clicking
+           in the same browser tab next to this panel — content.js captures
+           every click and the steps + generated code update live here. -->
+      <div class="section recorder-view" id="recorderView" hidden>
+        <div class="rec-toolbar">
+          <button id="recBackBtn" class="rec-back-btn" title="Back to locator view">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Back
+          </button>
+          <h3 class="rec-title">
+            Recorder
+            <span class="rec-beta-badge" title="Beta — actively being tuned. Behavior may change.">Beta</span>
+          </h3>
+          <span class="rec-flex-spacer"></span>
+          <span id="recStatus" class="rec-status idle">
+            <span class="rec-dot"></span>
+            <span class="rec-status-label">Idle</span>
+          </span>
+        </div>
+        <div class="rec-actions-row">
+          <button id="recStartBtn" class="rec-btn primary">Start</button>
+          <button id="recStopBtn" class="rec-btn" disabled>Stop</button>
+          <button id="recClearBtn" class="rec-btn ghost">Clear</button>
+          <label class="rec-framework-wrap">
+            <span class="rec-framework-label">Framework</span>
+            <select id="recFrameworkSelect" class="rec-framework-select">
+              <option value="selenium">Selenium</option>
+              <option value="playwright">Playwright</option>
+              <option value="cypress">Cypress</option>
+              <option value="webdriverio">WebdriverIO</option>
+              <option value="raw">Raw</option>
+            </select>
+          </label>
+          <label class="rec-framework-wrap">
+            <span class="rec-framework-label">Language</span>
+            <select id="recLanguageSelect" class="rec-framework-select"></select>
+          </label>
+          <span class="rec-flex-spacer"></span>
+          <button id="recCopyCodeBtn" class="rec-btn">Copy Code</button>
+          <button id="recFeedbackBtn" class="rec-btn ghost" title="Tell us how the Recorder is working for you">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -1px;">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Feedback
+          </button>
+        </div>
+        <p class="rec-subtitle">Click <strong>Start</strong>, then interact with your app in the page next to this panel — clicks, typing, selects and scrolls are all captured.</p>
+        <div class="rec-body">
+          <div class="rec-steps-pane">
+            <div class="rec-pane-title">Steps · <span id="recStepCount" class="rec-count">0</span></div>
+            <ol id="recStepsList" class="rec-steps-list"></ol>
+            <div id="recStepsEmpty" class="rec-empty">
+              <p>No steps yet — start recording and click around in your app.</p>
+            </div>
+          </div>
+          <div class="rec-code-pane">
+            <div class="rec-pane-title">Generated Code · <span id="recCodeFrameworkLabel" class="rec-count">raw</span></div>
+            <pre id="recCodeBlock" class="rec-code"><code id="recCodeInner">// Click "Start", then interact with the page.</code></pre>
           </div>
         </div>
       </div>
@@ -391,13 +491,21 @@
     </div>
     <div class="release-notes-content">
       <div class="release-item latest">
-        <h4>Version 1.4.2 <span class="release-date">December 2025</span><span class="new-badge">New</span></h4>
+        <h4>Version 1.5.0 <span class="release-date">May 2026</span><span class="new-badge">New</span></h4>
         <ul>
-          <li><strong>Multi-Provider Support:</strong> Added support for all Gemini models and OpenRouter integration.
-          </li>
+          <li><strong>Recorder (Beta):</strong> Capture clicks, typing, selects and scrolls in your app and export them as paste-ready automation code — Selenium (Java&nbsp;/ Python&nbsp;/ JavaScript), Playwright (JS&nbsp;/ TS&nbsp;/ Python), Cypress, or WebdriverIO.</li>
+          <li><strong>Copy as Framework:</strong> Every locator can now be copied as wrapped framework code, not just a raw selector. New <em>Copy&nbsp;as</em> dropdown next to the Engine selector.</li>
+          <li><strong>Anchor-first v2 Engine:</strong> New default locator engine extracts identity anchors (<code>data-testid</code>, role + accessible name, ARIA labels, stable classes) and beam-searches for the most resilient locator. Switch back to v1 from the Engine dropdown anytime.</li>
+          <li><strong>Unified banner stack:</strong> All eligibility-driven announcements (update available, new features, AI credits) now live in a single section at the top of the panel — no more banners scattered above and below the controls.</li>
+          <li><strong>Bug fixes:</strong> Removed duplicate XPath rows for anchor (<code>&lt;a&gt;</code>) elements where <em>XPath by Text</em> and <em>XPath by Link Text</em> used to render identically. Improved escalation from non-semantic SVG / decorative elements to their interactive ancestors.</li>
+        </ul>
+      </div>
+      <div class="release-item">
+        <h4>Version 1.4.2 <span class="release-date">December 2025</span></h4>
+        <ul>
+          <li><strong>Multi-Provider Support:</strong> Added support for all Gemini models and OpenRouter integration.</li>
           <li><strong>Improved AI Accuracy:</strong> Enhanced optimization logic for precise, robust locators.</li>
-          <li><strong>Smart Validation:</strong> AI locators are now seamlessly integrated with the validation system.
-          </li>
+          <li><strong>Smart Validation:</strong> AI locators are now seamlessly integrated with the validation system.</li>
           <li><strong>Enhanced UI:</strong> Modern, cleaner interface with improved accessibility.</li>
         </ul>
       </div>

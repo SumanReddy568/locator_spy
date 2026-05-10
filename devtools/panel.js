@@ -12,6 +12,13 @@ import {
   trackFreeCreditsHydrated,
   trackFreeCreditsExhausted,
   trackFreeCreditsFallback,
+  trackRecorderOpened,
+  trackRecorderClosed,
+  trackRecorderStarted,
+  trackRecorderStopped,
+  trackRecorderCleared,
+  trackRecorderCodeCopied,
+  trackRecorderFrameworkSelected,
 } from '../utils/analytics.js';
 
 
@@ -355,7 +362,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 </svg>
                 Validate
               </button>
-              <button class="copy-btn" data-value="${escapeHtml(xpath)}">
+              <button class="copy-btn" data-type="XPath" data-value="${escapeHtml(xpath)}">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -379,7 +386,8 @@ document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".copy-btn").forEach((btn) => {
       btn.addEventListener("click", function () {
         const value = this.getAttribute("data-value");
-        copyToClipboard(value, this);
+        const type = this.getAttribute("data-type") || "";
+        copyToClipboard(formatLocator(type, value, getCopyFormat()), this);
       });
     });
 
@@ -422,7 +430,7 @@ document.addEventListener("DOMContentLoaded", function () {
             </svg>
             Validate
           </button>
-          <button class="copy-btn" data-value="${escapeHtml(value)}">
+          <button class="copy-btn" data-type="${escapeHtml(type)}" data-value="${escapeHtml(value)}">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -461,6 +469,653 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     });
   }
+
+  // Recorder view — sibling of the locator results inside .results. Toggled
+  // by the Recorder button in the controls strip. The actual click capture
+  // happens in content.js (always-injected on <all_urls>); this view just
+  // shows the captured stream and generates framework code.
+  const openRecorderBtn = document.getElementById("openRecorderBtn");
+  const locatorView = document.getElementById("locatorView");
+  const recorderView = document.getElementById("recorderView");
+  const recBackBtn = document.getElementById("recBackBtn");
+
+  // Tracks whether the recorder view is currently shown, so setView can
+  // tell a true open/close transition from a no-op (and only fire the
+  // matching analytics event once per actual transition).
+  let recorderViewActive = false;
+  function setView(name) {
+    if (!locatorView || !recorderView) return;
+    const wasRecorder = recorderViewActive;
+    // Locator-only chrome that should disappear in recorder mode: the whole
+    // controls strip (Filter, Auto Validate, Auto Optimize, Engine, Copy
+    // as), and the eligibility-driven banners (they all advertise
+    // locator-side features). The recorder view ships with its own header
+    // controls and a Back button, so nothing essential is hidden.
+    document.body.classList.toggle("view-recorder", name === "recorder");
+    if (name === "recorder") {
+      locatorView.hidden = true;
+      recorderView.hidden = false;
+      if (openRecorderBtn) openRecorderBtn.classList.add("active");
+      recorderViewActive = true;
+      // Hard reset on every entry — recording stopped, steps cleared,
+      // generated code reset back to its initial placeholder.
+      chrome.storage.local.set({
+        recorderActive: false,
+        recorderInteractions: [],
+      }, () => {
+        readRecorderState(renderRecorderView);
+      });
+      if (!wasRecorder) {
+        trackRecorderOpened();
+        logLocatorLifecycle("recorder_opened");
+      }
+    } else {
+      // Leaving recorder view → stop any in-progress recording so the
+      // user's locator-mode hovers/clicks aren't quietly captured.
+      chrome.storage.local.set({ recorderActive: false });
+      recorderView.hidden = true;
+      locatorView.hidden = false;
+      if (openRecorderBtn) openRecorderBtn.classList.remove("active");
+      recorderViewActive = false;
+      if (wasRecorder) {
+        trackRecorderClosed();
+        logLocatorLifecycle("recorder_closed");
+      }
+    }
+  }
+
+  if (openRecorderBtn) {
+    openRecorderBtn.addEventListener("click", () => {
+      const showing = recorderView && !recorderView.hidden;
+      setView(showing ? "locator" : "recorder");
+    });
+  }
+  if (recBackBtn) {
+    recBackBtn.addEventListener("click", () => setView("locator"));
+  }
+
+  // -------- Recorder logic --------
+  const recStartBtn = document.getElementById("recStartBtn");
+  const recStopBtn = document.getElementById("recStopBtn");
+  const recClearBtn = document.getElementById("recClearBtn");
+  const recCopyCodeBtn = document.getElementById("recCopyCodeBtn");
+  const recFrameworkSelect = document.getElementById("recFrameworkSelect");
+  const recLanguageSelect = document.getElementById("recLanguageSelect");
+  const recStatus = document.getElementById("recStatus");
+  const recStatusLabel = recStatus ? recStatus.querySelector(".rec-status-label") : null;
+  const recStepsList = document.getElementById("recStepsList");
+  const recStepsEmpty = document.getElementById("recStepsEmpty");
+  const recStepCount = document.getElementById("recStepCount");
+  const recCodeInner = document.getElementById("recCodeInner");
+  const recCodeFrameworkLabel = document.getElementById("recCodeFrameworkLabel");
+
+  // (Framework, Language) → format key. Each combo points at one of the
+  // existing format keys the code generators already understand. New
+  // combos (e.g. Playwright Python) plug in here without touching the
+  // emitters until we add their flavor.
+  const REC_COMBOS = [
+    { framework: "selenium",    language: "java",       format: "selenium-java",       languageLabel: "Java" },
+    { framework: "selenium",    language: "python",     format: "selenium-python",     languageLabel: "Python" },
+    { framework: "selenium",    language: "javascript", format: "selenium-javascript", languageLabel: "JavaScript" },
+    { framework: "playwright",  language: "javascript", format: "playwright",          languageLabel: "JavaScript" },
+    { framework: "playwright",  language: "typescript", format: "playwright",          languageLabel: "TypeScript" },
+    { framework: "playwright",  language: "python",     format: "playwright-python",   languageLabel: "Python" },
+    { framework: "cypress",     language: "javascript", format: "cypress",             languageLabel: "JavaScript" },
+    { framework: "cypress",     language: "typescript", format: "cypress",             languageLabel: "TypeScript" },
+    { framework: "webdriverio", language: "javascript", format: "webdriverio",         languageLabel: "JavaScript" },
+    { framework: "webdriverio", language: "typescript", format: "webdriverio",         languageLabel: "TypeScript" },
+    { framework: "raw",         language: "raw",        format: "raw",                 languageLabel: "—" },
+  ];
+
+  function recLanguagesFor(framework) {
+    return REC_COMBOS.filter((c) => c.framework === framework);
+  }
+  function recFormatFor(framework, language) {
+    const c = REC_COMBOS.find((x) => x.framework === framework && x.language === language);
+    return c ? c.format : "selenium-java";
+  }
+  function recDecomposeFormat(format) {
+    const c = REC_COMBOS.find((x) => x.format === format);
+    return c
+      ? { framework: c.framework, language: c.language }
+      : { framework: "selenium", language: "java" };
+  }
+  // Repaint the Language dropdown to only show valid languages for the
+  // currently selected framework, preserving the previous selection if it
+  // remains valid.
+  function recRepaintLanguageOptions(framework, preferLang) {
+    if (!recLanguageSelect) return;
+    const valid = recLanguagesFor(framework);
+    const prev = preferLang || recLanguageSelect.value;
+    recLanguageSelect.innerHTML = valid
+      .map((c) => `<option value="${c.language}">${c.languageLabel}</option>`)
+      .join("");
+    const match = valid.find((c) => c.language === prev) || valid[0];
+    if (match) recLanguageSelect.value = match.language;
+    recLanguageSelect.disabled = framework === "raw";
+  }
+
+  function recPickBestLocator(locators) {
+    if (!locators) return null;
+    if (locators.cssSelector) return { type: "CSS Selector", value: locators.cssSelector };
+    if (locators.id) return { type: "ID", value: locators.id };
+    if (locators.relativeXPath) return { type: "Relative XPath", value: locators.relativeXPath };
+    if (locators.absoluteXPath) return { type: "Absolute XPath", value: locators.absoluteXPath };
+    return null;
+  }
+
+  // Same shape as formatLocator() but emits just the locator-creation
+  // expression for embedding inside an action (`.click()`).
+  function recLocatorExpr(loc, framework) {
+    if (!loc || !loc.value) return null;
+    const t = loc.type || "", value = loc.value;
+    const isXpath = /xpath/i.test(t);
+    const isPureId = t === "ID" && /^[A-Za-z][\w\-]*$/.test(String(value));
+    const dq = (s) => String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const sq = (s) => String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const cssEscapeId = (s) =>
+      typeof CSS !== "undefined" && typeof CSS.escape === "function"
+        ? CSS.escape(String(s))
+        : String(s);
+    switch (framework) {
+      case "selenium-java":
+        if (isPureId) return `By.id("${dq(value)}")`;
+        if (isXpath) return `By.xpath("${dq(value)}")`;
+        if (t === "ID") return `By.cssSelector("#${dq(cssEscapeId(value))}")`;
+        return `By.cssSelector("${dq(value)}")`;
+      case "selenium-python":
+        if (isPureId) return `By.ID, "${dq(value)}"`;
+        if (isXpath) return `By.XPATH, "${dq(value)}"`;
+        if (t === "ID") return `By.CSS_SELECTOR, "#${dq(cssEscapeId(value))}"`;
+        return `By.CSS_SELECTOR, "${dq(value)}"`;
+      case "selenium-javascript":
+        // selenium-webdriver Node API: By.id / By.xpath / By.css
+        if (isPureId) return `By.id('${sq(value)}')`;
+        if (isXpath) return `By.xpath('${sq(value)}')`;
+        if (t === "ID") return `By.css('#${sq(cssEscapeId(value))}')`;
+        return `By.css('${sq(value)}')`;
+      case "playwright":
+        if (t === "ID") return `'#${sq(cssEscapeId(value))}'`;
+        if (isXpath) return `'xpath=${sq(value)}'`;
+        return `'${sq(value)}'`;
+      case "playwright-python":
+        // page.locator takes a string just like JS — single quotes here
+        // produce double-quoted Python literals via the line builders.
+        if (t === "ID") return `'#${sq(cssEscapeId(value))}'`;
+        if (isXpath) return `'xpath=${sq(value)}'`;
+        return `'${sq(value)}'`;
+      case "cypress":
+      case "webdriverio":
+        if (t === "ID") return `'#${sq(cssEscapeId(value))}'`;
+        return `'${sq(value)}'`;
+      default:
+        return value;
+    }
+  }
+
+  // Per-action emitters. Each returns a single line (or empty string for
+  // raw mode, where the per-step text is emitted by the outer loop).
+
+  function recEscapeJavaStr(s) {
+    return String(s == null ? "" : s).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+  }
+  function recEscapeJsStr(s) {
+    return String(s == null ? "" : s).replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n");
+  }
+
+  function recClickLine(it, fw) {
+    const loc = recPickBestLocator(it.locators);
+    const expr = recLocatorExpr(loc, fw);
+    switch (fw) {
+      case "selenium-java": return `    driver.findElement(${expr}).click();`;
+      case "selenium-python": return `driver.find_element(${expr}).click()`;
+      case "selenium-javascript": return `    await driver.findElement(${expr}).click();`;
+      case "playwright": return `  await page.locator(${expr}).click();`;
+      case "playwright-python": return `    page.locator(${expr}).click()`;
+      case "cypress": {
+        const isXpath = loc && /xpath/i.test(loc.type);
+        return `    ${isXpath ? "cy.xpath" : "cy.get"}(${expr}).click();`;
+      }
+      case "webdriverio": return `    await $(${expr}).click();`;
+      default: return loc ? `${loc.type}: ${loc.value}` : "(no locator)";
+    }
+  }
+
+  // Text input typing. Most frameworks have a "replace value" idiom; for
+  // Selenium and Cypress we explicitly clear() first so the recorded value
+  // is what ends up in the field regardless of pre-fill.
+  function recInputLine(it, fw) {
+    const loc = recPickBestLocator(it.locators);
+    const expr = recLocatorExpr(loc, fw);
+    const v = it.value == null ? "" : String(it.value);
+    switch (fw) {
+      case "selenium-java":
+        return `    {\n      org.openqa.selenium.WebElement el = driver.findElement(${expr});\n      el.clear();\n      el.sendKeys("${recEscapeJavaStr(v)}");\n    }`;
+      case "selenium-python":
+        return `el = driver.find_element(${expr})\nel.clear()\nel.send_keys("${recEscapeJavaStr(v)}")`;
+      case "selenium-javascript":
+        return `    {\n      const el = await driver.findElement(${expr});\n      await el.clear();\n      await el.sendKeys('${recEscapeJsStr(v)}');\n    }`;
+      case "playwright":
+        return `  await page.locator(${expr}).fill('${recEscapeJsStr(v)}');`;
+      case "playwright-python":
+        return `    page.locator(${expr}).fill("${recEscapeJavaStr(v)}")`;
+      case "cypress": {
+        const isXpath = loc && /xpath/i.test(loc.type);
+        const getter = isXpath ? "cy.xpath" : "cy.get";
+        // Cypress .type() with empty string throws — use .clear() alone.
+        if (!v) return `    ${getter}(${expr}).clear();`;
+        return `    ${getter}(${expr}).clear().type('${recEscapeJsStr(v)}');`;
+      }
+      case "webdriverio":
+        return `    await $(${expr}).setValue('${recEscapeJsStr(v)}');`;
+      default:
+        return loc ? `${loc.type}: ${loc.value}  (input "${v}")` : `(input "${v}")`;
+    }
+  }
+
+  function recSelectLine(it, fw) {
+    const loc = recPickBestLocator(it.locators);
+    const expr = recLocatorExpr(loc, fw);
+    const v = it.value == null ? "" : String(it.value);
+    switch (fw) {
+      case "selenium-java":
+        return `    new org.openqa.selenium.support.ui.Select(driver.findElement(${expr})).selectByValue("${recEscapeJavaStr(v)}");`;
+      case "selenium-python":
+        return `Select(driver.find_element(${expr})).select_by_value("${recEscapeJavaStr(v)}")`;
+      case "selenium-javascript":
+        // selenium-webdriver Node has no Select wrapper; use a value-based
+        // option click via xpath. Reasonable fidelity for most flows.
+        return `    await driver.findElement(${expr}).findElement(By.css('option[value="${recEscapeJavaStr(v)}"]')).click();`;
+      case "playwright":
+        return `  await page.locator(${expr}).selectOption('${recEscapeJsStr(v)}');`;
+      case "playwright-python":
+        return `    page.locator(${expr}).select_option("${recEscapeJavaStr(v)}")`;
+      case "cypress": {
+        const isXpath = loc && /xpath/i.test(loc.type);
+        const getter = isXpath ? "cy.xpath" : "cy.get";
+        return `    ${getter}(${expr}).select('${recEscapeJsStr(v)}');`;
+      }
+      case "webdriverio":
+        return `    await $(${expr}).selectByAttribute('value', '${recEscapeJsStr(v)}');`;
+      default:
+        return loc ? `${loc.type}: ${loc.value}  (select "${v}")` : `(select "${v}")`;
+    }
+  }
+
+  // Window-level scroll. Modern frameworks auto-scroll-to-element on
+  // .click(), so explicit scroll is mostly a fidelity feature for tests
+  // that depend on a specific viewport position (lazy-loaded content,
+  // sticky headers measured by scrollY, etc.).
+  function recScrollLine(it, fw) {
+    const x = it.x | 0, y = it.y | 0;
+    switch (fw) {
+      case "selenium-java":
+        return `    ((org.openqa.selenium.JavascriptExecutor) driver).executeScript("window.scrollTo(${x}, ${y});");`;
+      case "selenium-python":
+        return `driver.execute_script("window.scrollTo(${x}, ${y})")`;
+      case "selenium-javascript":
+        return `    await driver.executeScript('window.scrollTo(${x}, ${y});');`;
+      case "playwright":
+        return `  await page.evaluate(() => window.scrollTo(${x}, ${y}));`;
+      case "playwright-python":
+        return `    page.evaluate("window.scrollTo(${x}, ${y})")`;
+      case "cypress":
+        return `    cy.scrollTo(${x}, ${y});`;
+      case "webdriverio":
+        return `    await browser.execute(() => window.scrollTo(${x}, ${y}));`;
+      default:
+        return `(scroll to ${x}, ${y})`;
+    }
+  }
+
+  function recActionLine(it, fw) {
+    switch (it.action) {
+      case "click": return recClickLine(it, fw);
+      case "input": return recInputLine(it, fw);
+      case "select": return recSelectLine(it, fw);
+      case "scroll": return recScrollLine(it, fw);
+      default: return recClickLine(it, fw); // unknown action falls back to click
+    }
+  }
+
+  function recNavLine(url, fw) {
+    const sqUrl = url.replace(/'/g, "\\'");
+    switch (fw) {
+      case "selenium-java": return `    driver.get("${url}");`;
+      case "selenium-python": return `driver.get("${url}")`;
+      case "selenium-javascript": return `    await driver.get('${sqUrl}');`;
+      case "playwright": return `  await page.goto('${sqUrl}');`;
+      case "playwright-python": return `    page.goto("${url}")`;
+      case "cypress": return `    cy.visit('${sqUrl}');`;
+      case "webdriverio": return `    await browser.url('${sqUrl}');`;
+      default: return `# ${url}`;
+    }
+  }
+
+  function recWrap(framework, hasCypressXpath) {
+    switch (framework) {
+      case "selenium-java": return {
+        header:
+`import org.openqa.selenium.By;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+
+public class RecordedFlow {
+  public static void main(String[] args) {
+    WebDriver driver = new ChromeDriver();
+`,
+        footer:
+`
+    driver.quit();
+  }
+}`,
+      };
+      case "selenium-python": return {
+        header:
+`from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
+
+driver = webdriver.Chrome()
+`,
+        footer: `
+driver.quit()`,
+      };
+      case "selenium-javascript": return {
+        header:
+`const { Builder, By, Key, until } = require('selenium-webdriver');
+
+(async function recordedFlow() {
+  const driver = await new Builder().forBrowser('chrome').build();
+  try {
+`,
+        footer:
+`
+  } finally {
+    await driver.quit();
+  }
+})();`,
+      };
+      case "playwright-python": return {
+        header:
+`from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+`,
+        footer: `
+    browser.close()`,
+      };
+      case "playwright": return {
+        header:
+`import { test, expect } from '@playwright/test';
+
+test('recorded flow', async ({ page }) => {
+`,
+        footer: `});`,
+      };
+      case "cypress": {
+        const note = hasCypressXpath
+          ? `// Requires cypress-xpath plugin (https://github.com/cypress-io/cypress-xpath).\n`
+          : "";
+        return {
+          header:
+`${note}describe('Recorded flow', () => {
+  it('runs the recorded interactions', () => {
+`,
+          footer: `  });
+});`,
+        };
+      }
+      case "webdriverio": return {
+        header:
+`describe('Recorded flow', () => {
+  it('runs the recorded interactions', async () => {
+`,
+        footer: `  });
+});`,
+      };
+      default: return { header: `# Recorded steps\n`, footer: `` };
+    }
+  }
+
+  function recGenerateCode(interactions, framework) {
+    if (!interactions || !interactions.length) {
+      return "// Click \"Start\", then interact with the page.";
+    }
+    const hasCypressXpath = framework === "cypress" &&
+      interactions.some((i) => {
+        const l = recPickBestLocator(i.locators);
+        return l && /xpath/i.test(l.type);
+      });
+    const w = recWrap(framework, hasCypressXpath);
+    const lines = [];
+    let lastUrl = null;
+    interactions.forEach((it, idx) => {
+      if (framework === "raw") {
+        const loc = recPickBestLocator(it.locators);
+        lines.push(
+          `Step ${idx + 1}: ${it.action} on <${(it.element && it.element.tag) || "?"}>` +
+          (it.element && it.element.text ? ` "${it.element.text}"` : "") +
+          (it.url && it.url !== lastUrl ? ` @ ${it.url}` : "")
+        );
+        lines.push(loc ? `  ${loc.type}: ${loc.value}` : "  (no locator)");
+        lastUrl = it.url || lastUrl;
+        lines.push("");
+        return;
+      }
+      if (it.url && it.url !== lastUrl) {
+        lines.push(recNavLine(it.url, framework));
+        lastUrl = it.url;
+      }
+      lines.push(recActionLine(it, framework));
+    });
+    return w.header + lines.join("\n") + (lines.length ? "\n" : "") + w.footer;
+  }
+
+  function readRecorderState(cb) {
+    chrome.storage.local.get(
+      ["recorderActive", "recorderInteractions", "copyFormat"],
+      (state) => cb(state || {})
+    );
+  }
+
+  function renderRecorderView(state) {
+    const interactions = state.recorderInteractions || [];
+    const isActive = !!state.recorderActive;
+    // Default the recorder to a runnable format rather than raw — most
+    // users come here for code, not a selector dump. The Copy-as dropdown's
+    // own default of "raw" still applies to per-locator copy.
+    const stored = state.copyFormat;
+    const format = stored && stored !== "raw" ? stored : "selenium-java";
+    const decomposed = recDecomposeFormat(format);
+
+    if (recFrameworkSelect && recFrameworkSelect.value !== decomposed.framework) {
+      recFrameworkSelect.value = decomposed.framework;
+    }
+    // Always repaint the language options (they depend on framework), then
+    // sync to the decomposed language if it's valid.
+    recRepaintLanguageOptions(decomposed.framework, decomposed.language);
+
+    // The downstream code generators still take the single format key.
+    const framework = format;
+
+    if (recStatus) {
+      recStatus.classList.toggle("active", isActive);
+      recStatus.classList.toggle("idle", !isActive);
+    }
+    if (recStatusLabel) recStatusLabel.textContent = isActive ? "Recording" : "Idle";
+    if (recStartBtn) recStartBtn.disabled = isActive;
+    if (recStopBtn) recStopBtn.disabled = !isActive;
+
+    if (recStepCount) recStepCount.textContent = String(interactions.length);
+    if (recStepsList && recStepsEmpty) {
+      if (!interactions.length) {
+        recStepsList.innerHTML = "";
+        recStepsEmpty.style.display = "";
+      } else {
+        recStepsEmpty.style.display = "none";
+        recStepsList.innerHTML = interactions
+          .map((it, idx) => {
+            const loc = recPickBestLocator(it.locators);
+            const tag = (it.element && it.element.tag) || "?";
+            // Build a per-action descriptor. Click shows the element text,
+            // input/select show the typed/picked value, scroll shows target.
+            let descriptor = "";
+            if (it.action === "scroll") {
+              descriptor = `→ scrollTo(${it.x | 0}, ${it.y | 0})`;
+            } else if (it.action === "input") {
+              const v = it.isPassword ? "••••••••" : (it.value == null ? "" : String(it.value));
+              descriptor = `&lt;${escapeHtml(tag)}&gt; ← "${escapeHtml(v.slice(0, 60))}"`;
+            } else if (it.action === "select") {
+              descriptor = `&lt;${escapeHtml(tag)}&gt; ← "${escapeHtml(String(it.value || "").slice(0, 60))}"`;
+            } else {
+              const text = it.element && it.element.text ? `"${it.element.text}"` : "";
+              descriptor = `<strong>&lt;${escapeHtml(tag)}&gt;</strong> ${escapeHtml(text)}`;
+            }
+            const locStr = loc ? `${loc.type}: ${loc.value}` : (it.action === "scroll" ? "" : "(no locator)");
+            return `<li>
+              <span class="step-index">${idx + 1}</span>
+              <span class="step-action">${escapeHtml(it.action)}</span>
+              <div class="step-body">
+                <span class="step-element">${descriptor}</span>
+                ${locStr ? `<span class="step-locator">${escapeHtml(locStr)}</span>` : ""}
+              </div>
+            </li>`;
+          })
+          .join("");
+      }
+    }
+
+    if (recCodeInner) recCodeInner.textContent = recGenerateCode(interactions, framework);
+    if (recCodeFrameworkLabel) recCodeFrameworkLabel.textContent = framework;
+  }
+
+  // Timestamp of the last Start click. Used to compute session duration
+  // when recording stops.
+  let recSessionStartTs = 0;
+
+  function recCurrentPickers() {
+    return {
+      framework: recFrameworkSelect ? recFrameworkSelect.value : null,
+      language: recLanguageSelect ? recLanguageSelect.value : null,
+    };
+  }
+
+  function recActionBreakdown(interactions) {
+    const counts = { click: 0, input: 0, select: 0, scroll: 0 };
+    for (const it of interactions || []) {
+      if (counts.hasOwnProperty(it.action)) counts[it.action]++;
+    }
+    return counts;
+  }
+
+  if (recStartBtn) recStartBtn.addEventListener("click", () => {
+    chrome.storage.local.set({ recorderActive: true });
+    recSessionStartTs = Date.now();
+    const p = recCurrentPickers();
+    trackRecorderStarted(p);
+    logLocatorLifecycle("recorder_started", p);
+  });
+  if (recStopBtn) recStopBtn.addEventListener("click", () => {
+    chrome.storage.local.set({ recorderActive: false });
+    chrome.storage.local.get("recorderInteractions", (r) => {
+      const interactions = (r && r.recorderInteractions) || [];
+      const meta = {
+        ...recCurrentPickers(),
+        stepCount: interactions.length,
+        actionBreakdown: recActionBreakdown(interactions),
+        durationMs: recSessionStartTs ? Date.now() - recSessionStartTs : null,
+      };
+      trackRecorderStopped(meta);
+      logLocatorLifecycle("recorder_stopped", meta);
+    });
+    recSessionStartTs = 0;
+  });
+  if (recClearBtn) recClearBtn.addEventListener("click", () => {
+    chrome.storage.local.get("recorderInteractions", (r) => {
+      const priorStepCount = ((r && r.recorderInteractions) || []).length;
+      chrome.storage.local.set({ recorderInteractions: [] });
+      trackRecorderCleared({ priorStepCount });
+      logLocatorLifecycle("recorder_cleared", { priorStepCount });
+    });
+  });
+  if (recCopyCodeBtn) recCopyCodeBtn.addEventListener("click", () => {
+    if (!recCodeInner) return;
+    const text = recCodeInner.textContent || "";
+    if (!text.trim()) return;
+    copyToClipboard(text);
+    chrome.storage.local.get("recorderInteractions", (r) => {
+      const interactions = (r && r.recorderInteractions) || [];
+      const meta = {
+        ...recCurrentPickers(),
+        stepCount: interactions.length,
+        charCount: text.length,
+        actionBreakdown: recActionBreakdown(interactions),
+      };
+      trackRecorderCodeCopied(meta);
+      logLocatorLifecycle("recorder_code_copied", meta);
+    });
+  });
+
+  // Recorder feedback button — reuses the panel's existing feedback modal /
+  // feedback-collector endpoint, just tags the payload with feature: "recorder"
+  // so the backend can bucket recorder feedback separately from general.
+  const recFeedbackBtn = document.getElementById("recFeedbackBtn");
+  if (recFeedbackBtn) {
+    recFeedbackBtn.addEventListener("click", () => {
+      logLocatorLifecycle("recorder_feedback_opened", recCurrentPickers());
+      if (window.FeedbackService && typeof window.FeedbackService.openFeedbackForFeature === "function") {
+        window.FeedbackService.openFeedbackForFeature(
+          "recorder",
+          "How is the Recorder working for you? What's missing, broken, or confusing?",
+          "neutral"
+        );
+      }
+    });
+  }
+  // Framework + Language pickers inside the recorder view. Both compose
+  // into the single `copyFormat` storage key (same source of truth as the
+  // controls-bar "Copy as" dropdown), so the storage.onChanged listener
+  // handles re-rendering. Framework change also repaints the Language
+  // options to only show combinations we actually support.
+  if (recFrameworkSelect) {
+    recFrameworkSelect.addEventListener("change", (event) => {
+      const framework = event.target.value;
+      // Repaint language options first; this lets us read the (possibly
+      // newly-selected) language right after.
+      recRepaintLanguageOptions(framework);
+      const language = recLanguageSelect ? recLanguageSelect.value : "";
+      chrome.storage.local.set({ copyFormat: recFormatFor(framework, language) });
+      trackRecorderFrameworkSelected(framework, language, { source: "framework" });
+      logLocatorLifecycle("recorder_framework_selected", { framework, language, source: "framework" });
+    });
+  }
+  if (recLanguageSelect) {
+    recLanguageSelect.addEventListener("change", () => {
+      const framework = recFrameworkSelect ? recFrameworkSelect.value : "selenium";
+      const language = recLanguageSelect.value;
+      chrome.storage.local.set({ copyFormat: recFormatFor(framework, language) });
+      trackRecorderFrameworkSelected(framework, language, { source: "language" });
+      logLocatorLifecycle("recorder_framework_selected", { framework, language, source: "language" });
+    });
+  }
+
+  // Initial render and live-update subscription. Storage changes from any
+  // tab (content.js capturing a click; recorder buttons toggling state)
+  // re-render the panel view automatically.
+  readRecorderState(renderRecorderView);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+    if (
+      "recorderActive" in changes ||
+      "recorderInteractions" in changes ||
+      "copyFormat" in changes
+    ) {
+      readRecorderState(renderRecorderView);
+    }
+  });
 
   // Replace your current refresh button code with this:
   const refreshBtn = document.getElementById("refreshBtn");
@@ -523,6 +1178,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Copy all visible locators
   copyAllBtn.addEventListener("click", function () {
+    const format = getCopyFormat();
     const allLocatorTexts = [];
     const locatorItems = document.querySelectorAll(
       "#locatorResults .locator-item"
@@ -542,13 +1198,18 @@ document.addEventListener("DOMContentLoaded", function () {
         // Skip items that are hidden or only contain header text (like "All XPaths:")
         if (!isHidden && type !== "All XPaths") {
           const value = locatorValueElement.textContent.trim();
-          allLocatorTexts.push(`${type}: ${value}`);
+          allLocatorTexts.push(
+            format === "raw"
+              ? `${type}: ${value}`
+              : formatLocator(type, value, format)
+          );
         }
       }
     });
 
     if (allLocatorTexts.length > 0) {
-      const textToCopy = allLocatorTexts.join("\n\n");
+      const sep = format === "raw" ? "\n\n" : "\n";
+      const textToCopy = allLocatorTexts.join(sep);
       copyToClipboard(textToCopy);
       showCopyNotification("Locators copied to clipboard!");
     } else {
@@ -648,6 +1309,67 @@ document.addEventListener("DOMContentLoaded", function () {
     return xpath;
   }
 
+  // Read the active copy format off the <select>. Synchronous so Copy / Copy
+  // All can call into it inline. Falls back to "raw" if the dropdown isn't
+  // in the DOM yet (e.g. very early initialization).
+  function getCopyFormat() {
+    const el = document.getElementById("copyFormatSelect");
+    return (el && el.value) || "raw";
+  }
+
+  // Wrap a locator value in framework-specific code so it can be pasted
+  // directly into a test. `type` is the human label shown in the panel
+  // (e.g. "ID", "CSS Selector", "Relative XPath", "XPath by Text"); we use
+  // it to pick between By.id / By.cssSelector / By.xpath flavors.
+  function formatLocator(type, value, format) {
+    if (value == null) return "";
+    if (!format || format === "raw") return value;
+
+    const t = String(type || "");
+    const isXpath = /xpath/i.test(t);
+    // "ID" — and only "ID" — should use By.id; "Data Test ID", "XPath by ID"
+    // etc. fall through to CSS/XPath. The Selenium By.id helper also can't
+    // handle ids with CSS-special characters (colons, spaces), so we degrade
+    // those to a CSS form rather than emitting code that won't compile.
+    const isPureId = t === "ID" && /^[A-Za-z][\w\-]*$/.test(String(value));
+
+    const dq = (s) => String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const sq = (s) => String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    // CSS-escape ID values that aren't a plain identifier so the cssSelector
+    // fallback ("#foo:1" → "#foo\:1") is actually valid CSS.
+    const cssEscapeId = (s) =>
+      typeof CSS !== "undefined" && typeof CSS.escape === "function"
+        ? CSS.escape(String(s))
+        : String(s);
+
+    switch (format) {
+      case "selenium-java":
+        if (isPureId) return `driver.findElement(By.id("${dq(value)}"))`;
+        if (isXpath) return `driver.findElement(By.xpath("${dq(value)}"))`;
+        if (t === "ID") return `driver.findElement(By.cssSelector("#${dq(cssEscapeId(value))}"))`;
+        return `driver.findElement(By.cssSelector("${dq(value)}"))`;
+      case "selenium-python":
+        if (isPureId) return `driver.find_element(By.ID, "${dq(value)}")`;
+        if (isXpath) return `driver.find_element(By.XPATH, "${dq(value)}")`;
+        if (t === "ID") return `driver.find_element(By.CSS_SELECTOR, "#${dq(cssEscapeId(value))}")`;
+        return `driver.find_element(By.CSS_SELECTOR, "${dq(value)}")`;
+      case "playwright":
+        if (t === "ID") return `page.locator('#${sq(cssEscapeId(value))}')`;
+        if (isXpath) return `page.locator('xpath=${sq(value)}')`;
+        return `page.locator('${sq(value)}')`;
+      case "cypress":
+        if (t === "ID") return `cy.get('#${sq(cssEscapeId(value))}')`;
+        if (isXpath) return `cy.xpath('${sq(value)}') // requires cypress-xpath plugin`;
+        return `cy.get('${sq(value)}')`;
+      case "webdriverio":
+        if (t === "ID") return `$('#${sq(cssEscapeId(value))}')`;
+        // WebdriverIO auto-detects XPath when the selector starts with / or (.
+        return `$('${sq(value)}')`;
+      default:
+        return value;
+    }
+  }
+
   // Release notes panel functionality
   const releaseNotesBtn = document.getElementById("releaseNotesBtn");
   const releaseNotesPanel = document.querySelector(".release-notes-panel");
@@ -723,6 +1445,35 @@ document.addEventListener("DOMContentLoaded", function () {
       chrome.storage.local.set({ locatorEngine: engine });
     });
   }
+
+  // Copy-format selector. Wraps each locator in framework code on copy.
+  // Persisted in chrome.storage.local; read synchronously off the <select>.
+  const copyFormatSelect = document.getElementById("copyFormatSelect");
+
+  // "What's new" banner — eligibility is purely "user is still on Raw format".
+  // No persistent dismissal: as soon as they pick any other format the banner
+  // hides, and if they ever switch back to Raw it shows again. Always-on,
+  // never closeable.
+  function syncNewFeatureBannerEligibility(format) {
+    const banner = document.getElementById("newFeatureBanner");
+    if (!banner) return;
+    const eligible = !format || format === "raw";
+    banner.classList.toggle("hidden", !eligible);
+  }
+
+  if (copyFormatSelect) {
+    chrome.storage.local.get("copyFormat", (result) => {
+      const fmt = result.copyFormat || "raw";
+      copyFormatSelect.value = fmt;
+      chrome.storage.local.set({ copyFormat: fmt });
+      syncNewFeatureBannerEligibility(fmt);
+    });
+    copyFormatSelect.addEventListener("change", (event) => {
+      chrome.storage.local.set({ copyFormat: event.target.value });
+      syncNewFeatureBannerEligibility(event.target.value);
+    });
+  }
+
 
   // Automatically validate locators if "Auto Validator" is enabled
   function autoValidateLocators(locators) {
@@ -1532,9 +2283,12 @@ document.addEventListener("DOMContentLoaded", function () {
       window.open('https://chromewebstore.google.com/detail/locator-finder-ai-powered/gpgjidcedjiphbgagldchpcliacmanjf', '_blank');
     });
 
-    document.getElementById('closeUpdateAlertDev').addEventListener('click', () => {
-      updateAlert.classList.add('hidden');
-    });
+    const closeBtn = document.getElementById('closeUpdateAlertDev');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        updateAlert.classList.add('hidden');
+      });
+    }
   }
 
   // Listen for feedback submission to unlock button

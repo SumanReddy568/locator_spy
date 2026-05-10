@@ -820,6 +820,157 @@ if (window.seleniumLocatorHelperInjected) {
         }
       }
 
+      // -------- Recorder mode --------
+      // Independent of locator mode. While `recorderActive` is true in
+      // chrome.storage.local, every interaction (clicks, typing into text
+      // fields, select changes, scroll) is observed in the capture phase
+      // (no preventDefault — the page still navigates / submits / etc.)
+      // and forwarded to the background, which appends to
+      // `recorderInteractions`. The Recorder view in the panel reads that
+      // list and re-renders live.
+      let isRecordingActive = false;
+
+      function recIdNew() {
+        return Date.now() + ":" + Math.random().toString(36).slice(2, 8);
+      }
+
+      function recSend(interaction) {
+        try {
+          chrome.runtime.sendMessage({
+            action: "recorderAppend",
+            interaction: interaction,
+          });
+        } catch (e) { /* extension context invalidated; user will reload */ }
+      }
+
+      function recGenerateLocatorsSafe(el) {
+        try {
+          if (typeof window.generateLocators === "function") {
+            return window.generateLocators(el);
+          }
+        } catch (e) { /* ignore */ }
+        return null;
+      }
+
+      // Text inputs, textareas: capture *value* via the `change` event (fires
+      // on blur), not via `click`, so we don't end up with a noisy click step
+      // followed by an input step for the same field. Checkboxes / radios /
+      // file inputs / buttons are still treated as clicks since their
+      // change/click semantics line up with `.click()` in test code.
+      function recIsTextInput(target) {
+        if (!target || target.nodeType !== 1) return false;
+        const tag = target.tagName ? target.tagName.toLowerCase() : "";
+        if (tag === "textarea") return true;
+        if (tag !== "input") return false;
+        const type = (target.getAttribute("type") || "text").toLowerCase();
+        return /^(text|email|password|search|tel|url|number|date|datetime-local|month|time|week)$/.test(type);
+      }
+
+      function recorderClickHandler(event) {
+        if (!isRecordingActive) return;
+        if (event.button !== 0) return; // primary button only
+        const target = event.target;
+        if (!target || target.nodeType !== 1) return;
+        // Suppress clicks on text inputs / textareas — recorderInputHandler
+        // will record the typed value when the user blurs the field.
+        if (recIsTextInput(target)) return;
+
+        const locators = recGenerateLocatorsSafe(target);
+        if (!locators) return;
+
+        recSend({
+          id: recIdNew(),
+          ts: Date.now(),
+          action: "click",
+          url: window.location.href,
+          locators: locators,
+          element: {
+            tag: target.tagName ? target.tagName.toLowerCase() : null,
+            text: ((target.innerText || target.textContent || "").trim() || "").slice(0, 80),
+            role: target.getAttribute("role") || null,
+          },
+        });
+      }
+
+      function recorderChangeHandler(event) {
+        if (!isRecordingActive) return;
+        const target = event.target;
+        if (!target || target.nodeType !== 1) return;
+        const tag = target.tagName ? target.tagName.toLowerCase() : "";
+        const type = (target.getAttribute("type") || "").toLowerCase();
+
+        // Drop interactions whose semantics are already covered by the click
+        // handler (checkbox / radio / button / submit / reset / file).
+        if (tag === "input" && /^(checkbox|radio|button|submit|reset|file|hidden)$/.test(type)) return;
+        if (tag !== "input" && tag !== "textarea" && tag !== "select") return;
+
+        const locators = recGenerateLocatorsSafe(target);
+        if (!locators) return;
+
+        const isPassword = tag === "input" && type === "password";
+        const rawValue = target.value == null ? "" : String(target.value);
+        // Don't ship password values through chrome.storage.local — redact
+        // at the source. Tests will need a real password injected by the
+        // user; this gives them a placeholder to find-and-replace.
+        const value = isPassword ? "<REDACTED_PASSWORD>" : rawValue;
+
+        recSend({
+          id: recIdNew(),
+          ts: Date.now(),
+          action: tag === "select" ? "select" : "input",
+          value: value,
+          isPassword: isPassword,
+          url: window.location.href,
+          locators: locators,
+          element: {
+            tag: tag,
+            type: type || null,
+            name: target.getAttribute("name") || null,
+            text: (target.getAttribute("placeholder") || target.getAttribute("name") || "").slice(0, 80),
+          },
+        });
+      }
+
+      // Scroll capture: debounced so we emit a single step per "scroll
+      // session" rather than one per scroll event. Window-level only — the
+      // user's scroll position is what the test needs to reproduce visibility,
+      // not which container scrolled.
+      let recScrollTimer = null;
+      function recorderScrollHandler() {
+        if (!isRecordingActive) return;
+        if (recScrollTimer) clearTimeout(recScrollTimer);
+        recScrollTimer = setTimeout(() => {
+          recScrollTimer = null;
+          recSend({
+            id: recIdNew(),
+            ts: Date.now(),
+            action: "scroll",
+            x: Math.round(window.scrollX || 0),
+            y: Math.round(window.scrollY || 0),
+            url: window.location.href,
+          });
+        }, 350);
+      }
+
+      // Always-on listeners; cheap when recording is off (each guards on
+      // isRecordingActive). Capture phase for click so we see it before the
+      // page handles it; bubble for change (it's what change supports);
+      // passive scroll so we never interfere with the page.
+      document.addEventListener("click", recorderClickHandler, true);
+      document.addEventListener("change", recorderChangeHandler, true);
+      window.addEventListener("scroll", recorderScrollHandler, { passive: true });
+
+      try {
+        chrome.storage.local.get("recorderActive", (r) => {
+          isRecordingActive = !!(r && r.recorderActive);
+        });
+        chrome.storage.onChanged.addListener((changes, area) => {
+          if (area === "local" && changes.recorderActive) {
+            isRecordingActive = !!changes.recorderActive.newValue;
+          }
+        });
+      } catch (e) { /* ignore */ }
+
       // Initialize the content script
       function initialize() {
         try {

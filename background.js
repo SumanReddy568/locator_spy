@@ -201,11 +201,36 @@ export const initializeServiceWorker = () => {
     port.onMessage.addListener(devToolsListener);
   });
 
+  // Recorder append-queue. Multiple content scripts (one per tab) can fire
+  // recorderAppend messages in quick succession; serialize the storage
+  // get-set here so we never lose an interaction to a read/write race.
+  let recorderQueue = [];
+  let recorderFlushPending = false;
+
+  function flushRecorderQueue() {
+    if (recorderFlushPending || recorderQueue.length === 0) return;
+    recorderFlushPending = true;
+    chrome.storage.local.get({ recorderInteractions: [] }, (r) => {
+      const list = (r.recorderInteractions || []).concat(recorderQueue);
+      recorderQueue = [];
+      chrome.storage.local.set({ recorderInteractions: list }, () => {
+        recorderFlushPending = false;
+        if (recorderQueue.length) flushRecorderQueue();
+      });
+    });
+  }
+
   // Listen for messages from content scripts
   chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     try {
       if (message.action === 'locatorLifecycle') {
         logLocatorLifecycle(message.eventName, message.data || {});
+        return;
+      }
+
+      if (message.action === 'recorderAppend' && message.interaction) {
+        recorderQueue.push(message.interaction);
+        flushRecorderQueue();
         return;
       }
 

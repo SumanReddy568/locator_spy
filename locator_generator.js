@@ -578,13 +578,24 @@ window.generateLocatorsV1 = function generateLocatorsV1(element) {
   // uniquely to the target element. Anything that fails becomes null so the
   // UI's `if (locators.foo)` guards hide it. Length is handled during
   // generation, not here, so a long-but-unique fallback is still shown.
+  const xpathByTextValidated = validateXPath(getXpathByText(element), element);
+  const xpathByLinkTextValidated = validateXPath(linkPaths.link, element);
+  const xpathByPartialLinkTextValidated = validateXPath(linkPaths.partial, element);
+  // For <a> elements, getXpathByText and linkPaths.link both emit
+  // `//a[text()='X']`, so the panel renders two visually identical rows.
+  // Drop the generic xpathByText when it collides with the link-text form.
+  const xpathByTextOut =
+    xpathByLinkTextValidated && xpathByLinkTextValidated === xpathByTextValidated
+      ? null
+      : xpathByTextValidated;
+
   const result = {
     cssSelector: validateCss(getCssSelector(element), element),
     absoluteXPath: validateXPath(absoluteXPath(element), element),
     relativeXPath: validateXPath(getRelativeXPath(element), element),
-    xpathByText: validateXPath(getXpathByText(element), element),
-    xpathByLinkText: validateXPath(linkPaths.link, element),
-    xpathByPartialLinkText: validateXPath(linkPaths.partial, element),
+    xpathByText: xpathByTextOut,
+    xpathByLinkText: xpathByLinkTextValidated,
+    xpathByPartialLinkText: xpathByPartialLinkTextValidated,
 
     xpathByClassName: validateXPath(getXpathByClassName(element), element),
     xpathByTagName: validateXPath(getXpathByTagName(element), element),

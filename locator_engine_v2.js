@@ -583,6 +583,17 @@
       return null;
     })();
 
+    // For <a> elements, the generic text emitters (xpathByText /
+    // partialTextXPath) produce strings identical to the link-text emitters
+    // because the tag axis is `a` in both. Drop the generic forms when they
+    // collide so the panel doesn't show two visually identical rows. The
+    // link-text variants are kept because they map cleanly to Selenium's
+    // By.linkText / By.partialLinkText.
+    let xpathByTextOut = xpathByText;
+    let partialTextXPathOut = partialTextXPath;
+    if (linkPaths.link && linkPaths.link === xpathByTextOut) xpathByTextOut = null;
+    if (linkPaths.partial && linkPaths.partial === partialTextXPathOut) partialTextXPathOut = null;
+
     const result = {
       _engine: "v2",
       // v1-compatible fields (so existing popup/devtools UI keeps working)
@@ -595,8 +606,8 @@
       xpathByDataTestId,
       xpathByAriaLabel,
       xpathByPlaceholder,
-      xpathByText,
-      partialTextXPath,
+      xpathByText: xpathByTextOut,
+      partialTextXPath: partialTextXPathOut,
       xpathByLinkText: linkPaths.link,
       xpathByPartialLinkText: linkPaths.partial,
       xpathByClassName,

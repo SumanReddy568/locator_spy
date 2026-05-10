@@ -127,10 +127,10 @@ body::before {
 
 .container {
   height: 100vh;
-  padding: 16px 16px 12px 16px;
+  padding: 8px 16px 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   overflow: hidden;
 }
 
@@ -139,7 +139,7 @@ body::before {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 4px 4px 14px 4px;
+  padding: 2px 4px 6px 4px;
   border-bottom: 1px solid var(--hairline);
   background: transparent;
   color: var(--ink-1);
@@ -840,7 +840,7 @@ body.dark-mode .credits-badge {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin: 10px 12px 4px;
+  margin: 0;
   padding: 12px 14px;
   border-radius: 14px;
   color: #fff;
@@ -1708,7 +1708,7 @@ body.dark-mode .primary-btn:hover {
 .update-alert {
   background: linear-gradient(135deg, var(--ink-1), #2a2e36);
   color: var(--ink-inverse);
-  padding: 10px 14px;
+  padding: 6px 14px;
   border-radius: var(--radius);
   margin: 0;
   display: flex;
@@ -1736,6 +1736,369 @@ body.dark-mode .primary-btn:hover {
 }
 
 .update-alert.hidden { display: none !important; }
+
+/* Single banner section. All eligibility-driven banners (update available,
+   new feature, AI credits, ...) live inside this stack so the panel never
+   has banners scattered above and below the controls. Children manage their
+   own .hidden / [hidden] state; the stack just lays them out. */
+.banner-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+}
+.banner-stack:empty,
+.banner-stack > :only-child + :empty { display: none; }
+
+/* -------- Recorder view -------------------------------------------------*/
+.recorder-view[hidden] { display: none !important; }
+.locator-view[hidden] { display: none !important; }
+
+/* The recorder view doesn't use .section-header / #locatorResults the way
+   the locator view does, so its rows would otherwise sit flush against the
+   .section border. Mirror the locator-side gutters here. */
+.recorder-view {
+  padding: 14px 18px;
+}
+
+/* When the recorder view is active, hide everything that's specific to the
+   locator-finding workflow: the locator controls strip and the eligibility
+   banners (which all advertise locator-side features). The recorder
+   section has its own "Back to Locators" button at the top to come back. */
+body.view-recorder .controls,
+body.view-recorder #topBanners,
+body.view-recorder #feedbackRatingContainer { display: none !important; }
+
+/* Recorder toolbar: a single compact row of identification (Back + title +
+   beta tag + status) followed by an actions row (Start/Stop/Clear/
+   Framework/Copy Code). Two short rows beats a tall section-header +
+   separate topbar — the panel is wide and short, not the other way around. */
+.rec-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--hairline);
+}
+.rec-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.rec-flex-spacer { flex: 1 1 auto; }
+
+.rec-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink-1);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.beta-badge,
+.rec-beta-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffd569, #f5a623);
+  color: #2a1f0d;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  font-weight: 700;
+  vertical-align: middle;
+}
+.btn .beta-badge { margin-left: 6px; }
+
+/* All controls in the recorder toolbar share one outer height so buttons,
+   the framework pill, the status pill, and the back button line up
+   perfectly. The select *inside* the framework pill is sized to fit its
+   wrapper rather than being given its own fixed height. */
+.rec-back-btn,
+.rec-btn,
+.rec-framework-wrap,
+.rec-status {
+  box-sizing: border-box;
+  height: 26px;
+}
+.rec-framework-select {
+  box-sizing: border-box;
+  height: 20px;
+  border: 1px solid transparent;
+}
+
+.rec-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--ink-1);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.rec-back-btn:hover { border-color: var(--hairline-strong); }
+.rec-back-btn:active { transform: translateY(1px); }
+.rec-back-btn svg { flex-shrink: 0; }
+
+/* Recorder action buttons (Start/Stop/Clear/Copy Code) — pill style with a
+   visible border so they read as buttons, not as text links. */
+.rec-btn {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--ink-1);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.rec-btn:hover { border-color: var(--hairline-strong); }
+.rec-btn:active { transform: translateY(1px); }
+.rec-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.rec-btn.primary {
+  background: #1f2228;
+  color: #fff;
+  border-color: #1f2228;
+}
+.rec-btn.primary:hover { background: #000; border-color: #000; }
+.rec-btn.ghost { background: transparent; }
+
+.rec-subtitle {
+  margin: 4px 0 8px 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  line-height: 1.4;
+}
+.rec-subtitle strong { color: var(--ink-2); font-weight: 600; }
+
+.rec-framework-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+}
+.rec-framework-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+}
+.rec-framework-select {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-1);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 0 22px 0 10px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23797b80' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+}
+body.dark-mode .rec-framework-select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238a8d94' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+}
+
+.rec-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+.rec-status .rec-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--ink-3);
+}
+.rec-status.active { color: #d2453d; border-color: #d2453d; }
+.rec-status.active .rec-dot {
+  background: #d2453d;
+  animation: rec-pulse 1.4s ease-in-out infinite;
+}
+@keyframes rec-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(210, 69, 61, 0.45); }
+  50%      { box-shadow: 0 0 0 5px rgba(210, 69, 61, 0); }
+}
+
+.rec-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.rec-steps-pane,
+.rec-code-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+}
+.rec-pane-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+.rec-count {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg, transparent);
+}
+
+.rec-steps-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+.rec-steps-list li {
+  display: grid;
+  grid-template-columns: 22px 70px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 11.5px;
+}
+.rec-steps-list .step-index {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  text-align: right;
+}
+.rec-steps-list .step-action {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--accent-deep, #1f4ed8);
+  background: var(--accent-soft, rgba(47, 108, 255, 0.10));
+  padding: 2px 6px;
+  border-radius: 999px;
+  text-align: center;
+}
+.rec-steps-list .step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.rec-steps-list .step-element,
+.rec-steps-list .step-locator {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rec-steps-list .step-element { font-size: 11.5px; color: var(--ink-2); }
+.rec-steps-list .step-element strong { color: var(--ink-1); font-weight: 600; }
+.rec-steps-list .step-locator {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+
+.rec-empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-3);
+  border: 1px dashed var(--hairline);
+  border-radius: 8px;
+  padding: 12px;
+}
+.rec-empty p { margin: 0; }
+
+.rec-code {
+  margin: 0;
+  padding: 10px 12px;
+  background: #1c1f24;
+  color: #e8e6e0;
+  border-radius: 8px;
+  overflow: auto;
+  flex: 1 1 auto;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  min-height: 0;
+}
+
+@media (max-width: 720px) {
+  .rec-body { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* "What's new" variant of .update-alert. Same skeleton, calmer gradient and a
+   non-rotating sparkle so it's visually distinguishable from the version
+   "Update available" banner if both ever appear at once. */
+.new-feature-alert {
+  background: linear-gradient(135deg, #1d2540, #2a1f5a);
+}
+.new-feature-alert .update-content svg {
+  animation: none;
+  color: #ffd569;
+  filter: drop-shadow(0 0 4px rgba(255, 213, 105, 0.55));
+}
+.new-feature-alert .update-content em {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.10);
+}
 
 .update-content {
   display: flex;

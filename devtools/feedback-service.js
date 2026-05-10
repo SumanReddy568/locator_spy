@@ -156,6 +156,11 @@ window.FeedbackService = {
 
     const payload = {
       source: this.SOURCE,
+      // Lets the backend bucket feedback per feature ("general" for the
+      // top-of-panel thumbs prompt, "recorder" for the Recorder feedback
+      // button, etc.). Stale values from a previous open are reset by the
+      // openers below; we still default defensively here.
+      feature: this.selectedFeature || "general",
       userId: userInfo.userId,
       userEmail: userInfo.email,
       userHash: userInfo.userHash,
@@ -238,12 +243,14 @@ window.FeedbackService = {
 
     thumbsUp.addEventListener("click", () => {
       this.selectedRating = "positive";
+      this.selectedFeature = "general";
       feedbackPrompt.textContent = "What did you like about Locator Spy?";
       openFeedbackModal();
     });
 
     thumbsDown.addEventListener("click", () => {
       this.selectedRating = "negative";
+      this.selectedFeature = "general";
       feedbackPrompt.textContent = "What issues did you experience?";
       openFeedbackModal();
     });
@@ -255,5 +262,31 @@ window.FeedbackService = {
     });
 
     submitFeedback.addEventListener("click", () => this.submitFeedback());
+  },
+
+  /**
+   * Open the feedback modal for a specific feature with a custom prompt.
+   * Used by callers outside the global thumbs flow (e.g. the Recorder's
+   * "Feedback" button). Sets the feature tag and rating that the next
+   * `submitFeedback` call will include in its payload.
+   *
+   * @param {string} feature - bucket name, e.g. "recorder"
+   * @param {string} prompt  - prompt text shown inside the modal
+   * @param {string} [rating="neutral"] - "positive" / "negative" / "neutral"
+   */
+  openFeedbackForFeature(feature, prompt, rating = "neutral") {
+    const feedbackPrompt = document.getElementById("feedbackPrompt");
+    const feedbackModal = document.getElementById("feedbackModal");
+    const feedbackText = document.getElementById("feedbackText");
+    const feedbackStatus = document.getElementById("feedbackStatus");
+    if (!feedbackModal) return;
+    this.selectedFeature = feature || "general";
+    this.selectedRating = rating;
+    if (feedbackPrompt && prompt) feedbackPrompt.textContent = prompt;
+    if (feedbackStatus) feedbackStatus.textContent = "";
+    if (feedbackText) feedbackText.value = "";
+    feedbackModal.classList.add("show");
+    feedbackModal.style.display = "";
+    if (feedbackText) feedbackText.focus();
   },
 };

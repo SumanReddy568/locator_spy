@@ -200,6 +200,45 @@ export function trackFreeCreditsFallback(meta = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Recorder feature
+// ---------------------------------------------------------------------------
+
+export function trackRecorderOpened(meta = {}) {
+  return track("recorder_opened", { feature: "recorder", meta });
+}
+
+export function trackRecorderClosed(meta = {}) {
+  return track("recorder_closed", { feature: "recorder", meta });
+}
+
+export function trackRecorderStarted(meta = {}) {
+  return track("recorder_started", { feature: "recorder", meta });
+}
+
+export function trackRecorderStopped(meta = {}) {
+  // meta may include: stepCount, durationMs, framework, language
+  return track("recorder_stopped", { feature: "recorder", meta });
+}
+
+export function trackRecorderCleared(meta = {}) {
+  // meta.priorStepCount = how many steps were wiped
+  return track("recorder_cleared", { feature: "recorder", meta });
+}
+
+export function trackRecorderCodeCopied(meta = {}) {
+  // meta: { framework, language, stepCount, charCount,
+  //         actionBreakdown: { click, input, select, scroll } }
+  return track("recorder_code_copied", { feature: "recorder", meta });
+}
+
+export function trackRecorderFrameworkSelected(framework, language, meta = {}) {
+  return track("recorder_framework_selected", {
+    feature: "recorder",
+    meta: { framework, language, ...meta },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Locator Generation Lifecycle Logger
 // Only logs meaningful user actions - never on page load/refresh.
 // Events: mode_activated (select element) | element_sent_to_generation |
