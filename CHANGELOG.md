@@ -1,3 +1,6 @@
+## [1.4.3] - 2026-05-10
+- feat: recorder (beta), framework codegen, unified banner stack Adds an in-panel Recorder view that captures clicks, typing, selects, and scrolls and exports them as paste-ready Selenium / Playwright / Cypress / WebdriverIO code (Java, Python, JavaScript, TypeScript). Adds a Copy as dropdown so single locators can also be wrapped in framework code. Folds all eligibility-driven banners into one stack at the top so the panel no longer has banners scattered above and below the controls. Reuses the existing feedback collector with a feature tag for recorder feedback, emits analytics events for each recorder lifecycle step, and dedupes the duplicate XPath rows that v1 and v2 both produced for anchor elements. Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
 ## [1.4.2] - 2026-05-08
 - fix: gate role-name candidates and correct xpath emitter Skip role/accessible-name candidates when no emitter can render them (css/xpath
 
