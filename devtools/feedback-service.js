@@ -1,12 +1,10 @@
-/**
- * Feedback Service
- * Handles all feedback-related logic: checking feedback status,
- * submitting feedback, and managing the feedback modal UI.
- */
+// Classic script (loaded without type="module" so popup.js can use bare
+// `FeedbackService` references), so the shared utils/endpoints.js can't be
+// imported here — keep the URL inline.
+const WORKER_BASE = "https://open-api-worker.sumanreddy568.workers.dev";
 
 window.FeedbackService = {
-  /** Base URL for the feedback collector worker */
-  API_BASE: "https://feedback-collector.sumanreddy568.workers.dev",
+  API_BASE: WORKER_BASE,
   SOURCE: "locator-spy",
 
   /**

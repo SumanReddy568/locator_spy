@@ -1,9 +1,10 @@
 import { logLocatorLifecycle } from "../utils/analytics.js";
+import { WORKER_BASE, GATEWAY_BASE } from "../utils/endpoints.js";
 
-const CLOUDFLARE_WORKER_URL = "https://cloud-fare-ai-gateway.sumanreddy568.workers.dev";
+const CLOUDFLARE_WORKER_URL = GATEWAY_BASE;
 // Server-side free-credit AI proxy. Holds the provider key in a Cloudflare
 // secret, enforces per-user budget in D1. Client only sends auth_token.
-const FREE_TIER_WORKER_URL = "https://feedback-collector.sumanreddy568.workers.dev";
+const FREE_TIER_WORKER_URL = WORKER_BASE;
 
 // -------- Response cache ---------------------------------------------------
 // Re-running Optimize on the same element with the same provider/model and
@@ -215,9 +216,9 @@ async function generateAiLocators(
 
     if (freeCredits) {
       // Server-side path: the worker holds the Gemini key as a Cloudflare
-      // secret, validates auth_token via the auth-worker, enforces the
-      // per-user credit budget, and shapes the response identically to the
-      // OpenAI-compatible gateway (`choices[0].message.content`).
+      // secret, validates the bearer token, enforces the per-user credit
+      // budget, and shapes the response identically to the OpenAI-compatible
+      // gateway (`choices[0].message.content`).
       if (!freeCredits.authToken) {
         throw new Error("Sign in required for free credits");
       }

@@ -1,3 +1,7 @@
+// Classic script (loaded without type="module"), so the shared
+// utils/endpoints.js can't be imported here — keep the URL inline.
+const WORKER_BASE = "https://open-api-worker.sumanreddy568.workers.dev";
+
 document.addEventListener("DOMContentLoaded", function () {
   const locatorModeBtn = document.getElementById("locatorModeBtn");
   const locatorResults = document.getElementById("locatorResults");
@@ -501,7 +505,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   async function checkVersionUpdate() {
     try {
-      const response = await fetch('https://multi-product-analytics.sumanreddy568.workers.dev/api/latest-version?source=locator-spy');
+      const response = await fetch(`${WORKER_BASE}/api/latest-version?source=locator-spy`);
       const data = await response.json();
       const latestVersion = data.version;
       const currentVersion = chrome.runtime.getManifest().version;

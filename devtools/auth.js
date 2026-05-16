@@ -1,13 +1,8 @@
 import { logger, trackLogin, trackSignup, logAuthLifecycle } from '../utils/analytics.js';
+import { WORKER_BASE } from '../utils/endpoints.js';
 
-/**
- * Authentication Module for Locator Spy
- * Integrates with Cloudflare Auth Worker API
- */
-
-// Configuration
 const AUTH_CONFIG = {
-    API_BASE_URL: 'https://auth-worker.sumanreddy568.workers.dev',
+    API_BASE_URL: WORKER_BASE,
     SOURCE: 'locator-spy',
     STORAGE_KEYS: {
         TOKEN: 'auth_token',

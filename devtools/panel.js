@@ -20,6 +20,7 @@ import {
   trackRecorderCodeCopied,
   trackRecorderFrameworkSelected,
 } from '../utils/analytics.js';
+import { WORKER_BASE } from '../utils/endpoints.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -1059,9 +1060,9 @@ test('recorded flow', async ({ page }) => {
     });
   });
 
-  // Recorder feedback button — reuses the panel's existing feedback modal /
-  // feedback-collector endpoint, just tags the payload with feature: "recorder"
-  // so the backend can bucket recorder feedback separately from general.
+  // Recorder feedback button — reuses the panel's feedback modal and POSTs
+  // to the same /feedback endpoint, just tags the payload with
+  // feature: "recorder" so the backend can bucket it separately.
   const recFeedbackBtn = document.getElementById("recFeedbackBtn");
   if (recFeedbackBtn) {
     recFeedbackBtn.addEventListener("click", () => {
@@ -2245,7 +2246,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   async function checkVersionUpdate() {
     try {
-      const response = await fetch('https://multi-product-analytics.sumanreddy568.workers.dev/api/latest-version?source=locator-spy');
+      const response = await fetch(`${WORKER_BASE}/api/latest-version?source=locator-spy`);
       const data = await response.json();
       const latestVersion = data.version;
       const currentVersion = chrome.runtime.getManifest().version;

@@ -1,4 +1,6 @@
-const TRACK_URL = "https://multi-product-analytics.sumanreddy568.workers.dev/";
+import { WORKER_BASE } from "./endpoints.js";
+
+const TRACK_URL = `${WORKER_BASE}/api/event`;
 
 // Cache user info to avoid hitting chrome.storage.local too frequently
 let userInfoCache = null;
@@ -279,8 +281,7 @@ async function logPushLifecycle(entry) {
       }),
     };
 
-    const baseUrl = TRACK_URL.endsWith("/") ? TRACK_URL.slice(0, -1) : TRACK_URL;
-    await fetch(`${baseUrl}/api/logpush`, {
+    await fetch(`${WORKER_BASE}/api/logpush`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
