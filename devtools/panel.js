@@ -552,6 +552,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const recStepsEmpty = document.getElementById("recStepsEmpty");
   const recStepCount = document.getElementById("recStepCount");
   const recCodeInner = document.getElementById("recCodeInner");
+  const recCodeBlock = document.getElementById("recCodeBlock");
   const recCodeFrameworkLabel = document.getElementById("recCodeFrameworkLabel");
   const recGenerateAiBtn = document.getElementById("recGenerateAiBtn");
   const recCodeAiBadge = document.getElementById("recCodeAiBadge");
@@ -1126,6 +1127,89 @@ test('recorded flow', async ({ page }) => {
   // AI generation: turn the recorded steps into a production-quality test.
   // Reuses the exact free-credits-first / BYO-key resolution as Optimize, and
   // the same transparent fallback when free credits run out.
+  // Staged "thinking" UX for the recorder's AI generation — same cosmetic
+  // pattern as the optimize flow's aiThinking. The generate call is a single
+  // blocking request, so we narrate plausible stages of the work in the code
+  // pane while we wait. No worker or response-contract changes.
+  const recAiThinking = {
+    timers: [],
+    panel: null,
+    STAGES: [
+      "Reading recorded steps",
+      "Mapping actions to framework",
+      "Hardening locators & waits",
+      "Writing assertions & test code",
+    ],
+    REASSURE: [
+      { delay: 5000, text: "Hold tight — we're at the final processing…" },
+      { delay: 11000, freeOnly: true, text: "Almost there — free-credit responses can run a little slow." },
+    ],
+    isFree: false,
+    start(isFree = false) {
+      this.stop();
+      this.isFree = isFree;
+      if (!recCodeBlock || !recCodeBlock.parentElement) return;
+      const steps = this.STAGES
+        .map(
+          (label, i) =>
+            `<li class="ai-step is-pending" data-i="${i}">
+               <span class="ai-step-dot"></span>
+               <span class="ai-step-label">${label}</span>
+             </li>`,
+        )
+        .join("");
+      const panel = document.createElement("div");
+      panel.className = "ai-thinking rec-ai-thinking";
+      panel.setAttribute("role", "status");
+      panel.setAttribute("aria-live", "polite");
+      panel.innerHTML =
+        `<div class="ai-thinking-head">
+           <span class="ai-thinking-orb"></span>
+           <span class="ai-thinking-title">AI is writing your test…</span>
+         </div>
+         <ul class="ai-thinking-steps">${steps}</ul>
+         <p class="ai-thinking-note" hidden></p>`;
+      // Hide the code block and show the panel in its place, so the existing
+      // <pre> content stays intact for the success/restore paths.
+      recCodeBlock.hidden = true;
+      recCodeBlock.parentElement.appendChild(panel);
+      this.panel = panel;
+      this.activate(0);
+    },
+    activate(index) {
+      if (!this.panel) return;
+      const steps = this.panel.querySelectorAll(".ai-step");
+      steps.forEach((el, i) => {
+        el.classList.toggle("is-done", i < index);
+        el.classList.toggle("is-active", i === index);
+        el.classList.toggle("is-pending", i > index);
+      });
+      if (index < this.STAGES.length - 1) {
+        this.timers.push(setTimeout(() => this.activate(index + 1), 1600 + index * 300));
+      } else {
+        const note = this.panel.querySelector(".ai-thinking-note");
+        this.REASSURE.filter((r) => !r.freeOnly || this.isFree).forEach((r) => {
+          this.timers.push(
+            setTimeout(() => {
+              if (!note) return;
+              note.textContent = r.text;
+              note.hidden = false;
+            }, r.delay),
+          );
+        });
+      }
+    },
+    stop() {
+      this.timers.forEach(clearTimeout);
+      this.timers = [];
+      if (this.panel) {
+        this.panel.remove();
+        this.panel = null;
+      }
+      if (recCodeBlock) recCodeBlock.hidden = false;
+    },
+  };
+
   async function performRecorderAiGeneration() {
     chrome.storage.local.get(
       ["recorderInteractions", "aiProvider", "googleApiKey", "aiModel", "openRouterApiKey", "openRouterModel", "auth_token"],
@@ -1173,6 +1257,8 @@ test('recorded flow', async ({ page }) => {
             recGenerateAiBtn.classList.remove("is-loading");
           }
         };
+
+        recAiThinking.start(tryFreeFirst);
 
         const callOnce = (mode) =>
           generateAiTestCode(
@@ -1249,6 +1335,9 @@ test('recorded flow', async ({ page }) => {
           trackRecorderAiFailed(failMeta);
           showCopyNotification(`AI generation failed: ${(err && err.message) || "try again"}`);
         } finally {
+          // Removes the panel and unhides the code block. On success the code
+          // pane was already re-rendered (while hidden) by renderRecorderView.
+          recAiThinking.stop();
           restoreBtn();
         }
       },
@@ -2267,6 +2356,92 @@ test('recorded flow', async ({ page }) => {
     });
   }
 
+  // Staged "thinking" UX. The optimize request is a single blocking call, so
+  // there's no real reasoning stream to show — instead we narrate plausible
+  // stages of the work while the request is in flight. Purely cosmetic: it
+  // makes the wait (free-credit responses can be slow) feel responsive without
+  // touching the worker or the JSON response contract.
+  const aiThinking = {
+    timers: [],
+    prevHTML: null,
+    STAGES: [
+      "Reading element & DOM structure",
+      "Evaluating candidate selectors",
+      "Scoring locators for stability",
+      "Finalizing recommendations",
+    ],
+    // Reassurance copy shown when the final stage drags on, so a slow
+    // response doesn't read as a stall. {delay} is ms after the final stage is
+    // reached. freeOnly entries only show on the free-credit path (the slow one).
+    REASSURE: [
+      { delay: 5000, text: "Hold tight — we're at the final processing…" },
+      { delay: 11000, freeOnly: true, text: "Almost there — free-credit responses can run a little slow." },
+    ],
+    isFree: false,
+    start(isFree = false) {
+      this.stop();
+      this.isFree = isFree;
+      this.prevHTML = locatorResults.innerHTML;
+      const steps = this.STAGES
+        .map(
+          (label, i) =>
+            `<li class="ai-step is-pending" data-i="${i}">
+               <span class="ai-step-dot"></span>
+               <span class="ai-step-label">${label}</span>
+             </li>`,
+        )
+        .join("");
+      locatorResults.innerHTML =
+        `<div id="aiThinkingPanel" class="ai-thinking" role="status" aria-live="polite">
+           <div class="ai-thinking-head">
+             <span class="ai-thinking-orb"></span>
+             <span class="ai-thinking-title">AI is optimizing your locators…</span>
+           </div>
+           <ul class="ai-thinking-steps">${steps}</ul>
+           <p class="ai-thinking-note" hidden></p>
+         </div>`;
+      this.activate(0);
+    },
+    activate(index) {
+      const panel = document.getElementById("aiThinkingPanel");
+      if (!panel) return;
+      const steps = panel.querySelectorAll(".ai-step");
+      steps.forEach((el, i) => {
+        el.classList.toggle("is-done", i < index);
+        el.classList.toggle("is-active", i === index);
+        el.classList.toggle("is-pending", i > index);
+      });
+      if (index < this.STAGES.length - 1) {
+        // Advance while earlier stages remain.
+        this.timers.push(setTimeout(() => this.activate(index + 1), 1600 + index * 300));
+      } else {
+        // Held on the final stage — escalate reassurance over time.
+        const note = panel.querySelector(".ai-thinking-note");
+        this.REASSURE.filter((r) => !r.freeOnly || this.isFree).forEach((r) => {
+          this.timers.push(
+            setTimeout(() => {
+              if (!note) return;
+              note.textContent = r.text;
+              note.hidden = false;
+            }, r.delay),
+          );
+        });
+      }
+    },
+    stop() {
+      this.timers.forEach(clearTimeout);
+      this.timers = [];
+    },
+    // Restore the pre-thinking content only if our panel is still on screen
+    // (i.e. the request errored out before displayLocators replaced it).
+    dismiss() {
+      if (document.getElementById("aiThinkingPanel") && this.prevHTML != null) {
+        locatorResults.innerHTML = this.prevHTML;
+      }
+      this.prevHTML = null;
+    },
+  };
+
   async function performAiOptimization(isAutoTrigger = false) {
     if (optimizeAiBtn) {
       optimizeAiBtn.innerHTML = `Improving...`;
@@ -2319,6 +2494,8 @@ test('recorded flow', async ({ page }) => {
         let mode = tryFreeFirst ? "free_credits" : "byo_key";
         let locators;
         let fellBackToKey = false;
+
+        aiThinking.start(mode === "free_credits");
 
         logLocatorLifecycle("ai_optimization_started", {
           provider,
@@ -2430,6 +2607,10 @@ test('recorded flow', async ({ page }) => {
             if (!isAutoTrigger) showCopyNotification("AI Optimization Failed: " + error.message);
           }
         } finally {
+          aiThinking.stop();
+          // On success displayLocators has already replaced the panel; on
+          // failure this restores whatever was showing before.
+          aiThinking.dismiss();
           resetOptimizeBtn();
         }
       },
