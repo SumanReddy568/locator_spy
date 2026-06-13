@@ -17,8 +17,11 @@ const AI_CACHE_MAX_ENTRIES = 200;
 // Bump when prompt/v1.txt changes meaningfully so old cache entries are
 // invalidated automatically.
 const AI_PROMPT_VERSION = "v1";
+// Bump when prompt/recorder-v1.txt changes meaningfully.
+const AI_RECORDER_PROMPT_VERSION = "rec-v1";
 
 let cachedBasePrompt = null;
+let cachedRecorderPrompt = null;
 
 function aiCacheStorageAvailable() {
   return typeof chrome !== "undefined" && chrome.storage && chrome.storage.local;
@@ -140,6 +143,20 @@ async function getBasePrompt() {
     // Fallback in case of failure
     return `You are a senior Automation QA Architect.
 Analyze the provided "HTML Context" to generate precise, robust, and optimized Selenium/WebDriver locators for the **Single Target Element**.`;
+  }
+}
+
+async function getRecorderPrompt() {
+  if (cachedRecorderPrompt) return cachedRecorderPrompt;
+  try {
+    const url = chrome.runtime.getURL("devtools/prompt/recorder-v1.txt");
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Could not fetch recorder prompt file");
+    cachedRecorderPrompt = await response.text();
+    return cachedRecorderPrompt;
+  } catch (error) {
+    console.error("Error loading recorder AI prompt:", error);
+    return `You are a senior SDET. Turn the recorded UI interactions into a single, production-quality automated test for the target framework and language, with robust locators, smart waits, meaningful assertions, comments, and a descriptive test name. Return ONLY a JSON object with keys testName, framework, language, code, steps, notes.`;
   }
 }
 
@@ -361,8 +378,159 @@ async function fetchFreeCredits(authToken) {
   }
 }
 
+/**
+ * AI-powered recorder: turn a recorded step sequence into a production-quality
+ * test (idiomatic code, robust locators, smart waits, auto-assertions, a
+ * descriptive name, and plain-English step labels). Mirrors generateAiLocators:
+ * free-credits-first via the worker, or BYO key via the gateway, with caching.
+ *
+ * @param {Array} steps - recorderInteractions array
+ * @param {string} framework - "selenium" | "playwright" | "cypress" | "webdriverio" | "raw"
+ * @param {string} language - "java" | "python" | "javascript" | "typescript"
+ * @param {string} apiKey - BYO API key (ignored on the free-credits path)
+ * @param {string} model - model name
+ * @param {string} provider - "google" | "openrouter"
+ * @returns {Promise<object>} { testName, framework, language, code, steps, notes }
+ */
+async function generateAiTestCode(
+  steps,
+  framework,
+  language,
+  apiKey,
+  model,
+  provider = "google",
+  { bypassCache = false, freeCredits = null } = {}
+) {
+  if (!Array.isArray(steps) || steps.length === 0) {
+    throw new Error("No recorded steps to generate from");
+  }
+
+  const resolvedModel = model || (provider === "google"
+    ? "gemini-2.5-flash"
+    : "google/gemini-2.5-flash-exp:free");
+
+  const effectiveProvider = freeCredits ? "freecredits" : provider;
+
+  // Same hashing/cache store as Optimize — the steps + framework + language
+  // fully determine the output, so re-generating is a deterministic cache hit.
+  const cacheKey = await aiCacheKey({
+    htmlContext: JSON.stringify({ framework, language, steps }),
+    existingLocators: {},
+    provider: effectiveProvider,
+    model: resolvedModel,
+    promptVersion: AI_RECORDER_PROMPT_VERSION,
+  });
+
+  if (!bypassCache) {
+    const cached = await aiCacheGet(cacheKey);
+    if (cached) {
+      logLocatorLifecycle("recorder_ai_cache_hit", {
+        provider: effectiveProvider, model: resolvedModel, framework, language,
+      });
+      return cached;
+    }
+  }
+  logLocatorLifecycle("recorder_ai_cache_miss", {
+    provider: effectiveProvider, model: resolvedModel, framework, language,
+    stepCount: steps.length, bypassed: bypassCache,
+  });
+
+  const basePrompt = await getRecorderPrompt();
+
+  let url, headers, body;
+  if (freeCredits) {
+    if (!freeCredits.authToken) throw new Error("Sign in required for free credits");
+    url = `${FREE_TIER_WORKER_URL}/ai/recorder`;
+    headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${freeCredits.authToken}`,
+    };
+    body = JSON.stringify({ basePrompt, framework, language, steps, model: resolvedModel });
+  } else {
+    // BYO-key path: assemble the same prompt the worker would and send it
+    // through the OpenAI-compatible gateway.
+    const prompt = basePrompt +
+      `\n\nTarget framework: ${framework}` +
+      `\nTarget language: ${language}` +
+      `\n\nRecorded steps (JSON array, in order):\n${JSON.stringify(steps, null, 2)}\n`;
+
+    if (provider === "google") {
+      url = `${CLOUDFLARE_WORKER_URL}/compat/chat/completions`;
+      const fullModelName = resolvedModel.includes("/") ? resolvedModel : `google-ai-studio/${resolvedModel}`;
+      headers = { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` };
+      body = JSON.stringify({
+        model: fullModelName,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 1,
+      });
+    } else if (provider === "openrouter") {
+      url = `${CLOUDFLARE_WORKER_URL}/openrouter/chat/completions`;
+      headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://github.com/SumanReddy568/locator_spy",
+        "X-Title": "Locator Spy",
+      };
+      body = JSON.stringify({
+        model: resolvedModel,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 1,
+      });
+    } else {
+      throw new Error("Unsupported provider");
+    }
+  }
+
+  const response = await fetch(url, { method: "POST", headers, body });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    const errCode = typeof err.error === "string" ? err.error : null;
+    if (response.status === 402 && errCode === "free_credits_exhausted") {
+      const e = new Error("Free credits exhausted");
+      e.code = "free_credits_exhausted";
+      e.creditsRemaining = 0;
+      e.creditsLimit = err.creditsLimit;
+      throw e;
+    }
+    const errMsg = err.error?.message || errCode || err.message || "AI request failed";
+    throw new Error(errMsg);
+  }
+
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Empty AI response");
+
+  const cleaned = text.replace(/```json|```/gi, "").trim();
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (e) {
+    console.error("Raw recorder AI output:", cleaned);
+    throw new Error("Invalid JSON returned by AI");
+  }
+  if (!parsed || typeof parsed.code !== "string" || !parsed.code.trim()) {
+    throw new Error("AI response missing code");
+  }
+
+  if (freeCredits && typeof data.creditsRemaining === "number") {
+    Object.defineProperty(parsed, "__credits", {
+      value: { remaining: data.creditsRemaining, used: data.creditsUsed, limit: data.creditsLimit },
+      enumerable: false,
+    });
+  }
+  Object.defineProperty(parsed, "__meta", {
+    value: { provider: data.provider || effectiveProvider, model: data.model || resolvedModel },
+    enumerable: false,
+  });
+
+  aiCacheSet(cacheKey, parsed, { provider: effectiveProvider, model: resolvedModel }).catch(() => {});
+  return parsed;
+}
+
 // Expose to window for coexistence with non-module scripts if needed
 window.generateAiLocators = generateAiLocators;
+window.generateAiTestCode = generateAiTestCode;
 window.fetchFreeCredits = fetchFreeCredits;
 
 // Debug / escape hatch: clear or inspect the cache from the DevTools console.

@@ -240,6 +240,33 @@ export function trackRecorderFrameworkSelected(framework, language, meta = {}) {
   });
 }
 
+// ---- Intelligent Recorder: AI test generation ----------------------------
+// Funnel for "Generate with AI" in the recorder: started → generated|failed.
+// Mode-aware (free_credits vs byo_key) and records fallback, just like the
+// locator-mode AI optimization events.
+
+export function trackRecorderAiStarted(meta = {}) {
+  // meta: { framework, language, stepCount, mode, provider, model }
+  return track("recorder_ai_started", { feature: "recorder_ai", meta });
+}
+
+export function trackRecorderAiGenerated(meta = {}) {
+  // meta: { framework, language, stepCount, mode, fellBackToKey, provider,
+  //         model, testName, creditsRemaining }
+  return track("recorder_ai_generated", { feature: "recorder_ai", meta });
+}
+
+export function trackRecorderAiFailed(meta = {}) {
+  // meta: { framework, language, reason | error, provider, model }
+  return track("recorder_ai_failed", { feature: "recorder_ai", meta });
+}
+
+// BYOK nudge in the AI caveat strip (recorder + locator views).
+export function trackByokCtaClicked(meta = {}) {
+  // meta.source = "recorder" | "locator"
+  return track("byok_cta_clicked", { feature: "ai_settings", meta });
+}
+
 // ---------------------------------------------------------------------------
 // Locator Generation Lifecycle Logger
 // Only logs meaningful user actions - never on page load/refresh.

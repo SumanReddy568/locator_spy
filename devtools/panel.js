@@ -19,6 +19,10 @@ import {
   trackRecorderCleared,
   trackRecorderCodeCopied,
   trackRecorderFrameworkSelected,
+  trackRecorderAiStarted,
+  trackRecorderAiGenerated,
+  trackRecorderAiFailed,
+  trackByokCtaClicked,
 } from '../utils/analytics.js';
 import { WORKER_BASE } from '../utils/endpoints.js';
 
@@ -549,6 +553,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const recStepCount = document.getElementById("recStepCount");
   const recCodeInner = document.getElementById("recCodeInner");
   const recCodeFrameworkLabel = document.getElementById("recCodeFrameworkLabel");
+  const recGenerateAiBtn = document.getElementById("recGenerateAiBtn");
+  const recCodeAiBadge = document.getElementById("recCodeAiBadge");
+  const recTestName = document.getElementById("recTestName");
+  const recCreditsInfo = document.getElementById("recCreditsInfo");
 
   // (Framework, Language) → format key. Each combo points at one of the
   // existing format keys the code generators already understand. New
@@ -922,6 +930,33 @@ test('recorded flow', async ({ page }) => {
     );
   }
 
+  // Most recent AI generation, re-applied by renderRecorderView across the
+  // storage-driven re-renders. Shape: { format, stepSig, data }. It
+  // auto-invalidates when the recorded steps or the framework/language change
+  // (signature mismatch) — the view falls back to the template codegen and
+  // the user can regenerate.
+  let recAiResult = null;
+  function recStepSignature(interactions) {
+    return (interactions || []).map((i) => i && i.id).join("|");
+  }
+
+  // Mirror the locator panel's free-credit count into the recorder view. Reads
+  // the shared freeCreditsState; hidden until credits are known.
+  function applyRecorderCreditsInfo() {
+    if (!recCreditsInfo) return;
+    const s = freeCreditsState;
+    if (s && typeof s.remaining === "number") {
+      const left = s.remaining;
+      const limit = typeof s.limit === "number" ? s.limit : null;
+      recCreditsInfo.hidden = false;
+      recCreditsInfo.textContent = limit != null
+        ? `${left} / ${limit} free AI credits`
+        : `${left} free AI ${left === 1 ? "credit" : "credits"} left`;
+    } else {
+      recCreditsInfo.hidden = true;
+    }
+  }
+
   function renderRecorderView(state) {
     const interactions = state.recorderInteractions || [];
     const isActive = !!state.recorderActive;
@@ -941,6 +976,14 @@ test('recorded flow', async ({ page }) => {
 
     // The downstream code generators still take the single format key.
     const framework = format;
+
+    // If the last AI generation still matches the current steps + framework,
+    // it becomes the active output (code, test name, per-step annotations).
+    const sig = recStepSignature(interactions);
+    const aiData =
+      recAiResult && recAiResult.format === format && recAiResult.stepSig === sig
+        ? recAiResult.data
+        : null;
 
     if (recStatus) {
       recStatus.classList.toggle("active", isActive);
@@ -976,12 +1019,21 @@ test('recorded flow', async ({ page }) => {
               descriptor = `<strong>&lt;${escapeHtml(tag)}&gt;</strong> ${escapeHtml(text)}`;
             }
             const locStr = loc ? `${loc.type}: ${loc.value}` : (it.action === "scroll" ? "" : "(no locator)");
+            // When an AI generation is active, annotate each step with its
+            // plain-English description and any inferred assertion.
+            const aiStep = aiData && Array.isArray(aiData.steps) ? aiData.steps[idx] : null;
+            const aiNote = aiStep && aiStep.description
+              ? `<span class="step-ai-note">${escapeHtml(String(aiStep.description))}</span>` : "";
+            const aiAssert = aiStep && aiStep.assertion
+              ? `<span class="step-ai-assert">${escapeHtml(String(aiStep.assertion))}</span>` : "";
             return `<li>
               <span class="step-index">${idx + 1}</span>
               <span class="step-action">${escapeHtml(it.action)}</span>
               <div class="step-body">
                 <span class="step-element">${descriptor}</span>
                 ${locStr ? `<span class="step-locator">${escapeHtml(locStr)}</span>` : ""}
+                ${aiNote}
+                ${aiAssert}
               </div>
             </li>`;
           })
@@ -989,8 +1041,19 @@ test('recorded flow', async ({ page }) => {
       }
     }
 
-    if (recCodeInner) recCodeInner.textContent = recGenerateCode(interactions, framework);
+    if (aiData) {
+      // AI generation is the active output for the current steps + framework.
+      if (recCodeInner) recCodeInner.textContent = aiData.code;
+      if (recCodeAiBadge) recCodeAiBadge.hidden = false;
+      if (recTestName) recTestName.textContent = aiData.testName ? String(aiData.testName) : "";
+    } else {
+      if (recCodeInner) recCodeInner.textContent = recGenerateCode(interactions, framework);
+      if (recCodeAiBadge) recCodeAiBadge.hidden = true;
+      if (recTestName) recTestName.textContent = "";
+    }
     if (recCodeFrameworkLabel) recCodeFrameworkLabel.textContent = framework;
+
+    applyRecorderCreditsInfo();
   }
 
   // Timestamp of the last Start click. Used to compute session duration
@@ -1057,6 +1120,152 @@ test('recorded flow', async ({ page }) => {
       };
       trackRecorderCodeCopied(meta);
       logLocatorLifecycle("recorder_code_copied", meta);
+    });
+  });
+
+  // AI generation: turn the recorded steps into a production-quality test.
+  // Reuses the exact free-credits-first / BYO-key resolution as Optimize, and
+  // the same transparent fallback when free credits run out.
+  async function performRecorderAiGeneration() {
+    chrome.storage.local.get(
+      ["recorderInteractions", "aiProvider", "googleApiKey", "aiModel", "openRouterApiKey", "openRouterModel", "auth_token"],
+      async (result) => {
+        const interactions = result.recorderInteractions || [];
+        if (!interactions.length) {
+          showCopyNotification("Record some steps first, then Generate with AI.");
+          return;
+        }
+
+        const { framework, language } = recCurrentPickers();
+        const fw = framework || "selenium";
+        const lang = language || "java";
+        if (fw === "raw") {
+          showCopyNotification("Pick a framework (not Raw) for AI generation.");
+          return;
+        }
+
+        const provider = result.aiProvider || "google";
+        const apiKey = provider === "openrouter" ? result.openRouterApiKey : result.googleApiKey;
+        const model = provider === "openrouter" ? result.openRouterModel : result.aiModel;
+        const authToken = result.auth_token;
+
+        // Free credits first whenever available (google + signed in), falling
+        // back to the user's own key when exhausted — same policy as Optimize.
+        const credits = freeCreditsState;
+        const hasFreeRemaining = credits && typeof credits.remaining === "number" && credits.remaining > 0;
+        const freeAvailable = provider === "google" && !!authToken;
+        const tryFreeFirst = freeAvailable && (hasFreeRemaining || !apiKey);
+
+        if (!apiKey && !tryFreeFirst) {
+          logLocatorLifecycle("recorder_ai_failed", { reason: "api_key_missing", provider });
+          trackRecorderAiFailed({ reason: "api_key_missing", provider, framework: fw, language: lang });
+          if (typeof openAiSettings === "function") openAiSettings();
+          return;
+        }
+
+        if (recGenerateAiBtn) {
+          recGenerateAiBtn.disabled = true;
+          recGenerateAiBtn.classList.add("is-loading");
+        }
+        const restoreBtn = () => {
+          if (recGenerateAiBtn) {
+            recGenerateAiBtn.disabled = false;
+            recGenerateAiBtn.classList.remove("is-loading");
+          }
+        };
+
+        const callOnce = (mode) =>
+          generateAiTestCode(
+            interactions, fw, lang, apiKey, model, provider,
+            mode === "free_credits" ? { freeCredits: { authToken } } : undefined,
+          );
+
+        let mode = tryFreeFirst ? "free_credits" : "byo_key";
+        let fellBackToKey = false;
+        logLocatorLifecycle("recorder_ai_started", {
+          provider, model, mode, framework: fw, language: lang, stepCount: interactions.length,
+        });
+        trackRecorderAiStarted({
+          provider, model, mode, framework: fw, language: lang, stepCount: interactions.length,
+        });
+
+        try {
+          let data;
+          try {
+            data = await callOnce(mode);
+          } catch (err) {
+            if (err && err.code === "free_credits_exhausted" && apiKey) {
+              updateCreditsFromResponse({ used: err.creditsLimit, remaining: 0, limit: err.creditsLimit });
+              const fbMeta = { provider, model, limit: err.creditsLimit };
+              trackFreeCreditsExhausted({ ...fbMeta, source: "recorder" });
+              trackFreeCreditsFallback(fbMeta);
+              logLocatorLifecycle("free_credits_exhausted", { ...fbMeta, source: "recorder" });
+              logLocatorLifecycle("recorder_ai_fallback", { reason: "free_credits_exhausted", ...fbMeta });
+              mode = "byo_key";
+              fellBackToKey = true;
+              data = await callOnce(mode);
+            } else {
+              throw err;
+            }
+          }
+
+          if (!data || typeof data.code !== "string") throw new Error("Empty AI result");
+
+          if (data.__credits) updateCreditsFromResponse(data.__credits);
+          recAiResult = {
+            format: recFormatFor(fw, lang),
+            stepSig: recStepSignature(interactions),
+            data,
+          };
+          readRecorderState(renderRecorderView);
+
+          const left = data.__credits ? data.__credits.remaining : null;
+          const completedMeta = {
+            provider, model, mode, fellBackToKey, framework: fw, language: lang,
+            testName: data.testName, stepCount: interactions.length,
+            creditsRemaining: typeof left === "number" ? left : undefined,
+          };
+          logLocatorLifecycle("recorder_ai_completed", completedMeta);
+          trackRecorderAiGenerated(completedMeta);
+
+          if (fellBackToKey) {
+            showCopyNotification("Generated with AI! Free credits used up — switched to your API key.");
+          } else if (mode === "free_credits" && typeof left === "number") {
+            showCopyNotification(
+              left > 0
+                ? `Generated with AI! (${left} free ${left === 1 ? "credit" : "credits"} left)`
+                : "Generated with AI! Last free credit used.",
+            );
+          } else {
+            showCopyNotification("Generated with AI!");
+          }
+        } catch (err) {
+          console.error("Recorder AI generation failed:", err);
+          const failMeta = {
+            provider, model, framework: fw, language: lang,
+            error: String((err && err.message) || err),
+          };
+          logLocatorLifecycle("recorder_ai_failed", failMeta);
+          trackRecorderAiFailed(failMeta);
+          showCopyNotification(`AI generation failed: ${(err && err.message) || "try again"}`);
+        } finally {
+          restoreBtn();
+        }
+      },
+    );
+  }
+  if (recGenerateAiBtn) recGenerateAiBtn.addEventListener("click", performRecorderAiGeneration);
+
+  // "add your own API key" (BYOK) links in the AI caveat strips (recorder +
+  // locator views) open the AI settings panel.
+  [document.getElementById("recByokLink"), document.getElementById("locByokLink")].forEach((lnk) => {
+    if (!lnk) return;
+    lnk.addEventListener("click", (e) => {
+      e.preventDefault();
+      const source = lnk.id === "recByokLink" ? "recorder" : "locator";
+      logLocatorLifecycle("byok_cta_clicked", { source });
+      trackByokCtaClicked({ source });
+      if (typeof openAiSettings === "function") openAiSettings();
     });
   });
 
@@ -1885,6 +2094,9 @@ test('recorded flow', async ({ page }) => {
         }
       }
     }
+
+    // Keep the recorder's free-credit chip in sync with locator-panel updates.
+    applyRecorderCreditsInfo();
   }
 
   function updateCreditsFromResponse(credits) {

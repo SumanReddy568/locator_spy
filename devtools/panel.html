@@ -140,7 +140,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="none" stroke-linejoin="round">
             <path d="M12 3 L13.7 9.3 L20 11 L13.7 12.7 L12 19 L10.3 12.7 L4 11 L10.3 9.3 Z" fill="currentColor"/>
           </svg>
-          <span><strong>New:</strong>&nbsp;<em>Recorder&nbsp;(Beta)</em> captures clicks, typing &amp; scrolls and exports Selenium / Playwright / Cypress / WebdriverIO code. <em>Copy&nbsp;as</em> does the same for single locators.</span>
+          <span><strong>New:</strong>&nbsp;<em>Intelligent&nbsp;Recorder</em> captures clicks, typing &amp; scrolls and generates AI-powered Selenium / Playwright / Cypress / WebdriverIO tests. <em>Copy&nbsp;as</em> does the same for single locators.</span>
         </div>
       </div>
 
@@ -238,13 +238,12 @@
         </svg>
         Refresh
       </button>
-      <button id="openRecorderBtn" class="btn" title="Open Recorder — capture clicks and generate automation code (Beta)">
+      <button id="openRecorderBtn" class="btn" title="Open the Intelligent Recorder — capture clicks and generate AI-powered automation code">
         <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="9"></circle>
           <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
         </svg>
-        Recorder
-        <span class="beta-badge">Beta</span>
+        Intelligent Recorder
       </button>
       <div class="spacer"></div>
       <div class="search-box">
@@ -319,6 +318,9 @@
             </button>
           </div>
         </div>
+        <div class="ai-caveat">
+          <span class="ai-caveat-text">⚠️ AI can make mistakes — verify optimized locators against the live DOM. Free-credit responses can be slow; <a href="#" id="locByokLink" class="ai-caveat-link">add your own API key</a> (BYOK) for faster results.</span>
+        </div>
         <div id="locatorResults">
           <div class="placeholder">
             <svg class="placeholder-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
@@ -346,10 +348,7 @@
             </svg>
             Back
           </button>
-          <h3 class="rec-title">
-            Recorder
-            <span class="rec-beta-badge" title="Beta — actively being tuned. Behavior may change.">Beta</span>
-          </h3>
+          <h3 class="rec-title">Intelligent Recorder</h3>
           <span class="rec-flex-spacer"></span>
           <span id="recStatus" class="rec-status idle">
             <span class="rec-dot"></span>
@@ -375,6 +374,12 @@
             <select id="recLanguageSelect" class="rec-framework-select"></select>
           </label>
           <span class="rec-flex-spacer"></span>
+          <button id="recGenerateAiBtn" class="rec-btn ai" title="Turn the recording into a production-quality test: idiomatic code, robust locators, smart waits and assertions.">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px;">
+              <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z"></path>
+            </svg>
+            Generate with AI
+          </button>
           <button id="recCopyCodeBtn" class="rec-btn">Copy Code</button>
           <button id="recFeedbackBtn" class="rec-btn ghost" title="Tell us how the Recorder is working for you">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -1px;">
@@ -384,6 +389,10 @@
           </button>
         </div>
         <p class="rec-subtitle">Click <strong>Start</strong>, then interact with your app in the page next to this panel — clicks, typing, selects and scrolls are all captured.</p>
+        <div class="ai-caveat">
+          <span id="recCreditsInfo" class="ai-caveat-credits" hidden></span>
+          <span class="ai-caveat-text">⚠️ AI can make mistakes — review the generated test before using it. Free-credit responses can be slow; <a href="#" id="recByokLink" class="ai-caveat-link">add your own API key</a> (BYOK) for faster results.</span>
+        </div>
         <div class="rec-body">
           <div class="rec-steps-pane">
             <div class="rec-pane-title">Steps · <span id="recStepCount" class="rec-count">0</span></div>
@@ -393,7 +402,7 @@
             </div>
           </div>
           <div class="rec-code-pane">
-            <div class="rec-pane-title">Generated Code · <span id="recCodeFrameworkLabel" class="rec-count">raw</span></div>
+            <div class="rec-pane-title">Generated Code · <span id="recCodeFrameworkLabel" class="rec-count">raw</span><span id="recCodeAiBadge" class="rec-ai-badge" hidden>✨ AI</span><span id="recTestName" class="rec-test-name"></span></div>
             <pre id="recCodeBlock" class="rec-code"><code id="recCodeInner">// Click "Start", then interact with the page.</code></pre>
           </div>
         </div>
@@ -493,7 +502,7 @@
       <div class="release-item latest">
         <h4>Version 1.4.4 <span class="release-date">May 2026</span><span class="new-badge">New</span></h4>
         <ul>
-          <li><strong>Recorder (Beta):</strong> Capture clicks, typing, selects and scrolls in your app and export them as paste-ready automation code — Selenium (Java&nbsp;/ Python&nbsp;/ JavaScript), Playwright (JS&nbsp;/ TS&nbsp;/ Python), Cypress, or WebdriverIO.</li>
+          <li><strong>Intelligent Recorder:</strong> Capture clicks, typing, selects and scrolls in your app, then generate AI-powered, paste-ready tests with smart waits and assertions — Selenium (Java&nbsp;/ Python&nbsp;/ JavaScript), Playwright (JS&nbsp;/ TS&nbsp;/ Python), Cypress, or WebdriverIO.</li>
           <li><strong>Copy as Framework:</strong> Every locator can now be copied as wrapped framework code, not just a raw selector. New <em>Copy&nbsp;as</em> dropdown next to the Engine selector.</li>
           <li><strong>Anchor-first v2 Engine:</strong> New default locator engine extracts identity anchors (<code>data-testid</code>, role + accessible name, ARIA labels, stable classes) and beam-searches for the most resilient locator. Switch back to v1 from the Engine dropdown anytime.</li>
           <li><strong>Unified banner stack:</strong> All eligibility-driven announcements (update available, new features, AI credits) now live in a single section at the top of the panel — no more banners scattered above and below the controls.</li>
