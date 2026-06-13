@@ -1,3 +1,6 @@
+## [1.4.5] - 2026-06-13
+- feat(recorder): AI-powered Intelligent Recorder Add Generate with AI to the recorder: send the recorded step sequence to the worker (/ai/recorder) and render a production-quality test — idiomatic code with smart waits, robust/self-healing locators, auto-inferred assertions, a descriptive test name, and plain-English step labels. Template codegen stays as the instant default; the AI result auto-invalidates when steps or framework change. - ailocservice.js: generateAiTestCode() (free-credits-first / BYO-key, caching, transparent exhaustion fallback) + recorder-v1.txt prompt. - panel: AI button, loading state, AI badge + test name, per-step annotations, free-credit chip in the recorder. - Rename Recorder → Intelligent Recorder, remove Beta everywhere. - AI caveat strip in both recorder and locator views: AI can make mistakes + free-credit latency note + BYOK nudge (opens AI settings). - analytics: recorder_ai_started/generated/failed + byok_cta_clicked, on both the log-push and user-event channels. Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
 ## [1.4.4] - 2026-05-16
 - new worker migration
 
