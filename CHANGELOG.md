@@ -1,3 +1,6 @@
+## [1.4.7] - 2026-06-16
+- feat: capture devtools panel + popup session replay with rrweb Bundle rrweb (vendor/rrweb.js, self-hosted for the MV3 self CSP) and add a recorder (utils/replay.js) that records the
+
 ## [1.4.6] - 2026-06-13
 - feat(ai): staged thinking UX for optimize and recorder Both the Optimize-with-AI and Intelligent Recorder AI calls are single blocking requests with only a button spinner while they run. Add a cosmetic staged progress panel that narrates plausible work stages (Reading DOM…, Scoring locators…, etc.) so the wait feels responsive without touching the worker or JSON response contract. - aiThinking / recAiThinking controllers render a step panel into the results / code pane, advancing through stages then holding on the last. - When the final stage drags on, show an escalating reassurance note: Hold tight — we're at the final processing… for everyone, plus a free-credit-only follow-up since that path can be slow. - Restores prior content on error; honors prefers-reduced-motion. Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
