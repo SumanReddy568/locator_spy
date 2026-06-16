@@ -547,6 +547,9 @@
   <script type="module" src="auth.js"></script>
   <script type="module" src="ailocservice.js"></script>
   <script type="module" src="panel.js"></script>
+  <!-- Session replay: bundled rrweb (vendor) must load before the recorder glue. -->
+  <script src="../vendor/rrweb.js"></script>
+  <script src="../utils/replay.js"></script>
 </body>
 
 </html>
