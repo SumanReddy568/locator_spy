@@ -267,6 +267,30 @@ export function trackByokCtaClicked(meta = {}) {
   return track("byok_cta_clicked", { feature: "ai_settings", meta });
 }
 
+// Settings drawer opened (toolbar gear or recorder gear). meta.source =
+// "toolbar" | "recorder".
+export function trackSettingsOpened(meta = {}) {
+  return track("settings_opened", { feature: "settings", meta });
+}
+
+// Notifications drawer opened (header bell).
+export function trackNotificationsOpened(meta = {}) {
+  return track("notifications_opened", { feature: "notifications", meta });
+}
+
+// Locator engine switched (v1 / v2) and locator copy-format changed.
+export function trackEngineSelected(engine, meta = {}) {
+  return track("locator_engine_selected", { feature: "locator_mode", meta: { engine, ...meta } });
+}
+export function trackCopyFormatSelected(format, meta = {}) {
+  return track("copy_format_selected", { feature: "locator_mode", meta: { format, ...meta } });
+}
+
+// Panel refreshed via the Refresh button.
+export function trackPanelRefreshed(meta = {}) {
+  return track("panel_refreshed", { feature: "locator_mode", meta });
+}
+
 // ---------------------------------------------------------------------------
 // Locator Generation Lifecycle Logger
 // Only logs meaningful user actions - never on page load/refresh.

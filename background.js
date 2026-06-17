@@ -73,21 +73,32 @@ export const initializeServiceWorker = () => {
   // Add this helper function for script injection
   async function injectScripts(tabId) {
     try {
+      // Inject into every frame (not just the top document) so locator mode
+      // works inside iframes too. Content scripts also auto-inject via the
+      // manifest (all_frames); this executeScript path is the activation-time
+      // fallback for frames that loaded before the extension/devtools did.
+      const target = { tabId, allFrames: true };
+
       // First inject helper
       await chrome.scripting.executeScript({
-        target: { tabId },
+        target,
         files: ['locator_helper.js']
       });
 
-      // Then inject generator
+      // Then inject generator + v2 engine (mirror the manifest's idle bundle)
       await chrome.scripting.executeScript({
-        target: { tabId },
+        target,
         files: ['locator_generator.js']
+      });
+
+      await chrome.scripting.executeScript({
+        target,
+        files: ['locator_engine_v2.js']
       });
 
       // Finally inject content script
       await chrome.scripting.executeScript({
-        target: { tabId },
+        target,
         files: ['content.js']
       });
 
