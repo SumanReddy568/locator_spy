@@ -1,3 +1,6 @@
+## [1.4.9] - 2026-06-17
+- feat: add community stats strip to popup + devtools headers Right-aligned pill-chip strip showing users / locators / AI runs / countries with a Community caption. Bearer-gated fetch (skipped when logged out) and a persistent locator_generated event emitted on generation_completed so the locator total survives log pruning. Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
 ## [1.4.8] - 2026-06-17
 - Merge pull request #9 from SumanReddy568/devtools-panel-redesign-and-fixes feat(devtools): redesign panel layout + recorder, fix iframe/idle bugs
 
