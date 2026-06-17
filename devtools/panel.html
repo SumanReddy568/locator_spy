@@ -37,6 +37,13 @@
           </svg>
         </button>
 
+        <button id="notificationsBtn" class="icon-btn" title="Notifications" aria-label="Notifications">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          <span id="notifBadge" class="notif-badge" hidden></span>
+        </button>
 
         <div class="dropdown">
           <button id="menuBtn" class="icon-btn" title="Menu">
@@ -119,89 +126,71 @@
       </div>
     </div>
     
-    <!-- Single banner section. Each banner inside is gated by its own
-         eligibility check (version mismatch, available AI credits, copy
-         format = raw); none are user-dismissable, so users always see what
-         is currently relevant and nothing more. -->
-    <div id="topBanners" class="banner-stack">
-      <div id="updateAlertDev" class="update-alert hidden">
-        <div class="update-content">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-          </svg>
-          <span>Update available!</span>
-          <button id="updateNowBtnDev" class="update-btn">Update Now</button>
-        </div>
-        <button id="closeUpdateAlertDev" class="close-alert" aria-label="Dismiss">&times;</button>
+    <!-- Notifications drawer. The old inline update / AI-credit banners now
+         live here as information items instead of pushing the panel content
+         down. The bell in the header opens this drawer; each item keeps its
+         original id so the existing eligibility logic just updates its data
+         in place — items are never user-removable. -->
+    <div id="notificationsOverlay" class="side-overlay" hidden></div>
+    <aside id="notificationsDrawer" class="side-drawer" aria-hidden="true" aria-label="Notifications">
+      <div class="side-drawer-header">
+        <h3>Notifications</h3>
+        <button id="closeNotificationsBtn" class="close-btn" aria-label="Close notifications">&times;</button>
       </div>
+      <div class="side-drawer-body notif-body">
+        <p id="notifEmpty" class="notif-empty">You're all caught up — no notifications right now.</p>
 
-      <div id="newFeatureBanner" class="update-alert new-feature-alert hidden">
-        <div class="update-content">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="none" stroke-linejoin="round">
-            <path d="M12 3 L13.7 9.3 L20 11 L13.7 12.7 L12 19 L10.3 12.7 L4 11 L10.3 9.3 Z" fill="currentColor"/>
-          </svg>
-          <span><strong>New:</strong>&nbsp;<em>Intelligent&nbsp;Recorder</em> captures clicks, typing &amp; scrolls and generates AI-powered Selenium / Playwright / Cypress / WebdriverIO tests. <em>Copy&nbsp;as</em> does the same for single locators.</span>
-        </div>
-      </div>
-
-      <div id="aiCreditsBanner" class="ai-credits-banner" hidden>
-        <span class="ai-credits-shimmer" aria-hidden="true"></span>
-        <span class="ai-credits-spark ai-credits-spark--1" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
-            <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
-          </svg>
-        </span>
-        <span class="ai-credits-spark ai-credits-spark--2" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor">
-            <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
-          </svg>
-        </span>
-        <span class="ai-credits-spark ai-credits-spark--3" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="6" height="6" fill="currentColor">
-            <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
-          </svg>
-        </span>
-        <div class="ai-credits-banner-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3 L13.7 9.3 L20 11 L13.7 12.7 L12 19 L10.3 12.7 L4 11 L10.3 9.3 Z" fill="currentColor" stroke="none"/>
-            <path d="M19 4 L19.7 6.3 L22 7 L19.7 7.7 L19 10 L18.3 7.7 L16 7 L18.3 6.3 Z" fill="currentColor" stroke="none" opacity="0.85"/>
-            <path d="M5 16 L5.6 17.7 L7.3 18.3 L5.6 18.9 L5 20.6 L4.4 18.9 L2.7 18.3 L4.4 17.7 Z" fill="currentColor" stroke="none" opacity="0.7"/>
-          </svg>
-        </div>
-        <div class="ai-credits-banner-body">
-          <div class="ai-credits-banner-title" id="aiCreditsBannerTitle">3 free AI optimizations on us</div>
-          <div class="ai-credits-banner-sub" id="aiCreditsBannerSub">
-            Click <b>Optimize with AI</b> on any element — no setup, no API key needed.
+        <div id="updateAlertDev" class="notif-item update-alert hidden">
+          <div class="notif-item-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 2v6h-6"></path>
+              <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+              <path d="M3 22v-6h6"></path>
+              <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+            </svg>
+          </div>
+          <div class="notif-item-body">
+            <span class="notif-item-text">Update available!</span>
+            <button id="updateNowBtnDev" class="btn primary-btn notif-item-cta">Update Now</button>
           </div>
         </div>
-        <div class="ai-credits-banner-meter" id="aiCreditsBannerMeter" aria-hidden="true">
-          <span class="ai-credit-dot" data-i="1"></span>
-          <span class="ai-credit-dot" data-i="2"></span>
-          <span class="ai-credit-dot" data-i="3"></span>
-        </div>
-        <div class="ai-credits-banner-actions">
-          <button id="aiCreditsBannerCta" class="btn ai-credits-cta" type="button">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
-              <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
+
+        <div id="aiCreditsBanner" class="notif-item ai-credits-banner" hidden>
+          <div class="notif-item-icon ai-credits-banner-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3 L13.7 9.3 L20 11 L13.7 12.7 L12 19 L10.3 12.7 L4 11 L10.3 9.3 Z" fill="currentColor" stroke="none"/>
             </svg>
-            <span>Add your API key</span>
-          </button>
-          <button id="aiCreditsBannerDismiss" class="ai-credits-banner-close" type="button" aria-label="Dismiss">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
+          </div>
+          <div class="notif-item-body ai-credits-banner-body">
+            <div class="ai-credits-banner-title" id="aiCreditsBannerTitle">3 free AI optimizations on us</div>
+            <div class="ai-credits-banner-sub" id="aiCreditsBannerSub">
+              Click <b>Optimize with AI</b> on any element — no setup, no API key needed.
+            </div>
+            <div class="ai-credits-banner-meter" id="aiCreditsBannerMeter" aria-hidden="true">
+              <span class="ai-credit-dot" data-i="1"></span>
+              <span class="ai-credit-dot" data-i="2"></span>
+              <span class="ai-credit-dot" data-i="3"></span>
+            </div>
+            <button id="aiCreditsBannerCta" class="btn ai-credits-cta notif-item-cta" type="button">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
+                <path d="M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z"/>
+              </svg>
+              <span>Add your API key</span>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </aside>
 
-    <!-- Feedback Rating Container (Inline) -->
+    <!-- Feedback rating prompt. A centered card over a blurred full-panel
+         backdrop — the container is the backdrop, the inner card is the pill. -->
     <div id="feedbackRatingContainer" class="feedback-rating-container" style="display: none;">
-      <p>How do you like Locator Spy?</p>
-      <div class="rating-buttons">
-        <button id="thumbsUp" class="rating-btn" title="I love it!">👍</button>
-        <button id="thumbsDown" class="rating-btn" title="Needs improvement">👎</button>
+      <div class="feedback-rating-card">
+        <p>How do you like Locator Spy?</p>
+        <div class="rating-buttons">
+          <button id="thumbsUp" class="rating-btn" title="I love it!">👍</button>
+          <button id="thumbsDown" class="rating-btn" title="Needs improvement">👎</button>
+        </div>
       </div>
     </div>
 
@@ -253,179 +242,83 @@
         </svg>
         <input type="text" placeholder="Filter locators...">
       </div>
-      <label class="toggle-container">
-        <input type="checkbox" id="autoValidatorToggle">
-        <span class="toggle-track" aria-hidden="true"></span>
-        <span class="toggle-label">Auto&nbsp;Validate</span>
-      </label>
-      <label class="toggle-container">
-        <input type="checkbox" id="autoOptimizeToggle">
-        <span class="toggle-track" aria-hidden="true"></span>
-        <span class="toggle-label">Auto&nbsp;Optimize</span>
-      </label>
-      <label class="toggle-container engine-select-wrap" title="Locator generation engine">
-        <span class="toggle-label engine-select-label">Engine</span>
-        <select id="engineSelect" class="engine-select">
-          <option value="v2">v2 · anchor-first</option>
-          <option value="v1">v1 · legacy</option>
-        </select>
-      </label>
-      <label class="toggle-container engine-select-wrap" title="Copy format — wraps each locator in framework code on copy">
-        <span class="toggle-label engine-select-label">Copy as</span>
-        <select id="copyFormatSelect" class="engine-select">
-          <option value="raw">Raw</option>
-          <option value="selenium-java">Selenium Java</option>
-          <option value="selenium-python">Selenium Python</option>
-          <option value="playwright">Playwright</option>
-          <option value="cypress">Cypress</option>
-          <option value="webdriverio">WebdriverIO</option>
-        </select>
-      </label>
+      <button id="optimizeAiBtn" class="action-btn ai-btn" title="Optimize using AI">
+        <img src="../images/ai2.png" width="14" height="14" alt="">
+        <span>Optimize&nbsp;with&nbsp;AI</span>
+        <span id="aiCreditsBadge" class="credits-badge" hidden></span>
+      </button>
+      <button id="openSettingsBtn" class="btn icon-btn-square" title="Settings — validation, engine, copy format & AI" aria-label="Open settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.05a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.05a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.05a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
     </div>
 
-    <div class="results">
-      <div class="section locator-view" id="locatorView">
-        <div class="section-header">
-          <div class="section-title">
-            <h3 id="locatorSectionTitle">Element Locators</h3>
-            <p id="locatorSectionSubtitle" class="section-subtitle">
-              Activate locator mode and hover on the page
-            </p>
-          </div>
-          <div class="section-actions">
-            <button class="action-btn icon-only" title="Copy All">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-            </button>
-            <button id="optimizeAiBtn" class="action-btn ai-btn" title="Optimize using AI">
-              <img src="../images/ai2.png" width="14" height="14" alt="">
-              <span>Optimize&nbsp;with&nbsp;AI</span>
-              <span id="aiCreditsBadge" class="credits-badge" hidden></span>
-            </button>
-            <button id="aiSettingsBtn" class="action-btn ghost" title="AI Settings">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.05a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.05a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.05a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-              </svg>
-              <span>Settings</span>
-            </button>
-            <button id="scrollDownBtn" class="action-btn icon-only" title="Scroll Down" data-target="#locatorResults">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="ai-caveat">
-          <span class="ai-caveat-text">⚠️ AI can make mistakes — verify optimized locators against the live DOM. Free-credit responses can be slow; <a href="#" id="locByokLink" class="ai-caveat-link">add your own API key</a> (BYOK) for faster results.</span>
-        </div>
-        <div id="locatorResults">
-          <div class="placeholder">
-            <svg class="placeholder-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
-              <circle cx="11" cy="11" r="7"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              <line x1="11" y1="8" x2="11" y2="14"></line>
-              <line x1="8" y1="11" x2="14" y2="11"></line>
-            </svg>
-            <p class="placeholder-line">Activate <em>Locator Mode</em>, then hover<br>any element on the page.</p>
-            <p class="placeholder-hint">Selectors are validated against the live DOM and ranked by stability.</p>
-          </div>
-        </div>
+    <!-- Settings drawer. Houses everything that used to crowd the toolbar:
+         the Auto Validate / Auto Optimize toggles, the engine + copy-format
+         selectors, and the full AI provider settings. Opened by the gear in
+         the toolbar (and by every BYOK / credits / "add key" entry point via
+         openAiSettings()). The toggles and selectors persist on change; only
+         the AI section needs an explicit Save. -->
+    <div id="settingsOverlay" class="settings-overlay" hidden></div>
+    <aside id="settingsDrawer" class="settings-drawer" aria-hidden="true" aria-label="Settings">
+      <div class="settings-drawer-header">
+        <h3>Settings</h3>
+        <button id="closeSettingsBtn" class="close-btn" aria-label="Close settings">&times;</button>
       </div>
+      <div class="settings-drawer-body">
+        <section class="settings-section">
+          <div class="settings-section-label">Locator behaviour</div>
+          <label class="settings-row">
+            <span class="settings-row-text">
+              <span class="settings-row-title">Auto&nbsp;Validate</span>
+              <span class="settings-row-sub">Check each generated locator against the live DOM as you hover.</span>
+            </span>
+            <span class="settings-toggle">
+              <input type="checkbox" id="autoValidatorToggle">
+              <span class="toggle-track" aria-hidden="true"></span>
+            </span>
+          </label>
+          <label class="settings-row">
+            <span class="settings-row-text">
+              <span class="settings-row-title">Auto&nbsp;Optimize</span>
+              <span class="settings-row-sub">Automatically run AI optimization on the selected element.</span>
+            </span>
+            <span class="settings-toggle">
+              <input type="checkbox" id="autoOptimizeToggle">
+              <span class="toggle-track" aria-hidden="true"></span>
+            </span>
+          </label>
+        </section>
 
-      <!-- Recorder view. Sibling of the locator section; toggled visible by
-           the Recorder button in the controls strip. The user keeps clicking
-           in the same browser tab next to this panel — content.js captures
-           every click and the steps + generated code update live here. -->
-      <div class="section recorder-view" id="recorderView" hidden>
-        <div class="rec-toolbar">
-          <button id="recBackBtn" class="rec-back-btn" title="Back to locator view">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-            Back
-          </button>
-          <h3 class="rec-title">Intelligent Recorder</h3>
-          <span class="rec-flex-spacer"></span>
-          <span id="recStatus" class="rec-status idle">
-            <span class="rec-dot"></span>
-            <span class="rec-status-label">Idle</span>
-          </span>
-        </div>
-        <div class="rec-actions-row">
-          <button id="recStartBtn" class="rec-btn primary">Start</button>
-          <button id="recStopBtn" class="rec-btn" disabled>Stop</button>
-          <button id="recClearBtn" class="rec-btn ghost">Clear</button>
-          <label class="rec-framework-wrap">
-            <span class="rec-framework-label">Framework</span>
-            <select id="recFrameworkSelect" class="rec-framework-select">
-              <option value="selenium">Selenium</option>
+        <section class="settings-section">
+          <div class="settings-section-label">Generation engine</div>
+          <div class="form-group">
+            <label for="engineSelect">Engine</label>
+            <select id="engineSelect">
+              <option value="v2">v2 · anchor-first</option>
+              <option value="v1">v1 · legacy</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="copyFormatSelect">Copy as</label>
+            <select id="copyFormatSelect">
+              <option value="raw">Raw</option>
+              <option value="selenium-java">Selenium Java</option>
+              <option value="selenium-python">Selenium Python</option>
               <option value="playwright">Playwright</option>
               <option value="cypress">Cypress</option>
               <option value="webdriverio">WebdriverIO</option>
-              <option value="raw">Raw</option>
             </select>
-          </label>
-          <label class="rec-framework-wrap">
-            <span class="rec-framework-label">Language</span>
-            <select id="recLanguageSelect" class="rec-framework-select"></select>
-          </label>
-          <span class="rec-flex-spacer"></span>
-          <button id="recGenerateAiBtn" class="rec-btn ai" title="Turn the recording into a production-quality test: idiomatic code, robust locators, smart waits and assertions.">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px;">
-              <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z"></path>
-            </svg>
-            Generate with AI
-          </button>
-          <button id="recCopyCodeBtn" class="rec-btn">Copy Code</button>
-          <button id="recFeedbackBtn" class="rec-btn ghost" title="Tell us how the Recorder is working for you">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -1px;">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-            Feedback
-          </button>
-        </div>
-        <p class="rec-subtitle">Click <strong>Start</strong>, then interact with your app in the page next to this panel — clicks, typing, selects and scrolls are all captured.</p>
-        <div class="ai-caveat">
-          <span id="recCreditsInfo" class="ai-caveat-credits" hidden></span>
-          <span class="ai-caveat-text">⚠️ AI can make mistakes — review the generated test before using it. Free-credit responses can be slow; <a href="#" id="recByokLink" class="ai-caveat-link">add your own API key</a> (BYOK) for faster results.</span>
-        </div>
-        <div class="rec-body">
-          <div class="rec-steps-pane">
-            <div class="rec-pane-title">Steps · <span id="recStepCount" class="rec-count">0</span></div>
-            <ol id="recStepsList" class="rec-steps-list"></ol>
-            <div id="recStepsEmpty" class="rec-empty">
-              <p>No steps yet — start recording and click around in your app.</p>
-            </div>
+            <p class="help-text">Wraps each locator in framework code when you copy it.</p>
           </div>
-          <div class="rec-code-pane">
-            <div class="rec-pane-title">Generated Code · <span id="recCodeFrameworkLabel" class="rec-count">raw</span><span id="recCodeAiBadge" class="rec-ai-badge" hidden>✨ AI</span><span id="recTestName" class="rec-test-name"></span></div>
-            <pre id="recCodeBlock" class="rec-code"><code id="recCodeInner">// Click "Start", then interact with the page.</code></pre>
-          </div>
-        </div>
-      </div>
-    </div>
+        </section>
 
-    <div id="copyNotification" class="copy-notification">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="20 6 9 17 4 12"></polyline>
-      </svg>
-      Copied to clipboard!
-    </div>
-
-    <!-- AI Settings Modal -->
-    <div id="aiSettingsModal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>AI Settings</h3>
-          <button id="closeAiSettingsBtn" class="close-btn">&times;</button>
-        </div>
-        <div class="modal-body">
+        <section class="settings-section" id="settingsAiSection">
+          <div class="settings-section-label">AI provider</div>
           <div class="form-group">
-            <label for="aiProviderSelect">AI Provider</label>
+            <label for="aiProviderSelect">Provider</label>
             <select id="aiProviderSelect">
               <option value="google">Google Gemini</option>
               <option value="openrouter">OpenRouter</option>
@@ -479,12 +372,138 @@
               <input type="text" id="openRouterModel" placeholder="e.g. deepseek/deepseek-r1">
             </div>
           </div>
+
+          <button id="saveAiSettingsBtn" class="btn primary-btn settings-save-btn">Save AI Settings</button>
+        </section>
+      </div>
+    </aside>
+
+    <div class="results">
+      <div class="section locator-view" id="locatorView">
+        <div class="section-header">
+          <div class="section-title">
+            <h3 id="locatorSectionTitle">Element Locators</h3>
+            <p id="locatorSectionSubtitle" class="section-subtitle">
+              Activate locator mode and hover on the page
+            </p>
+          </div>
+          <div class="ai-caveat" id="locAiCaveat">
+            <span class="ai-caveat-text">⚠️ AI can make mistakes — verify locators. <a href="#" id="locByokLink" class="ai-caveat-link">Add your API key</a> for faster results.</span>
+          </div>
+          <div class="section-actions">
+            <button class="action-btn icon-only" title="Copy All">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+            <button id="scrollDownBtn" class="action-btn icon-only" title="Scroll Down" data-target="#locatorResults">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+          </div>
         </div>
-        <div class="modal-footer">
-          <button id="saveAiSettingsBtn" class="btn primary-btn">Save Settings</button>
+        <div id="locatorResults">
+          <div class="placeholder">
+            <svg class="placeholder-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+              <circle cx="11" cy="11" r="7"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              <line x1="11" y1="8" x2="11" y2="14"></line>
+              <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+            <p class="placeholder-line">Activate <em>Locator Mode</em>, then hover<br>any element on the page.</p>
+            <p class="placeholder-hint">Selectors are validated against the live DOM and ranked by stability.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recorder view. Sibling of the locator section; toggled visible by
+           the Recorder button in the controls strip. The user keeps clicking
+           in the same browser tab next to this panel — content.js captures
+           every click and the steps + generated code update live here. -->
+      <div class="section recorder-view" id="recorderView" hidden>
+        <div class="rec-toolbar">
+          <button id="recBackBtn" class="rec-back-btn" title="Back to locator view">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Back
+          </button>
+          <h3 class="rec-title">Intelligent Recorder</h3>
+          <span id="recCreditsInfo" class="ai-caveat-credits rec-credits" hidden></span>
+          <div class="ai-caveat" id="recAiCaveat">
+            <span class="ai-caveat-text">⚠️ AI can make mistakes — review the generated test. <a href="#" id="recByokLink" class="ai-caveat-link">Add your API key</a> for faster results.</span>
+          </div>
+          <span class="rec-flex-spacer"></span>
+          <span id="recStatus" class="rec-status idle">
+            <span class="rec-dot"></span>
+            <span class="rec-status-label">Idle</span>
+          </span>
+          <button id="recSettingsBtn" class="btn icon-btn-square" title="Settings — validation, engine, copy format & AI" aria-label="Open settings">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.05a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.05a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.05a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="rec-actions-row">
+          <button id="recStartBtn" class="rec-btn primary">Start</button>
+          <button id="recStopBtn" class="rec-btn" disabled>Stop</button>
+          <button id="recClearBtn" class="rec-btn ghost">Clear</button>
+          <label class="rec-framework-wrap">
+            <span class="rec-framework-label">Framework</span>
+            <select id="recFrameworkSelect" class="rec-framework-select">
+              <option value="selenium">Selenium</option>
+              <option value="playwright">Playwright</option>
+              <option value="cypress">Cypress</option>
+              <option value="webdriverio">WebdriverIO</option>
+              <option value="raw">Raw</option>
+            </select>
+          </label>
+          <label class="rec-framework-wrap">
+            <span class="rec-framework-label">Language</span>
+            <select id="recLanguageSelect" class="rec-framework-select"></select>
+          </label>
+          <span class="rec-flex-spacer"></span>
+          <button id="recGenerateAiBtn" class="rec-btn ai" title="Turn the recording into a production-quality test: idiomatic code, robust locators, smart waits and assertions.">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px;">
+              <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z"></path>
+            </svg>
+            Generate with AI
+          </button>
+          <button id="recCopyCodeBtn" class="rec-btn">Copy Code</button>
+          <button id="recFeedbackBtn" class="rec-btn ghost" title="Tell us how the Recorder is working for you">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -1px;">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Feedback
+          </button>
+        </div>
+        <div class="rec-body">
+          <div class="rec-steps-pane">
+            <div class="rec-pane-title">Steps · <span id="recStepCount" class="rec-count">0</span></div>
+            <ol id="recStepsList" class="rec-steps-list"></ol>
+            <div id="recStepsEmpty" class="rec-empty">
+              <p>No steps yet — start recording and click around in your app.</p>
+            </div>
+          </div>
+          <div class="rec-code-pane">
+            <div class="rec-pane-title">Generated Code · <span id="recCodeFrameworkLabel" class="rec-count">raw</span><span id="recCodeAiBadge" class="rec-ai-badge" hidden>✨ AI</span><span id="recTestName" class="rec-test-name"></span></div>
+            <pre id="recCodeBlock" class="rec-code"><code id="recCodeInner">// Click "Start", then interact with the page.</code></pre>
+          </div>
         </div>
       </div>
     </div>
+
+    <div id="copyNotification" class="copy-notification">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      Copied to clipboard!
+    </div>
+
   </div>
 
   <!-- Release Notes Panel -->

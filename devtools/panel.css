@@ -127,19 +127,22 @@ body::before {
 
 .container {
   height: 100vh;
-  padding: 8px 16px 12px 16px;
+  padding: 6px 14px 8px 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   overflow: hidden;
 }
 
 /* -------- Header --------------------------------------------------------*/
+/* Slim, single-line identity bar. In bottom-dock the panel is wide but
+   short, so the wordmark is kept compact to give the vertical budget to
+   locator content rather than branding. */
 .header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  padding: 2px 4px 6px 4px;
+  padding: 1px 2px 4px 2px;
   border-bottom: 1px solid var(--hairline);
   background: transparent;
   color: var(--ink-1);
@@ -149,13 +152,14 @@ body::before {
 
 .logo-title {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .logo {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   align-self: center;
   filter: var(--logo-filter, none);
   opacity: 0.92;
@@ -165,7 +169,7 @@ body::before {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 26px;
+  font-size: 19px;
   line-height: 1;
   letter-spacing: -0.01em;
   color: var(--ink-1);
@@ -176,7 +180,7 @@ body::before {
 .brand-script {
   font-style: italic;
   font-family: var(--font-display);
-  font-size: 28px;
+  font-size: 20px;
   letter-spacing: -0.02em;
 }
 
@@ -251,7 +255,11 @@ body::before {
   box-shadow: var(--shadow-pop);
   z-index: 100;
   padding: 6px;
-  overflow: hidden;
+  /* Many items + a short bottom-dock panel = the menu used to clip. Cap its
+     height to the viewport and let it scroll, like the side drawers. */
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .dropdown-content.show {
@@ -329,9 +337,9 @@ body::before {
 /* -------- Toolbar / controls --------------------------------------------*/
 .controls {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 6px 10px;
   border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--hairline);
@@ -344,8 +352,8 @@ body::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 8px;
-  bottom: 8px;
+  top: 6px;
+  bottom: 6px;
   width: 2px;
   background: var(--accent);
   border-radius: 2px 0 0 2px;
@@ -620,45 +628,51 @@ body.dark-mode .engine-select {
   position: relative;
 }
 
+/* Compact single-row header. The panel is short in bottom-dock, so the
+   title, status line and section actions share one slim row instead of a
+   poster-sized two-line block — buying ~30px back for the results grid. */
 .section-header {
-  padding: 14px 18px 12px 18px;
+  padding: 7px 12px 7px 14px;
   border-bottom: 1px solid var(--hairline);
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
+  flex-direction: row;
+  align-items: center;
   gap: 12px;
-  background:
-    linear-gradient(180deg, var(--surface) 0%, var(--surface) 70%, transparent 100%);
+  background: var(--surface);
 }
 
 .section-title {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+  flex: 0 0 auto;
 }
 
 .section h3 {
   margin: 0;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 400;
-  font-size: 22px;
-  line-height: 1;
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.2;
   color: var(--ink-1);
-  letter-spacing: -0.01em;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .section-subtitle {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.05em;
+  font-size: 10px;
+  letter-spacing: 0.04em;
   color: var(--ink-3);
   text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .section-actions {
@@ -1368,16 +1382,26 @@ body.dark-mode .validate-btn:hover {
 }
 
 /* -------- Empty state placeholder ---------------------------------------*/
+/* When the results list holds only this placeholder, center it in the
+   available space instead of letting its min-height force a scroll. */
+#locatorResults:has(.placeholder) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
 .placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 14px;
-  padding: 56px 20px;
+  padding: 24px 20px;
   text-align: center;
   color: var(--ink-3);
-  min-height: 240px;
+  min-height: 0;
   position: relative;
 }
 
@@ -1927,7 +1951,6 @@ body.dark-mode .primary-btn:hover {
    banners (which all advertise locator-side features). The recorder
    section has its own "Back to Locators" button at the top to come back. */
 body.view-recorder .controls,
-body.view-recorder #topBanners,
 body.view-recorder #feedbackRatingContainer { display: none !important; }
 
 /* Recorder toolbar: a single compact row of identification (Back + title +
@@ -1947,7 +1970,7 @@ body.view-recorder #feedbackRatingContainer { display: none !important; }
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
 .rec-flex-spacer { flex: 1 1 auto; }
 
@@ -2059,6 +2082,7 @@ body.view-recorder #feedbackRatingContainer { display: none !important; }
 
 /* "✨ AI" badge + generated test name shown in the code-pane title once an
    AI generation is the active output. */
+.rec-ai-badge[hidden] { display: none !important; }
 .rec-ai-badge {
   display: inline-block;
   margin-left: 6px;
@@ -2110,18 +2134,61 @@ body.view-recorder #feedbackRatingContainer { display: none !important; }
 .ai-caveat {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   margin: 6px 0 8px 0;
-  padding: 6px 10px;
-  border-radius: 8px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 7px;
   background: var(--bg-subtle, rgba(127, 127, 127, 0.07));
   border: 1px solid var(--hairline);
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 10.5px;
+  line-height: 1.35;
   color: var(--ink-3);
 }
 .ai-caveat-text { flex: 1 1 220px; }
+/* Locator-view caveat lives inline inside the "Element Locators" header bar,
+   always visible (no dismiss) and on a single line. It grows to fill the
+   space between the title and the actions; if the panel is too narrow the
+   text elides rather than wrapping to a new line. */
+#locAiCaveat {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0 0 0 auto;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  flex-wrap: nowrap;
+}
+#locAiCaveat .ai-caveat-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Recorder caveat: a slim single line inline in the toolbar, sitting right
+   after the credits pill. Shrinks and elides instead of wrapping. */
+#recAiCaveat {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  flex-wrap: nowrap;
+}
+#recAiCaveat .ai-caveat-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The credits pill's display:inline-block was overriding the `hidden`
+   attribute, leaving an empty gradient bar when there are no credits. */
+.ai-caveat-credits[hidden] { display: none !important; }
 .ai-caveat-link {
   color: #7c6df2;
   font-weight: 600;
@@ -2208,11 +2275,16 @@ body.dark-mode .rec-framework-select {
 
 .rec-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  /* Code section gets the lion's share of the width; steps stays a slim
+     reference column. */
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.8fr);
   gap: 12px;
   flex: 1 1 auto;
   min-height: 0;
 }
+
+/* Credits pill sits inline next to the title in the toolbar. */
+.rec-credits { align-self: center; }
 .rec-steps-pane,
 .rec-code-pane {
   display: flex;
@@ -2248,6 +2320,9 @@ body.dark-mode .rec-framework-select {
   overflow-y: auto;
   flex: 1 1 auto;
 }
+/* When there are no steps, collapse the empty list so the "No steps yet"
+   placeholder (flex:1) fills the whole pane and centers in it. */
+.rec-steps-list:empty { flex: 0 0 auto; }
 .rec-steps-list li {
   display: grid;
   grid-template-columns: 22px 70px minmax(0, 1fr);
@@ -2328,25 +2403,6 @@ body.dark-mode .rec-framework-select {
   .rec-body { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* "What's new" variant of .update-alert. Same skeleton, calmer gradient and a
-   non-rotating sparkle so it's visually distinguishable from the version
-   "Update available" banner if both ever appear at once. */
-.new-feature-alert {
-  background: linear-gradient(135deg, #1d2540, #2a1f5a);
-}
-.new-feature-alert .update-content svg {
-  animation: none;
-  color: #ffd569;
-  filter: drop-shadow(0 0 4px rgba(255, 213, 105, 0.55));
-}
-.new-feature-alert .update-content em {
-  font-style: normal;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.10);
-}
 
 .update-content {
   display: flex;
@@ -2425,22 +2481,40 @@ body.dark-mode .rec-framework-select {
 .dock-warning svg { flex-shrink: 0; }
 
 /* -------- Feedback rating ----------------------------------------------*/
-/* Compact, centered pill — sits unobtrusively in the toolbar slot rather
- * than spanning the full panel width. Toggled via JS by setting
- * `display: none` to hide and clearing the inline style to show, so the
- * stylesheet's `display: flex` is what governs the visible state. */
+/* Centered prompt over a blurred full-panel backdrop. The container is the
+ * backdrop (covers everything, blurs the UI behind it); the inner card is the
+ * pill. Toggled via JS by setting `display: none` to hide and clearing the
+ * inline style to show, so the stylesheet's `display: flex` governs. */
 .feedback-rating-container {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 16px;
+  background: rgba(14, 16, 20, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: modalFade 0.18s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.feedback-rating-card {
+  display: flex;
+  align-items: center;
   gap: 12px;
-  width: max-content;
   max-width: 100%;
-  margin: 8px auto;
-  padding: 6px 10px 6px 14px;
+  padding: 12px 14px 12px 20px;
   background: var(--surface);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--hairline-strong);
   border-radius: 999px;
+  box-shadow: var(--shadow-pop);
+  animation: feedbackPop 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes feedbackPop {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
 }
 
 .feedback-rating-container p {
@@ -2653,19 +2727,304 @@ body.dark-mode .rec-framework-select {
 
 .ai-link svg { width: 13px; height: 13px; }
 
+/* Optimize-with-AI promoted into the toolbar: match the 32px button row. */
+.controls #optimizeAiBtn { height: 32px; flex-shrink: 0; }
+
+/* -------- Settings: toolbar gear button --------------------------------*/
+.icon-btn-square {
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  justify-content: center;
+}
+.icon-btn-square svg { opacity: 0.8; }
+.icon-btn-square:hover svg { opacity: 1; color: var(--accent-deep); }
+body.dark-mode .icon-btn-square:hover svg { color: var(--accent); }
+
+/* -------- Settings drawer ----------------------------------------------*/
+/* Slides in from the right over a dimmed overlay. Houses the validation
+   toggles, engine/copy selectors and the AI provider form that used to
+   crowd the toolbar. position:fixed escapes the .container overflow clip. */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(14, 16, 20, 0.42);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 9998;
+  animation: modalFade 0.18s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.settings-overlay[hidden] { display: none; }
+
+.settings-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 380px;
+  max-width: 92vw;
+  background: var(--surface);
+  border-left: 1px solid var(--hairline);
+  box-shadow: -18px 0 50px rgba(0, 0, 0, 0.22);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.26s cubic-bezier(0.2, 0.7, 0.2, 1);
+  will-change: transform;
+}
+.settings-drawer.open { transform: none; }
+
+.settings-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 13px 20px;
+  border-bottom: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+.settings-drawer-header h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--ink-1);
+}
+
+.settings-drawer-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 4px 20px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hairline);
+}
+.settings-section:first-child { border-top: none; padding-top: 10px; }
+
+.settings-section-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+}
+
+/* Toggle row: descriptive text on the left, switch on the right. */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.settings-row-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.settings-row-title { font-size: 13px; font-weight: 600; color: var(--ink-1); }
+.settings-row-sub { font-size: 11.5px; line-height: 1.4; color: var(--ink-3); }
+
+.settings-toggle { position: relative; display: inline-flex; flex-shrink: 0; }
+.settings-toggle input[type="checkbox"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.settings-toggle input[type="checkbox"]:checked ~ .toggle-track { background: var(--accent); }
+.settings-toggle input[type="checkbox"]:checked ~ .toggle-track::after {
+  transform: translateX(12px);
+  background: var(--ink-inverse);
+}
+.settings-toggle input[type="checkbox"]:focus-visible ~ .toggle-track {
+  box-shadow: 0 0 0 3px var(--hairline-glow);
+}
+
+.settings-save-btn { align-self: flex-start; margin-top: 4px; }
+
+/* -------- Notification bell + badge ------------------------------------*/
+#notificationsBtn { position: relative; }
+.notif-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 8px;
+  height: 8px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--bad);
+  border: 1.5px solid var(--bg);
+  box-sizing: content-box;
+}
+.notif-badge[hidden] { display: none; }
+
+/* -------- Generic side drawer (shared shell for notifications) ---------*/
+.side-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(14, 16, 20, 0.42);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 9998;
+  animation: modalFade 0.18s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.side-overlay[hidden] { display: none; }
+
+.side-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 380px;
+  max-width: 92vw;
+  background: var(--surface);
+  border-left: 1px solid var(--hairline);
+  box-shadow: -18px 0 50px rgba(0, 0, 0, 0.22);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.26s cubic-bezier(0.2, 0.7, 0.2, 1);
+  will-change: transform;
+}
+.side-drawer.open { transform: none; }
+
+.side-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 13px 20px;
+  border-bottom: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+.side-drawer-header h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--ink-1);
+}
+.side-drawer-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 14px 20px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* -------- Notification items (flat info cards, not alert banners) ------*/
+.notif-empty {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  padding: 8px 2px;
+}
+
+/* Neutralise the old banner chrome so these read as calm info cards. */
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  box-shadow: none;
+  animation: none;
+  color: var(--ink-1);
+  overflow: visible;
+}
+.notif-item::before { display: none !important; }
+.notif-item[hidden],
+.notif-item.hidden { display: none !important; }
+/* The credits item keeps its #aiCreditsBanner id (JS sets data-state on it),
+   but inside the drawer it must stay a calm flat card — override the colored
+   per-state banner backgrounds that would otherwise win on specificity. */
+.notif-item.ai-credits-banner,
+.notif-item.ai-credits-banner[data-state] {
+  background: var(--surface-2);
+  color: var(--ink-1);
+  border-color: var(--hairline);
+}
+
+.notif-item-icon {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  margin: 0;
+  inset: auto;
+  position: static;
+}
+body.dark-mode .notif-item-icon { color: var(--accent); }
+
+.notif-item-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.notif-item-text { font-size: 13px; font-weight: 500; color: var(--ink-1); }
+.notif-item .ai-credits-banner-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+.notif-item .ai-credits-banner-sub {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.notif-item .ai-credits-banner-sub b { color: var(--ink-2); font-weight: 600; }
+/* Hide the credit dot meter in the notification card (JS still updates it
+   harmlessly off-screen — removing the node would break panelBannerMeter). */
+.notif-item .ai-credits-banner-meter { display: none !important; }
+.notif-item-cta {
+  align-self: flex-start;
+  margin-top: 2px;
+  height: auto;
+  white-space: nowrap;
+}
+
 /* -------- Responsive ----------------------------------------------------*/
 @media (max-width: 640px) {
-  .container { padding: 12px; gap: 10px; }
+  /* Narrow == side-dock (tall + skinny). Vertical budget is just as tight
+     here, so keep the compacted spacing rather than re-inflating it. */
+  .container { padding: 6px 10px 8px 10px; gap: 6px; }
 
-  .header { padding-bottom: 10px; }
-  .header h1 { font-size: 22px; }
-  .brand-script { font-size: 24px; }
+  .header { padding-bottom: 4px; }
+  .header h1 { font-size: 19px; }
+  .brand-script { font-size: 20px; }
   .badge { display: none; }
 
   .controls {
     flex-wrap: wrap;
     gap: 6px;
-    padding: 8px;
+    padding: 6px 8px;
   }
 
   .search-box { order: -1; flex: 1 1 100%; max-width: none; }
@@ -2693,11 +3052,11 @@ body.dark-mode .rec-framework-select {
   .locators-table .locator-item:first-child { padding-left: 14px; }
 
   .section-header {
-    flex-wrap: wrap;
-    gap: 10px;
+    flex-wrap: nowrap;
+    gap: 8px;
   }
 
-  .section h3 { font-size: 18px; }
+  .section h3 { font-size: 13px; }
 
   .action-btn span { display: none; }
   .action-btn.ai-btn span { display: inline; }

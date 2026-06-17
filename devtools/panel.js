@@ -23,6 +23,11 @@ import {
   trackRecorderAiGenerated,
   trackRecorderAiFailed,
   trackByokCtaClicked,
+  trackSettingsOpened,
+  trackNotificationsOpened,
+  trackEngineSelected,
+  trackCopyFormatSelected,
+  trackPanelRefreshed,
 } from '../utils/analytics.js';
 import { WORKER_BASE } from '../utils/endpoints.js';
 
@@ -117,16 +122,97 @@ document.addEventListener("DOMContentLoaded", function () {
   document.body.classList.add("light-mode");
   document.body.classList.remove("dark-mode");
 
-  // Create a connection to the background page
-  const backgroundPageConnection = chrome.runtime.connect({
-    name: "panel-page",
-  });
+  // Connection to the background service worker.
+  //
+  // In MV3 the worker is torn down after ~30s idle, which silently kills this
+  // port — after which hover results never reach the panel and Refresh can't
+  // re-sync ("nothing shows up after the page sits idle"). To survive that we
+  // hold the port in a reassignable binding, keep all panel-side message
+  // handlers in a stable list (so they outlive any single port), and
+  // transparently reconnect + re-announce the tab + re-assert locator mode
+  // whenever the port drops.
+  let backgroundPageConnection = null;
+  let bgReconnectTimer = null;
+  const bgMessageHandlers = [];
 
-  // Relay the tab ID to the background page
-  backgroundPageConnection.postMessage({
-    name: "init",
-    tabId: chrome.devtools.inspectedWindow.tabId,
-  });
+  function onBackgroundMessage(handler) {
+    bgMessageHandlers.push(handler);
+  }
+
+  function postToBackground(message) {
+    try {
+      if (!backgroundPageConnection) return false;
+      backgroundPageConnection.postMessage(message);
+      return true;
+    } catch (err) {
+      // Port died between checks — drop it and let onDisconnect reconnect.
+      backgroundPageConnection = null;
+      return false;
+    }
+  }
+
+  function connectToBackground() {
+    backgroundPageConnection = chrome.runtime.connect({ name: "panel-page" });
+
+    // Single dispatcher fans out to every registered handler, so handlers
+    // survive reconnects without having to be re-bound to each new port.
+    backgroundPageConnection.onMessage.addListener((message) => {
+      for (const handler of bgMessageHandlers) {
+        try { handler(message); } catch (e) { console.error("[LocatorSpy] message handler error:", e); }
+      }
+    });
+
+    backgroundPageConnection.onDisconnect.addListener(() => {
+      backgroundPageConnection = null;
+      if (bgReconnectTimer) clearTimeout(bgReconnectTimer);
+      bgReconnectTimer = setTimeout(connectToBackground, 500);
+    });
+
+    // (Re)announce which tab this panel inspects.
+    postToBackground({
+      name: "init",
+      tabId: chrome.devtools.inspectedWindow.tabId,
+    });
+
+    // If locator mode was on before the worker died, re-assert it so hovering
+    // keeps producing locators after an idle teardown / reconnect.
+    if (isLocatorModeActive) {
+      postToBackground({
+        action: "activateLocatorMode",
+        isActive: true,
+        tabId: chrome.devtools.inspectedWindow.tabId,
+      });
+    }
+  }
+
+  connectToBackground();
+
+  // Re-sync when the inspected page navigates or is refreshed. The page's
+  // content scripts reload (losing locator mode + leaving stale results in
+  // the panel), so clear the list and — if locator mode was on — re-assert it
+  // against the freshly loaded page so hovering keeps working without a
+  // manual toggle.
+  if (chrome.devtools && chrome.devtools.network && chrome.devtools.network.onNavigated) {
+    chrome.devtools.network.onNavigated.addListener(() => {
+      locatorResults.innerHTML =
+        '<p class="placeholder">Activate locator mode and hover over elements to see locators</p>';
+      if (locatorSectionTitle && locatorSectionSubtitle) {
+        locatorSectionTitle.textContent = "Element Locators";
+        locatorSectionSubtitle.textContent = "Activate locator mode and hover on the page";
+      }
+      if (isLocatorModeActive) {
+        // Give the reloaded content scripts a moment to register, then
+        // re-activate (background re-injects as part of this message).
+        setTimeout(() => {
+          postToBackground({
+            action: "activateLocatorMode",
+            isActive: true,
+            tabId: chrome.devtools.inspectedWindow.tabId,
+          });
+        }, 300);
+      }
+    });
+  }
 
   // Toggle locator mode with animation
   locatorModeBtn.addEventListener("click", async function () {
@@ -167,7 +253,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // Send message to background script
-    backgroundPageConnection.postMessage({
+    postToBackground({
       action: "activateLocatorMode",
       isActive: isLocatorModeActive,
       tabId: chrome.devtools.inspectedWindow.tabId,
@@ -197,11 +283,34 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
   // Listen for messages from the background page
-  backgroundPageConnection.onMessage.addListener(function (message) {
+  onBackgroundMessage(async function (message) {
 
 
     if (message.action === "getLocators") {
       if (window.FeedbackService) {
+        // Feedback gate: once the user has generated enough locators without
+        // submitting feedback, stop producing more on hover. Turn locator
+        // mode off in the page and surface the prompt instead of rendering
+        // new results — otherwise an already-active session keeps working
+        // past the threshold and never has to give feedback.
+        const gated = await FeedbackService.checkIfNeedsFeedback();
+        if (gated) {
+          if (isLocatorModeActive) {
+            isLocatorModeActive = false;
+            locatorModeBtn.classList.remove("active-mode");
+            locatorModeBtn.innerHTML = `
+        <img src="../images/cursor-icon.png" class="icon" width="16" height="16" alt="Locator Mode">
+        Locator Mode
+      `;
+            postToBackground({
+              action: "activateLocatorMode",
+              isActive: false,
+              tabId: chrome.devtools.inspectedWindow.tabId,
+            });
+          }
+          FeedbackService.checkFeedbackStatus();
+          return;
+        }
         FeedbackService.incrementLocatorCount();
       }
       displayLocators(message.locators, false, message.trigger);
@@ -218,7 +327,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // Add validation listener
-  backgroundPageConnection.onMessage.addListener(function (message) {
+  onBackgroundMessage(function (message) {
     if (message.action === "validationResult") {
       const btns = document.querySelectorAll(".validate-btn");
       btns.forEach((btn) => {
@@ -962,10 +1071,11 @@ test('recorded flow', async ({ page }) => {
     const interactions = state.recorderInteractions || [];
     const isActive = !!state.recorderActive;
     // Default the recorder to a runnable format rather than raw — most
-    // users come here for code, not a selector dump. The Copy-as dropdown's
-    // own default of "raw" still applies to per-locator copy.
+    // users come here for code, not a selector dump. Selenium JavaScript is
+    // the default flavor. The Copy-as dropdown's own default of "raw" still
+    // applies to per-locator copy.
     const stored = state.copyFormat;
-    const format = stored && stored !== "raw" ? stored : "selenium-java";
+    const format = stored && stored !== "raw" ? stored : "selenium-javascript";
     const decomposed = recDecomposeFormat(format);
 
     if (recFrameworkSelect && recFrameworkSelect.value !== decomposed.framework) {
@@ -1420,7 +1530,8 @@ test('recorded flow', async ({ page }) => {
   const refreshBtn = document.getElementById("refreshBtn");
 
   refreshBtn.addEventListener("click", () => {
-
+    trackPanelRefreshed();
+    logLocatorLifecycle("panel_refreshed");
 
     // Clear selected locators
     locatorResults.innerHTML =
@@ -1441,7 +1552,7 @@ test('recorded flow', async ({ page }) => {
       `;
 
       // Notify background script to deactivate locator mode
-      backgroundPageConnection.postMessage({
+      postToBackground({
         action: "activateLocatorMode",
         isActive: false,
         tabId: chrome.devtools.inspectedWindow.tabId,
@@ -1742,6 +1853,8 @@ test('recorded flow', async ({ page }) => {
     engineSelect.addEventListener("change", (event) => {
       const engine = event.target.value === "v1" ? "v1" : "v2";
       chrome.storage.local.set({ locatorEngine: engine });
+      trackEngineSelected(engine);
+      logLocatorLifecycle("locator_engine_selected", { engine });
     });
   }
 
@@ -1749,27 +1862,16 @@ test('recorded flow', async ({ page }) => {
   // Persisted in chrome.storage.local; read synchronously off the <select>.
   const copyFormatSelect = document.getElementById("copyFormatSelect");
 
-  // "What's new" banner — eligibility is purely "user is still on Raw format".
-  // No persistent dismissal: as soon as they pick any other format the banner
-  // hides, and if they ever switch back to Raw it shows again. Always-on,
-  // never closeable.
-  function syncNewFeatureBannerEligibility(format) {
-    const banner = document.getElementById("newFeatureBanner");
-    if (!banner) return;
-    const eligible = !format || format === "raw";
-    banner.classList.toggle("hidden", !eligible);
-  }
-
   if (copyFormatSelect) {
     chrome.storage.local.get("copyFormat", (result) => {
       const fmt = result.copyFormat || "raw";
       copyFormatSelect.value = fmt;
       chrome.storage.local.set({ copyFormat: fmt });
-      syncNewFeatureBannerEligibility(fmt);
     });
     copyFormatSelect.addEventListener("change", (event) => {
       chrome.storage.local.set({ copyFormat: event.target.value });
-      syncNewFeatureBannerEligibility(event.target.value);
+      trackCopyFormatSelected(event.target.value);
+      logLocatorLifecycle("copy_format_selected", { format: event.target.value });
     });
   }
 
@@ -1854,6 +1956,7 @@ test('recorded flow', async ({ page }) => {
   checkDockPosition();
   window.addEventListener("resize", checkDockPosition);
 
+
   // Scroll Down Button Logic
   const scrollDownBtn = document.getElementById("scrollDownBtn");
   if (scrollDownBtn) {
@@ -1868,10 +1971,111 @@ test('recorded flow', async ({ page }) => {
 
   // AI Optimization Feature
   const optimizeAiBtn = document.getElementById("optimizeAiBtn");
-  const aiSettingsBtn = document.getElementById("aiSettingsBtn");
-  const aiSettingsModal = document.getElementById("aiSettingsModal");
-  const closeAiSettingsBtn = document.getElementById("closeAiSettingsBtn");
   const saveAiSettingsBtn = document.getElementById("saveAiSettingsBtn");
+
+  // Settings drawer — holds the validation toggles, engine/copy selectors and
+  // the AI provider form. Opened by the toolbar gear and by openAiSettings().
+  const settingsDrawer = document.getElementById("settingsDrawer");
+  const settingsOverlay = document.getElementById("settingsOverlay");
+  const openSettingsBtn = document.getElementById("openSettingsBtn");
+  const closeSettingsBtn = document.getElementById("closeSettingsBtn");
+
+  function openSettingsDrawer(scrollToAi) {
+    if (!settingsDrawer) return;
+    settingsDrawer.classList.add("open");
+    settingsDrawer.setAttribute("aria-hidden", "false");
+    if (settingsOverlay) settingsOverlay.hidden = false;
+    document.body.classList.add("settings-open");
+    if (scrollToAi) {
+      const aiSection = document.getElementById("settingsAiSection");
+      if (aiSection) aiSection.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }
+
+  function closeSettingsDrawer() {
+    if (!settingsDrawer) return;
+    settingsDrawer.classList.remove("open");
+    settingsDrawer.setAttribute("aria-hidden", "true");
+    if (settingsOverlay) settingsOverlay.hidden = true;
+    document.body.classList.remove("settings-open");
+  }
+
+  if (openSettingsBtn) openSettingsBtn.addEventListener("click", () => {
+    trackSettingsOpened({ source: "toolbar" });
+    logLocatorLifecycle("settings_opened", { source: "toolbar" });
+    openSettingsDrawer(false);
+  });
+  // Recorder view hides the main toolbar (and its gear), so it carries its own
+  // settings button next to the status pill — same drawer.
+  const recSettingsBtn = document.getElementById("recSettingsBtn");
+  if (recSettingsBtn) recSettingsBtn.addEventListener("click", () => {
+    trackSettingsOpened({ source: "recorder" });
+    logLocatorLifecycle("settings_opened", { source: "recorder" });
+    openSettingsDrawer(false);
+  });
+  if (closeSettingsBtn) closeSettingsBtn.addEventListener("click", closeSettingsDrawer);
+  if (settingsOverlay) settingsOverlay.addEventListener("click", closeSettingsDrawer);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && settingsDrawer && settingsDrawer.classList.contains("open")) {
+      closeSettingsDrawer();
+    }
+  });
+
+  // Notifications drawer — the update / AI-credit info items live here now
+  // instead of as inline banners. The existing eligibility logic still owns
+  // each item's visibility & data; we only mirror that state onto the bell
+  // badge and the empty-state line via a MutationObserver, so none of the
+  // banner logic below needs to change.
+  const notificationsBtn = document.getElementById("notificationsBtn");
+  const notificationsDrawer = document.getElementById("notificationsDrawer");
+  const notificationsOverlay = document.getElementById("notificationsOverlay");
+  const closeNotificationsBtn = document.getElementById("closeNotificationsBtn");
+  const notifBadge = document.getElementById("notifBadge");
+  const notifEmpty = document.getElementById("notifEmpty");
+  const notifItems = [
+    document.getElementById("updateAlertDev"),
+    document.getElementById("aiCreditsBanner"),
+  ].filter(Boolean);
+
+  function isNotifVisible(el) {
+    return el && !el.hidden && !el.classList.contains("hidden");
+  }
+  function refreshNotifState() {
+    const count = notifItems.filter(isNotifVisible).length;
+    if (notifBadge) notifBadge.hidden = count === 0;
+    if (notifEmpty) notifEmpty.hidden = count > 0;
+  }
+  function openNotificationsDrawer() {
+    if (!notificationsDrawer) return;
+    notificationsDrawer.classList.add("open");
+    notificationsDrawer.setAttribute("aria-hidden", "false");
+    if (notificationsOverlay) notificationsOverlay.hidden = false;
+  }
+  function closeNotificationsDrawer() {
+    if (!notificationsDrawer) return;
+    notificationsDrawer.classList.remove("open");
+    notificationsDrawer.setAttribute("aria-hidden", "true");
+    if (notificationsOverlay) notificationsOverlay.hidden = true;
+  }
+  if (notificationsBtn) notificationsBtn.addEventListener("click", () => {
+    trackNotificationsOpened({ count: notifItems.filter(isNotifVisible).length });
+    logLocatorLifecycle("notifications_opened");
+    openNotificationsDrawer();
+  });
+  if (closeNotificationsBtn) closeNotificationsBtn.addEventListener("click", closeNotificationsDrawer);
+  if (notificationsOverlay) notificationsOverlay.addEventListener("click", closeNotificationsDrawer);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && notificationsDrawer && notificationsDrawer.classList.contains("open")) {
+      closeNotificationsDrawer();
+    }
+  });
+  if (notifItems.length) {
+    const notifObserver = new MutationObserver(refreshNotifState);
+    notifItems.forEach((el) =>
+      notifObserver.observe(el, { attributes: true, attributeFilter: ["hidden", "class"] }),
+    );
+    refreshNotifState();
+  }
   const googleApiKeyInput = document.getElementById("googleApiKey");
   const aiModelSelect = document.getElementById("aiModelSelect");
 
@@ -2248,7 +2452,7 @@ test('recorded flow', async ({ page }) => {
   refreshFreeCreditsUi();
 
   // Listen for locators message to get context
-  backgroundPageConnection.onMessage.addListener(function (message) {
+  onBackgroundMessage(function (message) {
     if (message.action === "getLocators") {
       if (message.locators) {
         currentLocators = message.locators;
@@ -2257,12 +2461,6 @@ test('recorded flow', async ({ page }) => {
         currentHtmlContext = message.htmlContext;
       }
     }
-  });
-
-  // Open Settings
-  aiSettingsBtn.addEventListener("click", () => {
-    trackAiSettingsOpened();
-    openAiSettings();
   });
 
   // Toggle Provider Fields
@@ -2300,15 +2498,10 @@ test('recorded flow', async ({ page }) => {
         openRouterModelInput.value = result.openRouterModel;
       }
 
-      aiSettingsModal.classList.add("show");
+      openSettingsDrawer(true);
       refreshFreeCreditsUi();
     });
   }
-
-  // Close Settings
-  closeAiSettingsBtn.addEventListener("click", () => {
-    aiSettingsModal.classList.remove("show");
-  });
 
   // Save Settings
   saveAiSettingsBtn.addEventListener("click", () => {
@@ -2337,7 +2530,7 @@ test('recorded flow', async ({ page }) => {
     };
 
     chrome.storage.local.set(settings, () => {
-      aiSettingsModal.classList.remove("show");
+      closeSettingsDrawer();
       showCopyNotification("Settings saved!");
       // Sync to the auth backend so the same account picks them up on
       // other devices. Fire-and-forget — local save is the source of truth.
