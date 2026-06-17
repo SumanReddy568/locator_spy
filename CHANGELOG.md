@@ -1,3 +1,6 @@
+## [1.4.8] - 2026-06-17
+- Merge pull request #9 from SumanReddy568/devtools-panel-redesign-and-fixes feat(devtools): redesign panel layout + recorder, fix iframe/idle bugs
+
 ## [1.4.7] - 2026-06-16
 - feat: capture devtools panel + popup session replay with rrweb Bundle rrweb (vendor/rrweb.js, self-hosted for the MV3 self CSP) and add a recorder (utils/replay.js) that records the
 
