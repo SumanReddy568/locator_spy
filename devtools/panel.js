@@ -28,9 +28,51 @@ import {
   trackEngineSelected,
   trackCopyFormatSelected,
   trackPanelRefreshed,
+  fetchPublicStats,
 } from '../utils/analytics.js';
 import { WORKER_BASE } from '../utils/endpoints.js';
 
+// Compact human-readable counts: 1234 -> "1.2k", 2_500_000 -> "2.5M".
+function formatStatCount(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(n % 1e6 === 0 ? 0 : 1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(n % 1e3 === 0 ? 0 : 1) + "k";
+  return String(n);
+}
+
+// Fetch community usage counters and paint them into #headerStats. Renders
+// nothing on failure so the header stays clean when the worker is unreachable.
+async function renderHeaderStats() {
+  const el = document.getElementById("headerStats");
+  if (!el) return;
+  const stats = await fetchPublicStats();
+  if (!stats) return;
+
+  const items = [
+    { value: stats.users, label: "users" },
+    { value: stats.locators, label: "locators" },
+    { value: stats.aiOptimizations, label: "AI runs" },
+    { value: stats.countries, label: "countries" },
+  ];
+
+  el.replaceChildren();
+  const caption = document.createElement("span");
+  caption.className = "stats-caption";
+  caption.textContent = "Community";
+  el.appendChild(caption);
+  items.forEach((it) => {
+    const stat = document.createElement("span");
+    stat.className = "stat";
+    stat.title = `${it.value.toLocaleString()} ${it.label}`;
+    const value = document.createElement("span");
+    value.className = "stat-value";
+    value.textContent = formatStatCount(it.value);
+    const label = document.createElement("span");
+    label.className = "stat-label";
+    label.textContent = it.label;
+    stat.append(value, label);
+    el.appendChild(stat);
+  });
+}
 
 document.addEventListener("DOMContentLoaded", function () {
   const locatorModeBtn = document.getElementById("locatorModeBtn");
@@ -50,6 +92,9 @@ document.addEventListener("DOMContentLoaded", function () {
   const logoutBtn = document.getElementById("logoutBtn");
   const locatorSectionTitle = document.getElementById("locatorSectionTitle");
   const locatorSectionSubtitle = document.getElementById("locatorSectionSubtitle");
+
+  // Community usage strip in the header. Fetched once on load; fails silently.
+  renderHeaderStats();
 
   // Auth Status Check
   if (window.AuthModule) {

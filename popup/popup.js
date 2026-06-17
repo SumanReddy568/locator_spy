@@ -2,6 +2,67 @@
 // utils/endpoints.js can't be imported here — keep the URL inline.
 const WORKER_BASE = "https://open-api-worker.sumanreddy568.workers.dev";
 
+// Compact human-readable counts: 1234 -> "1.2k", 2_500_000 -> "2.5M".
+function formatStatCount(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(n % 1e6 === 0 ? 0 : 1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(n % 1e3 === 0 ? 0 : 1) + "k";
+  return String(n);
+}
+
+// Fetch usage counters and paint them into #headerStats. Bearer-gated, so it
+// only renders for logged-in users; stays hidden (no .has-data) when there's
+// no token or on any failure, keeping the header clean.
+async function renderHeaderStats() {
+  const el = document.getElementById("headerStats");
+  if (!el) return;
+  try {
+    const authToken = await new Promise((resolve) => {
+      try {
+        chrome.storage.local.get(["auth_token"], (r) => resolve(r && r.auth_token));
+      } catch (e) {
+        resolve(localStorage.getItem("auth_token"));
+      }
+    });
+    if (!authToken) return;
+    const res = await fetch(
+      `${WORKER_BASE}/api/public-stats?product=locator_spy&source=locator-spy`,
+      { method: "GET", headers: { Authorization: `Bearer ${authToken}` } }
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data || typeof data !== "object") return;
+
+    const items = [
+      { value: Number(data.users) || 0, label: "Users" },
+      { value: Number(data.locators) || 0, label: "Locators" },
+      { value: Number(data.aiOptimizations) || 0, label: "AI Runs" },
+      { value: Number(data.countries) || 0, label: "Countries" },
+    ];
+
+    el.replaceChildren();
+    const caption = document.createElement("span");
+    caption.className = "stats-caption";
+    caption.textContent = "Community stats";
+    el.appendChild(caption);
+    items.forEach((it) => {
+      const stat = document.createElement("div");
+      stat.className = "stat";
+      stat.title = `${it.value.toLocaleString()} ${it.label.toLowerCase()}`;
+      const value = document.createElement("span");
+      value.className = "stat-value";
+      value.textContent = formatStatCount(it.value);
+      const label = document.createElement("span");
+      label.className = "stat-label";
+      label.textContent = it.label;
+      stat.append(value, label);
+      el.appendChild(stat);
+    });
+    el.classList.add("has-data");
+  } catch (err) {
+    console.warn("[LocatorSpy] Failed to fetch public stats:", err);
+  }
+}
+
 document.addEventListener("DOMContentLoaded", function () {
   const locatorModeBtn = document.getElementById("locatorModeBtn");
   const locatorResults = document.getElementById("locatorResults");
@@ -10,6 +71,9 @@ document.addEventListener("DOMContentLoaded", function () {
   const copyNotification = document.getElementById("copyNotification");
 
   let isLocatorModeActive = false;
+
+  // Community usage strip in the header. Fetched once on open; fails silently.
+  renderHeaderStats();
 
   // Initialize theme from local storage
   if (localStorage.getItem("theme") === "dark") {

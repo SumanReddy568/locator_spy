@@ -96,8 +96,48 @@ export async function track(eventName, options = {}) {
   }
 }
 
+// Fetch aggregate counters (users / locators / AI optimizations / countries)
+// for the header stats strip. Bearer-gated (same session as /ai/*), so it only
+// resolves for logged-in users; returns null otherwise — and on any failure —
+// so callers silently skip rendering the strip.
+const PUBLIC_STATS_URL = `${WORKER_BASE}/api/public-stats?product=locator_spy&source=locator-spy`;
+
+export async function fetchPublicStats() {
+  try {
+    const { authToken } = await getUserInfo();
+    if (!authToken) return null;
+    const res = await fetch(PUBLIC_STATS_URL, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || typeof data !== "object") return null;
+    return {
+      users: Number(data.users) || 0,
+      locators: Number(data.locators) || 0,
+      aiOptimizations: Number(data.aiOptimizations) || 0,
+      countries: Number(data.countries) || 0,
+    };
+  } catch (err) {
+    console.warn("[LocatorSpy] Failed to fetch public stats:", err);
+    return null;
+  }
+}
+
 export function trackLocatorModeActive(meta = {}) {
   return track("locator_mode_active", {
+    feature: "locator_mode",
+    meta,
+  });
+}
+
+// Persistent "a locator was generated" signal. Emitted to /api/event (the
+// non-pruned events table) so the header stats strip can report a real,
+// cumulative total — distinct from the generation_completed lifecycle log,
+// which lives in the 10-day-pruned logs table.
+export function trackLocatorGenerated(meta = {}) {
+  return track("locator_generated", {
     feature: "locator_mode",
     meta,
   });

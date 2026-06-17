@@ -210,6 +210,78 @@ body::before {
   margin-left: 4px;
 }
 
+/* Community usage strip — slots into the middle of the identity bar. Populated
+   by renderHeaderStats() in panel.js from /api/public-stats; stays empty (and
+   thus invisible) until data arrives, so it never reserves dead space. */
+.header-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  flex: 0 1 auto;
+  /* Push the strip (and the controls after it) to the right edge, leaving the
+     wordmark alone on the left. */
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.header-stats .stats-caption {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+/* Each stat is a compact pill chip. */
+.header-stats .stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.header-stats .stat:hover {
+  border-color: var(--accent);
+}
+
+.header-stats .stat-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-1);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.header-stats .stat-label {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  line-height: 1;
+}
+
+/* Narrow / side-dock: drop the labels first to keep the values, then hide. */
+@media (max-width: 760px) {
+  .header-stats .stat-label,
+  .header-stats .stats-caption { display: none; }
+  .header-stats .stat { padding: 3px 8px; }
+}
+@media (max-width: 560px) {
+  .header-stats { display: none; }
+}
+
 .header-controls {
   display: flex;
   gap: 4px;

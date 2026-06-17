@@ -115,6 +115,69 @@ body {
   gap: 8px;
 }
 
+/* Community usage strip — sits flush under the header bar, right-aligned.
+   Populated by renderHeaderStats() in popup.js; hidden until data loads. */
+.stats-strip {
+  display: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: -12px -12px 0 -12px;
+  padding: 7px 12px;
+  background: var(--section-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.stats-strip.has-data {
+  display: flex;
+}
+
+/* Caption on the left; the auto margin pushes the chips flush right. */
+.stats-strip .stats-caption {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-right: auto;
+  white-space: nowrap;
+}
+
+/* Each stat is a compact pill chip. */
+.stats-strip .stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  white-space: nowrap;
+  transition: border-color var(--transition-speed);
+}
+
+.stats-strip .stat:hover {
+  border-color: var(--primary-color);
+}
+
+.stats-strip .stat-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-strip .stat-label {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
 .icon-btn {
   background: transparent;
   border: none;

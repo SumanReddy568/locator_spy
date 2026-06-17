@@ -1,4 +1,4 @@
-import { logLocatorLifecycle } from './utils/analytics.js';
+import { logLocatorLifecycle, trackLocatorGenerated } from './utils/analytics.js';
 
 // Add export statement at the start
 export const initializeServiceWorker = () => {
@@ -236,6 +236,11 @@ export const initializeServiceWorker = () => {
     try {
       if (message.action === 'locatorLifecycle') {
         logLocatorLifecycle(message.eventName, message.data || {});
+        // Also emit a persistent, cumulative locator-generated event for the
+        // header stats strip (lifecycle logs are pruned after 10 days).
+        if (message.eventName === 'generation_completed') {
+          trackLocatorGenerated(message.data || {});
+        }
         return;
       }
 
