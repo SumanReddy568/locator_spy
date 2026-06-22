@@ -26,10 +26,18 @@
   var PRODUCT = "locator_spy";
   var FLUSH_INTERVAL_MS = 5000;
   var MAX_BATCH = 200;
+  // Stop recording after this long without any rrweb event (no interaction, no
+  // DOM mutation). Idle gaps are dead weight — they inflate the stored stream
+  // and the session's wall-clock duration without showing anything. We resume
+  // on the next real user interaction.
+  var IDLE_MS = 20000;
 
   var buffer = [];
   var sessionId = null;
   var user = { user_id: null, email: null };
+  var stopFn = null;       // rrweb.record() stop handle; null while paused
+  var idleTimer = null;
+  var recording = false;
 
   function randomId() {
     if (self.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -99,17 +107,48 @@
     }
   }
 
-  function start() {
-    rrweb.record({
+  // Any rrweb event counts as activity: reset the idle countdown. When it
+  // fires, ship the buffer and stop the recorder so nothing is captured while
+  // the surface sits idle.
+  function scheduleIdleStop() {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () {
+      if (!recording) return;
+      flush(false);
+      if (stopFn) { try { stopFn(); } catch (e) {} }
+      stopFn = null;
+      recording = false;
+    }, IDLE_MS);
+  }
+
+  function startRecording() {
+    if (recording) return;
+    recording = true;
+    // rrweb takes a fresh full snapshot on each record() call, so a session
+    // that paused and resumed replays correctly — the worker reassembles by
+    // each event's own timestamp.
+    stopFn = rrweb.record({
       emit: function (event) {
         buffer.push(event);
         if (buffer.length >= MAX_BATCH) flush(false);
+        scheduleIdleStop();
       },
       maskAllInputs: true,
       blockClass: "rr-block",
       ignoreClass: "rr-ignore",
       recordCanvas: false,
       collectFonts: false,
+    });
+    scheduleIdleStop();
+  }
+
+  function start() {
+    startRecording();
+
+    // While paused, rrweb isn't listening, so wake on the next real
+    // interaction. capture:true so we see the event before app handlers.
+    ["mousedown", "keydown", "scroll", "touchstart", "mousemove"].forEach(function (evt) {
+      document.addEventListener(evt, function () { if (!recording) startRecording(); }, true);
     });
 
     setInterval(function () { flush(false); }, FLUSH_INTERVAL_MS);
