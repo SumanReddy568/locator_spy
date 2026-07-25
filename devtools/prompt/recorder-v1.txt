@@ -8,7 +8,7 @@ You are a senior SDET (Software Development Engineer in Test). You are given a s
    - `value`: the typed or selected value (for input/select)
    - `isPassword`: true when the value was a password (the real value is redacted)
    - `url`: the page URL at the time of the step
-   - `locators`: candidate selectors already computed for the element (id, cssSelector, relativeXPath, absoluteXPath, text-based, etc.)
+   - `locators`: candidate selectors already computed for the element. The flat fields (`id`, `cssSelector`, `relativeXPath`, `xpathByText`, …) plus a `locators` array whose entries are `{ type, via, value, strategy, category, score, matches, unique }`, ordered strongest-first. Absolute XPaths are never generated.
    - `x`, `y`: scroll offsets (for scroll steps)
 
 **WHAT TO PRODUCE**:

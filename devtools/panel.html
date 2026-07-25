@@ -298,7 +298,7 @@
           <div class="form-group">
             <label for="engineSelect">Engine</label>
             <select id="engineSelect">
-              <option value="v2">v2 · anchor-first</option>
+              <option value="v2">v2 · all locators</option>
               <option value="v1">v1 · legacy</option>
             </select>
           </div>
@@ -520,7 +520,17 @@
     </div>
     <div class="release-notes-content">
       <div class="release-item latest">
-        <h4>Version 1.5.0 <span class="release-date">May 2026</span><span class="new-badge">New</span></h4>
+        <h4>Version 1.5.0 <span class="release-date">July 2026</span><span class="new-badge">New</span></h4>
+        <ul>
+          <li><strong>Every locator, not just one:</strong> The v2 engine now generates the whole family of locators for an element — CSS, XPath, Selenium <code>By.*</code> values and Playwright <code>getByTestId</code>&nbsp;/ <code>getByRole</code>&nbsp;/ <code>getByLabel</code>&nbsp;/ <code>getByText</code> accessors — from every identity it can find: test ids, id, name, role + accessible name, visible text, associated label, placeholder, classes, and position under a stable ancestor. Typical element: 25–60 options instead of a handful.</li>
+          <li><strong>Absolute XPath removed:</strong> <code>/html/body/div[2]/button[1]</code> is gone everywhere. Its replacement is a short chain rooted at the nearest meaningful ancestor, e.g. <code>//section[@aria-label='Recent items']/div[2]/button</code>.</li>
+          <li><strong>Non-unique locators are shown, not hidden:</strong> Anything matching several nodes now appears with a <em>N&nbsp;matches</em> badge plus a ready-made indexed variant, so repeated components (table rows, cards) are workable instead of empty.</li>
+          <li><strong>Dynamic ids handled:</strong> Framework-generated ids (<code>mui-8891</code>, <code>:r3:</code>) produce <code>starts-with</code>&nbsp;/ <code>contains</code> forms on their stable prefix rather than a value that changes every run.</li>
+          <li><strong>Search + Copy&nbsp;as improvements:</strong> The search box filters by intent as well as text (try <em>css</em>, <em>xpath</em>, <em>text contains</em>), and Copy&nbsp;as now emits the correct <code>By.name</code>&nbsp;/ <code>By.className</code>&nbsp;/ <code>By.linkText</code> call for each locator kind.</li>
+        </ul>
+      </div>
+      <div class="release-item">
+        <h4>Version 1.5.0 <span class="release-date">May 2026</span></h4>
         <ul>
           <li><strong>Intelligent Recorder:</strong> Capture clicks, typing, selects and scrolls in your app, then generate AI-powered, paste-ready tests with smart waits and assertions — Selenium (Java&nbsp;/ Python&nbsp;/ JavaScript), Playwright (JS&nbsp;/ TS&nbsp;/ Python), Cypress, or WebdriverIO.</li>
           <li><strong>Copy as Framework:</strong> Every locator can now be copied as wrapped framework code, not just a raw selector. New <em>Copy&nbsp;as</em> dropdown next to the Engine selector.</li>

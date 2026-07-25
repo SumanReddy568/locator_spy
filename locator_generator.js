@@ -468,23 +468,6 @@ window.generateLocatorsV1 = function generateLocatorsV1(element) {
     return "//" + parts.join("/");
   }
 
-  function absoluteXPath(el) {
-    const segs = [];
-    let cur = el;
-    while (cur && cur.nodeType === 1) {
-      let tag = cur.tagName.toLowerCase();
-      let index = 1;
-      let sib = cur.previousElementSibling;
-      while (sib) {
-        if (sib.tagName.toLowerCase() === tag) index++;
-        sib = sib.previousElementSibling;
-      }
-      segs.unshift(`${tag}[${index}]`);
-      cur = cur.parentNode;
-    }
-    return '/' + segs.join('/');
-  }
-
   function getXpathByText(el) {
     const text = el.innerText || el.textContent;
     // Don't use text matching for very long text
@@ -591,7 +574,6 @@ window.generateLocatorsV1 = function generateLocatorsV1(element) {
 
   const result = {
     cssSelector: validateCss(getCssSelector(element), element),
-    absoluteXPath: validateXPath(absoluteXPath(element), element),
     relativeXPath: validateXPath(getRelativeXPath(element), element),
     xpathByText: xpathByTextOut,
     xpathByLinkText: xpathByLinkTextValidated,

@@ -251,107 +251,124 @@ document.addEventListener("DOMContentLoaded", function () {
     let html = "";
     html += '<div class="locators-table">';
 
-    // Display high priority locators first
-    if (locators.id) {
-      html += createLocatorItem("ID", locators.id);
-    }
+    // The engine hands back every locator it could build for the element,
+    // ordered best-first. Older payloads (v1 engine) only have the flat
+    // fields, so those still render from the explicit list below.
+    const generated =
+      Array.isArray(locators.locators) && locators.locators.length
+        ? locators.locators
+        : null;
 
-    if (locators.dataTestId) {
-      html += createLocatorItem("Data Test ID", locators.dataTestId);
-    }
+    if (generated) {
+      for (const loc of generated) {
+        const label = [
+          loc.type,
+          loc.via ? `· ${loc.via}` : "",
+          !loc.unique && !loc.approx ? `(${loc.matches} matches)` : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        html += createLocatorItem(label, loc.value, loc);
+      }
+    } else {
+      // Display high priority locators first
+      if (locators.id) {
+        html += createLocatorItem("ID", locators.id);
+      }
 
-    if (locators.cssSelector) {
-      html += createLocatorItem("CSS Selector", locators.cssSelector);
-    }
+      if (locators.dataTestId) {
+        html += createLocatorItem("Data Test ID", locators.dataTestId);
+      }
 
-    if (locators.cssByAttrPair) {
-      html += createLocatorItem("CSS by Attr Pair", locators.cssByAttrPair);
-    }
+      if (locators.cssSelector) {
+        html += createLocatorItem("CSS Selector", locators.cssSelector);
+      }
 
-    // Display all XPath related locators
-    if (locators.relativeXPath) {
-      html += createLocatorItem("Relative XPath", locators.relativeXPath);
-    }
+      if (locators.cssByAttrPair) {
+        html += createLocatorItem("CSS by Attr Pair", locators.cssByAttrPair);
+      }
 
-    if (locators.absoluteXPath) {
-      html += createLocatorItem("Absolute XPath", locators.absoluteXPath);
-    }
+      // Display all XPath related locators
+      if (locators.relativeXPath) {
+        html += createLocatorItem("Relative XPath", locators.relativeXPath);
+      }
 
-    if (locators.xpathById) {
-      html += createLocatorItem("XPath by ID", locators.xpathById);
-    }
+      if (locators.xpathById) {
+        html += createLocatorItem("XPath by ID", locators.xpathById);
+      }
 
-    if (locators.xpathByName) {
-      html += createLocatorItem("XPath by Name", locators.xpathByName);
-    }
+      if (locators.xpathByName) {
+        html += createLocatorItem("XPath by Name", locators.xpathByName);
+      }
 
-    if (locators.xpathByDataTestId) {
-      html += createLocatorItem("XPath by Data Test ID", locators.xpathByDataTestId);
-    }
+      if (locators.xpathByDataTestId) {
+        html += createLocatorItem("XPath by Data Test ID", locators.xpathByDataTestId);
+      }
 
-    if (locators.xpathByAriaLabel) {
-      html += createLocatorItem("XPath by Aria Label", locators.xpathByAriaLabel);
-    }
+      if (locators.xpathByAriaLabel) {
+        html += createLocatorItem("XPath by Aria Label", locators.xpathByAriaLabel);
+      }
 
-    if (locators.xpathByPlaceholder) {
-      html += createLocatorItem("XPath by Placeholder", locators.xpathByPlaceholder);
-    }
+      if (locators.xpathByPlaceholder) {
+        html += createLocatorItem("XPath by Placeholder", locators.xpathByPlaceholder);
+      }
 
-    if (locators.xpathByText) {
-      html += createLocatorItem("XPath by Text", locators.xpathByText);
-    }
+      if (locators.xpathByText) {
+        html += createLocatorItem("XPath by Text", locators.xpathByText);
+      }
 
-    if (locators.partialTextXPath) {
-      html += createLocatorItem(
-        "XPath by Partial Text",
-        locators.partialTextXPath
-      );
-    }
+      if (locators.partialTextXPath) {
+        html += createLocatorItem(
+          "XPath by Partial Text",
+          locators.partialTextXPath
+        );
+      }
 
-    // Display All XPaths section with validation
-    if (locators.allXPaths && locators.allXPaths.length > 0) {
-      html += `<div class="locator-item"><span class="locator-type">All XPaths:</span></div>`;
-      locators.allXPaths.forEach((xpath) => {
-        html += `
-          <div class="locator-item">
-            <span class="locator-value">${xpath}</span>
-            <div class="locator-actions">
-              <button class="validate-btn" data-type="XPath" data-value="${escapeHtml(
-                xpath
-              )}" title="Validate locator">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1-7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
-                </svg>
-                Validate
-              </button>
-              <button class="copy-btn" data-value="${escapeHtml(xpath)}">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1-2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-                Copy
-              </button>
+      // Display All XPaths section with validation
+      if (locators.allXPaths && locators.allXPaths.length > 0) {
+        html += `<div class="locator-item"><span class="locator-type">All XPaths:</span></div>`;
+        locators.allXPaths.forEach((xpath) => {
+          html += `
+            <div class="locator-item">
+              <span class="locator-value">${xpath}</span>
+              <div class="locator-actions">
+                <button class="validate-btn" data-type="XPath" data-value="${escapeHtml(
+                  xpath
+                )}" title="Validate locator">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1-7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+                  </svg>
+                  Validate
+                </button>
+                <button class="copy-btn" data-value="${escapeHtml(xpath)}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1-2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  Copy
+                </button>
+              </div>
             </div>
-          </div>
-        `;
-      });
-    }
+          `;
+        });
+      }
 
-    // Display lower priority locators at the bottom
-    if (locators.className) {
-      html += createLocatorItem("Class Name", locators.className);
-    }
+      // Display lower priority locators at the bottom
+      if (locators.className) {
+        html += createLocatorItem("Class Name", locators.className);
+      }
 
-    if (locators.tagName) {
-      html += createLocatorItem("Tag Name", locators.tagName);
-    }
+      if (locators.tagName) {
+        html += createLocatorItem("Tag Name", locators.tagName);
+      }
 
-    if (locators.linkText) {
-      html += createLocatorItem("Link Text", locators.linkText);
-    }
+      if (locators.linkText) {
+        html += createLocatorItem("Link Text", locators.linkText);
+      }
 
-    if (locators.partialLinkText) {
-      html += createLocatorItem("Partial Link Text", locators.partialLinkText);
+      if (locators.partialLinkText) {
+        html += createLocatorItem("Partial Link Text", locators.partialLinkText);
+      }
     }
 
     html += "</div>";
@@ -366,17 +383,26 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     addValidationListeners();
-    autoValidateLocators(locators); // Trigger auto-validation if enabled
+    // Auto-validation lives in the DevTools panel, which has the toggle for
+    // it. The popup used to call an autoValidateLocators() that was never
+    // defined here, throwing a ReferenceError on every render.
   }
 
-  // Helper function to create locator item
-  function createLocatorItem(type, value) {
+  // Helper function to create locator item. `loc` is the engine's entry for
+  // this locator when we have one — it carries the strategy and a CSS/XPath
+  // equivalent so the page can resolve it exactly.
+  function createLocatorItem(type, value, loc) {
+    const meta = loc
+      ? ` data-strategy="${escapeHtml(loc.strategy || "")}"` +
+        ` data-verify-kind="${escapeHtml(loc.verifyKind || "")}"` +
+        ` data-verify-expr="${escapeHtml(loc.verifyExpr || "")}"`
+      : "";
     return `
       <div class="locator-item">
-        <span class="locator-type">${type}:</span>
-        <span class="locator-value">${value}</span>
+        <span class="locator-type">${escapeHtml(type)}:</span>
+        <span class="locator-value">${escapeHtml(value)}</span>
         <div class="locator-actions">
-          <button class="validate-btn" data-type="${type}" data-value="${escapeHtml(value)}">
+          <button class="validate-btn" data-type="${escapeHtml(type)}" data-value="${escapeHtml(value)}"${meta}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 6L9 17l-5-5"/>
             </svg>
@@ -400,6 +426,9 @@ document.addEventListener("DOMContentLoaded", function () {
       btn.addEventListener("click", function () {
         const type = this.getAttribute("data-type");
         const value = this.getAttribute("data-value");
+        const strategy = this.getAttribute("data-strategy");
+        const verifyKind = this.getAttribute("data-verify-kind");
+        const verifyExpr = this.getAttribute("data-verify-expr");
 
         // Send validation request to content script
         chrome.tabs.query(
@@ -409,6 +438,9 @@ document.addEventListener("DOMContentLoaded", function () {
               action: "validateLocator",
               locatorType: type,
               locatorValue: value,
+              locatorStrategy: strategy || null,
+              locatorVerifyKind: verifyKind || null,
+              locatorVerifyExpr: verifyExpr || null,
             });
           }
         );

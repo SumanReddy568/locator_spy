@@ -349,6 +349,9 @@ if (window.seleniumLocatorHelperInjected) {
       let hoveredElement = null;
       let contextCheckInterval = null;
       let lastValidatedElement = null;
+      // The element the panel is currently showing locators for. When a
+      // locator matches several nodes, this is the one worth highlighting.
+      let lastSelectedElement = null;
 
       // Initialize utility instances
       const domDiffer = new DOMDiffer();
@@ -449,6 +452,7 @@ if (window.seleniumLocatorHelperInjected) {
         event.preventDefault();
 
         const clickedElement = event.target;
+        lastSelectedElement = clickedElement;
 
         const elementDetails = {
           tagName: clickedElement.tagName?.toLowerCase(),
@@ -646,7 +650,12 @@ if (window.seleniumLocatorHelperInjected) {
             if (request.action === "validateLocator") {
               validateAndHighlightElement(
                 request.locatorType,
-                request.locatorValue
+                request.locatorValue,
+                {
+                  strategy: request.locatorStrategy || null,
+                  verifyExpr: request.locatorVerifyExpr || null,
+                  verifyKind: request.locatorVerifyKind || null,
+                }
               );
             }
 
@@ -657,8 +666,63 @@ if (window.seleniumLocatorHelperInjected) {
         }
       }
 
+      // Run a locator against the document and return every node it matches.
+      // `strategy` is the locator kind the panel sent along with the value, so
+      // raw Selenium values (`username` for By.name) and framework locators
+      // (`page.getByRole(...)`, resolved through `verifyExpr`) both work here
+      // without inferring anything from the label.
+      function queryAllForLocator(strategy, value, verifyExpr, verifyKind) {
+        const run = (kind, expr) => {
+          if (!expr) return [];
+          try {
+            if (kind === "xpath") {
+              const r = document.evaluate(
+                expr, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null
+              );
+              const out = [];
+              for (let i = 0; i < r.snapshotLength; i++) out.push(r.snapshotItem(i));
+              return out;
+            }
+            return Array.from(document.querySelectorAll(expr));
+          } catch (e) {
+            return [];
+          }
+        };
+        const normText = (s) => String(s || "").replace(/\s+/g, " ").trim();
+
+        switch (strategy) {
+          case "xpath":
+            return run("xpath", value);
+          case "css":
+            return run("css", value);
+          case "id": {
+            const el = document.getElementById(value);
+            return el ? [el] : [];
+          }
+          case "name":
+            return Array.from(document.getElementsByName(value));
+          case "class name":
+            return Array.from(document.getElementsByClassName(value));
+          case "tag name":
+            return Array.from(document.getElementsByTagName(value));
+          case "link text":
+            return Array.from(document.getElementsByTagName("a")).filter(
+              (a) => normText(a.textContent) === normText(value)
+            );
+          case "partial link text":
+            return Array.from(document.getElementsByTagName("a")).filter((a) =>
+              normText(a.textContent).includes(normText(value))
+            );
+          default:
+            // Playwright spellings and anything else we don't parse: fall back
+            // to the CSS/XPath equivalent the engine recorded for this locator.
+            return run(verifyKind === "xpath" ? "xpath" : "css", verifyExpr);
+        }
+      }
+
       // Add validation handling
-      function validateAndHighlightElement(type, value) {
+      function validateAndHighlightElement(type, value, opts) {
+        opts = opts || {};
         // Clear previous validation highlight if exists
         if (lastValidatedElement) {
           lastValidatedElement.style.outline = "";
@@ -668,7 +732,29 @@ if (window.seleniumLocatorHelperInjected) {
         }
 
         let element = null;
+        let extraInfo = null;
         const lowerType = type.toLowerCase();
+
+        // Preferred path: the panel told us exactly how to resolve this one.
+        if (opts.strategy || opts.verifyExpr) {
+          const found = queryAllForLocator(
+            opts.strategy, value, opts.verifyExpr, opts.verifyKind
+          );
+          // Among several matches, highlight the element the panel is showing
+          // locators for rather than whichever comes first in the document.
+          element =
+            (lastSelectedElement && found.includes(lastSelectedElement) && lastSelectedElement) ||
+            (hoveredElement && found.includes(hoveredElement) && hoveredElement) ||
+            found[0] ||
+            null;
+          if (found.length > 1) {
+            extraInfo = `Matches ${found.length} elements. Highlighting #${
+              found.indexOf(element) + 1
+            }.`;
+          }
+          highlightValidationResult(element, type, value, extraInfo);
+          return;
+        }
 
         try {
           // 1. XPath Strategies
@@ -776,40 +862,7 @@ if (window.seleniumLocatorHelperInjected) {
             }
           }
 
-          if (element) {
-            // Store reference to currently highlighted element
-            lastValidatedElement = element;
-
-            // Add validation highlight effect
-            element.style.transition = "all 0.3s ease";
-            element.style.outline = "2px solid #4CAF50";
-            element.style.outlineOffset = "2px";
-            element.style.boxShadow = "0 0 10px rgba(76, 175, 80, 0.5)";
-
-            chrome.runtime.sendMessage({
-              action: "validationResult",
-              success: true,
-              locatorType: type,
-              locatorValue: value,
-            });
-
-            // Remove highlight after 2 seconds
-            setTimeout(() => {
-              if (lastValidatedElement === element) {
-                element.style.outline = "";
-                element.style.outlineOffset = "";
-                element.style.boxShadow = "";
-                lastValidatedElement = null;
-              }
-            }, 2000);
-          } else {
-            chrome.runtime.sendMessage({
-              action: "validationResult",
-              success: false,
-              locatorType: type,
-              locatorValue: value,
-            });
-          }
+          highlightValidationResult(element, type, value, null);
         } catch (error) {
           chrome.runtime.sendMessage({
             action: "validationResult",
@@ -818,6 +871,46 @@ if (window.seleniumLocatorHelperInjected) {
             locatorValue: value,
           });
         }
+      }
+
+      // Flash the resolved element and report the outcome back to the panel.
+      function highlightValidationResult(element, type, value, additionalInfo) {
+        if (!element) {
+          chrome.runtime.sendMessage({
+            action: "validationResult",
+            success: false,
+            locatorType: type,
+            locatorValue: value,
+          });
+          return;
+        }
+
+        // Store reference to currently highlighted element
+        lastValidatedElement = element;
+
+        // Add validation highlight effect
+        element.style.transition = "all 0.3s ease";
+        element.style.outline = "2px solid #4CAF50";
+        element.style.outlineOffset = "2px";
+        element.style.boxShadow = "0 0 10px rgba(76, 175, 80, 0.5)";
+
+        chrome.runtime.sendMessage({
+          action: "validationResult",
+          success: true,
+          locatorType: type,
+          locatorValue: value,
+          additionalInfo: additionalInfo || undefined,
+        });
+
+        // Remove highlight after 2 seconds
+        setTimeout(() => {
+          if (lastValidatedElement === element) {
+            element.style.outline = "";
+            element.style.outlineOffset = "";
+            element.style.boxShadow = "";
+            lastValidatedElement = null;
+          }
+        }, 2000);
       }
 
       // -------- Recorder mode --------
@@ -846,7 +939,14 @@ if (window.seleniumLocatorHelperInjected) {
       function recGenerateLocatorsSafe(el) {
         try {
           if (typeof window.generateLocators === "function") {
-            return window.generateLocators(el);
+            const locators = window.generateLocators(el);
+            if (!locators || !Array.isArray(locators.locators)) return locators;
+            // A recording holds one of these per step and lives in
+            // chrome.storage, so keep only the handful of locators the code
+            // generators and the AI prompt actually choose between.
+            return Object.assign({}, locators, {
+              locators: locators.locators.filter((l) => l.unique).slice(0, 8),
+            });
           }
         } catch (e) { /* ignore */ }
         return null;

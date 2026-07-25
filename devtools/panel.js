@@ -431,23 +431,38 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    // Count only the locators that will actually render (truthy string fields
-    // + the entries in allXPaths). The result object always has the same
-    // shape with null fields, so a raw key count is misleading.
+    // The engine returns a `locators` array — every generated locator, already
+    // ordered best-first and annotated with how many nodes it matches. Older
+    // payloads (v1 engine, AI results) only carry the flat fields, so those
+    // still render from the explicit list below.
+    const generated =
+      Array.isArray(locators.locators) && locators.locators.length
+        ? locators.locators
+        : null;
+
+    // Count only the locators that will actually render (truthy string
+    // fields). The result object always has the same shape with null fields,
+    // so a raw key count is misleading.
     const RENDERED_FIELDS = [
-      "id", "dataTestId", "cssSelector", "cssByAttrPair",
-      "relativeXPath", "absoluteXPath",
+      "id", "dataTestId", "cssSelector", "cssByAttrPair", "relativeXPath",
       "xpathById", "xpathByName", "xpathByDataTestId", "xpathByAriaLabel",
       "xpathByPlaceholder", "xpathByText", "xpathByLinkText",
       "xpathByPartialLinkText", "partialTextXPath",
       "xpathByClassName", "xpathByTagName",
     ];
     let locatorCount = 0;
-    for (const key of RENDERED_FIELDS) {
-      if (locators[key]) locatorCount++;
-    }
-    if (Array.isArray(locators.allXPaths)) {
-      locatorCount += locators.allXPaths.filter(Boolean).length;
+    let uniqueCount = 0;
+    if (generated) {
+      locatorCount = generated.length;
+      uniqueCount = generated.filter((l) => l.unique).length;
+    } else {
+      for (const key of RENDERED_FIELDS) {
+        if (locators[key]) locatorCount++;
+      }
+      if (Array.isArray(locators.allXPaths)) {
+        locatorCount += locators.allXPaths.filter(Boolean).length;
+      }
+      uniqueCount = locatorCount;
     }
 
 
@@ -470,6 +485,8 @@ document.addEventListener("DOMContentLoaded", function () {
       const countLabel = `${locatorCount} locator${locatorCount === 1 ? "" : "s"}`;
       locatorSectionSubtitle.textContent = isAiGenerated
         ? `${countLabel} · AI refined for robustness`
+        : generated
+        ? `${countLabel} · ${uniqueCount} unique · search to filter by CSS, XPath or Playwright`
         : `${countLabel} · Generated directly from the DOM`;
     }
 
@@ -481,6 +498,11 @@ document.addEventListener("DOMContentLoaded", function () {
           html += createLocatorItem(key, value, true);
         }
       }
+    } else if (generated) {
+      // Every locator the engine produced, best-first. Non-unique ones are
+      // kept and labelled with their match count — they're still the starting
+      // point when a test wants to scope or index into a repeated component.
+      for (const loc of generated) html += createGeneratedLocatorItem(loc);
     } else {
       // Standard rendering for local generator results (Strict Order)
       if (locators.id) html += createLocatorItem("ID", locators.id);
@@ -488,7 +510,6 @@ document.addEventListener("DOMContentLoaded", function () {
       if (locators.cssSelector) html += createLocatorItem("CSS Selector", locators.cssSelector);
       if (locators.cssByAttrPair) html += createLocatorItem("CSS by Attr Pair", locators.cssByAttrPair);
       if (locators.relativeXPath) html += createLocatorItem("Relative XPath", locators.relativeXPath);
-      if (locators.absoluteXPath) html += createLocatorItem("Absolute XPath", locators.absoluteXPath);
       if (locators.xpathById) html += createLocatorItem("XPath by ID", locators.xpathById);
       if (locators.xpathByName) html += createLocatorItem("XPath by Name", locators.xpathByName);
       if (locators.xpathByDataTestId) html += createLocatorItem("XPath by Data Test ID", locators.xpathByDataTestId);
@@ -511,7 +532,7 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>
             <div class="locator-main" title="${escapeHtml(xpath)}">
               <span class="locator-value">
-                <code class="locator-code">${xpath}</code>
+                <code class="locator-code">${escapeHtml(xpath)}</code>
               </span>
             </div>
             <div class="locator-actions">
@@ -541,12 +562,25 @@ document.addEventListener("DOMContentLoaded", function () {
     html += "</div>";
     locatorResults.innerHTML = html;
 
+    // The top row is the recommended locator. Marking it explicitly (rather
+    // than styling :first-child) keeps that treatment correct no matter what
+    // the list is built from.
+    const firstItem = locatorResults.querySelector(".locator-item");
+    if (firstItem) firstItem.classList.add("is-primary");
+
     // Add event listeners to copy and validate buttons
     document.querySelectorAll(".copy-btn").forEach((btn) => {
       btn.addEventListener("click", function () {
         const value = this.getAttribute("data-value");
         const type = this.getAttribute("data-type") || "";
-        copyToClipboard(formatLocator(type, value, getCopyFormat()), this);
+        copyToClipboard(
+          formatLocator(type, value, getCopyFormat(), {
+            strategy: this.getAttribute("data-strategy"),
+            fallback: this.getAttribute("data-fallback"),
+            fallbackKind: this.getAttribute("data-fallback-kind"),
+          }),
+          this
+        );
       });
     });
 
@@ -563,6 +597,60 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  // One row for an engine-generated locator. Carries the strategy and a
+  // CSS/XPath equivalent on the buttons so validate and copy don't have to
+  // guess what kind of locator this is from its label.
+  function createGeneratedLocatorItem(loc) {
+    const badges = [];
+    if (loc.via) {
+      badges.push(
+        `<span class="badge-pill badge-via" title="${escapeHtml(loc.via)}">${escapeHtml(loc.via)}</span>`
+      );
+    }
+    // `approx` locators (getByRole / getByLabel) resolve by accessible name,
+    // which can't be queried, so their match count is only an estimate.
+    if (!loc.unique && !loc.approx) {
+      badges.push(
+        `<span class="badge-pill badge-multi" title="Matches ${loc.matches} nodes — this element is #${loc.position}">${loc.matches} matches</span>`
+      );
+    }
+
+    const attrs =
+      `data-type="${escapeHtml(loc.type)}" data-value="${escapeHtml(loc.value)}" ` +
+      `data-strategy="${escapeHtml(loc.strategy)}" ` +
+      `data-fallback="${escapeHtml(loc.verifyExpr || "")}" ` +
+      `data-fallback-kind="${escapeHtml(loc.verifyKind || "")}"`;
+
+    return `
+      <div class="locator-item" data-strategy="${escapeHtml(loc.strategy)}">
+        <div class="locator-meta">
+          <span class="locator-type">${escapeHtml(loc.type)}</span>
+          <span class="locator-badges">${badges.join("")}</span>
+        </div>
+        <div class="locator-main" title="${escapeHtml(loc.value)}">
+          <span class="locator-value">
+            <code class="locator-code">${escapeHtml(loc.value)}</code>
+          </span>
+        </div>
+        <div class="locator-actions">
+          <button class="validate-btn" ${attrs} title="Highlight the matching element on the page">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1-7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+            </svg>
+            Validate
+          </button>
+          <button class="copy-btn" ${attrs}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            Copy
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   // Helper function to create locator item
   function createLocatorItem(type, value, isAiGenerated = false) {
     const aiBadge = isAiGenerated
@@ -572,18 +660,18 @@ document.addEventListener("DOMContentLoaded", function () {
     return `
       <div class="locator-item">
         <div class="locator-meta">
-          <span class="locator-type">${type}</span>
+          <span class="locator-type">${escapeHtml(type)}</span>
           <span class="locator-badges">
             ${aiBadge}
           </span>
         </div>
         <div class="locator-main" title="${escapeHtml(value)}">
           <span class="locator-value">
-            <code class="locator-code">${value}</code>
+            <code class="locator-code">${escapeHtml(value)}</code>
           </span>
         </div>
         <div class="locator-actions">
-          <button class="validate-btn" data-type="${type}" data-value="${escapeHtml(value)}" title="Validate locator">
+          <button class="validate-btn" data-type="${escapeHtml(type)}" data-value="${escapeHtml(value)}" title="Validate locator">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1-7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
             </svg>
@@ -608,14 +696,20 @@ document.addEventListener("DOMContentLoaded", function () {
         const type = this.getAttribute("data-type");
         const value = this.getAttribute("data-value");
 
-        // Send validation request to content script
+        // Send validation request to content script. `strategy` and the
+        // CSS/XPath equivalent let the page resolve framework locators
+        // (page.getByRole(...)) and raw By.* values (a bare `username` for
+        // By.name) instead of inferring the lookup from the label.
         chrome.tabs.query(
           { active: true, currentWindow: true },
-          function (tabs) {
+          (tabs) => {
             chrome.tabs.sendMessage(tabs[0].id, {
               action: "validateLocator",
               locatorType: type,
               locatorValue: value,
+              locatorStrategy: this.getAttribute("data-strategy") || null,
+              locatorVerifyExpr: this.getAttribute("data-fallback") || null,
+              locatorVerifyKind: this.getAttribute("data-fallback-kind") || null,
             });
           }
         );
@@ -761,10 +855,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function recPickBestLocator(locators) {
     if (!locators) return null;
+    // The engine's array is already ordered best-first; take the strongest
+    // unique locator the recorded frameworks can all express.
+    if (Array.isArray(locators.locators)) {
+      const best = locators.locators.find(
+        (l) =>
+          l.unique &&
+          (l.strategy === "css" || l.strategy === "xpath" || l.strategy === "id")
+      );
+      if (best) {
+        return {
+          type: best.strategy === "xpath" ? "Relative XPath" : best.type,
+          value: best.value,
+          strategy: best.strategy,
+        };
+      }
+    }
     if (locators.cssSelector) return { type: "CSS Selector", value: locators.cssSelector };
     if (locators.id) return { type: "ID", value: locators.id };
     if (locators.relativeXPath) return { type: "Relative XPath", value: locators.relativeXPath };
-    if (locators.absoluteXPath) return { type: "Absolute XPath", value: locators.absoluteXPath };
     return null;
   }
 
@@ -1617,16 +1726,17 @@ test('recorded flow', async ({ page }) => {
 
       // Add null checks for child elements
       if (locatorTypeElement && locatorValueElement) {
-        const locatorType = locatorTypeElement.textContent.toLowerCase();
-        const locatorValue = locatorValueElement.textContent.toLowerCase();
-        if (
-          locatorType.includes(filterText) ||
-          locatorValue.includes(filterText)
-        ) {
-          item.style.display = "";
-        } else {
-          item.style.display = "none";
-        }
+        const badges = item.querySelector(".locator-badges");
+        // Match the type ("XPath"), the value, and the "via" badge ("text
+        // contains", "under #main-nav") so a search narrows by intent too.
+        const haystack = [
+          locatorTypeElement.textContent,
+          locatorValueElement.textContent,
+          badges ? badges.textContent : "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        item.style.display = haystack.includes(filterText) ? "" : "none";
       }
     });
   });
@@ -1652,11 +1762,23 @@ test('recorded flow', async ({ page }) => {
 
         // Skip items that are hidden or only contain header text (like "All XPaths:")
         if (!isHidden && type !== "All XPaths") {
-          const value = locatorValueElement.textContent.trim();
+          // Read the value off the copy button when there is one — it holds the
+          // exact string plus the strategy, so multi-attribute values survive
+          // the round trip through the DOM untouched.
+          const btn = item.querySelector(".copy-btn");
+          const value = btn
+            ? btn.getAttribute("data-value")
+            : locatorValueElement.textContent.trim();
+          const via = item.querySelector(".badge-via");
+          const label = via ? `${type} (${via.textContent.trim()})` : type;
           allLocatorTexts.push(
             format === "raw"
-              ? `${type}: ${value}`
-              : formatLocator(type, value, format)
+              ? `${label}: ${value}`
+              : formatLocator(type, value, format, {
+                  strategy: btn && btn.getAttribute("data-strategy"),
+                  fallback: btn && btn.getAttribute("data-fallback"),
+                  fallbackKind: btn && btn.getAttribute("data-fallback-kind"),
+                })
           );
         }
       }
@@ -1772,21 +1894,34 @@ test('recorded flow', async ({ page }) => {
     return (el && el.value) || "raw";
   }
 
+  // What kind of locator a row holds, when the row didn't say. AI results and
+  // the v1 engine only give us the human label, so fall back to reading it.
+  function inferStrategy(type, value) {
+    const t = String(type || "");
+    if (/xpath/i.test(t)) return "xpath";
+    if (t === "ID") return "id";
+    if (t === "Name") return "name";
+    if (t === "Class Name") return "class name";
+    if (t === "Tag Name") return "tag name";
+    if (t === "Link Text") return "link text";
+    if (t === "Partial Link Text") return "partial link text";
+    if (t === "Playwright") return "playwright";
+    if (/^\s*[/(]/.test(String(value))) return "xpath";
+    return "css";
+  }
+
   // Wrap a locator value in framework-specific code so it can be pasted
-  // directly into a test. `type` is the human label shown in the panel
-  // (e.g. "ID", "CSS Selector", "Relative XPath", "XPath by Text"); we use
-  // it to pick between By.id / By.cssSelector / By.xpath flavors.
-  function formatLocator(type, value, format) {
+  // straight into a test. `meta.strategy` says which By.* / locator flavour
+  // the value belongs to; `meta.fallback` is a CSS or XPath equivalent, used
+  // when the value's own syntax doesn't exist in the target framework (a
+  // Playwright `getByRole` call has no Selenium spelling).
+  function formatLocator(type, value, format, meta) {
     if (value == null) return "";
     if (!format || format === "raw") return value;
 
-    const t = String(type || "");
-    const isXpath = /xpath/i.test(t);
-    // "ID" — and only "ID" — should use By.id; "Data Test ID", "XPath by ID"
-    // etc. fall through to CSS/XPath. The Selenium By.id helper also can't
-    // handle ids with CSS-special characters (colons, spaces), so we degrade
-    // those to a CSS form rather than emitting code that won't compile.
-    const isPureId = t === "ID" && /^[A-Za-z][\w\-]*$/.test(String(value));
+    const info = meta || {};
+    let strategy = info.strategy || inferStrategy(type, value);
+    let val = String(value);
 
     const dq = (s) => String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     const sq = (s) => String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
@@ -1797,31 +1932,84 @@ test('recorded flow', async ({ page }) => {
         ? CSS.escape(String(s))
         : String(s);
 
+    // Playwright's own spellings only survive in the Playwright format.
+    if (strategy === "playwright" && format !== "playwright") {
+      if (!info.fallback) return val;
+      strategy = info.fallbackKind === "xpath" ? "xpath" : "css";
+      val = info.fallback;
+    }
+
+    // Selenium's By.id can't express ids carrying CSS-special characters, so
+    // those degrade to a CSS form rather than emitting code that won't run.
+    const idIsPlain = /^[A-Za-z][\w\-]*$/.test(val);
+    // CSS equivalent of the raw By.* strategies, for the frameworks that only
+    // speak CSS.
+    const asCss = () => {
+      switch (strategy) {
+        case "id": return `#${cssEscapeId(val)}`;
+        case "name": return `[name="${dq(val)}"]`;
+        case "class name": return `.${cssEscapeId(val)}`;
+        case "tag name": return val;
+        default: return val;
+      }
+    };
+    const asXpath = () => {
+      switch (strategy) {
+        case "link text": return `//a[normalize-space()="${dq(val)}"]`;
+        case "partial link text":
+          return `//a[contains(normalize-space(), "${dq(val)}")]`;
+        default: return val;
+      }
+    };
+    const isTextStrategy =
+      strategy === "link text" || strategy === "partial link text";
+
     switch (format) {
-      case "selenium-java":
-        if (isPureId) return `driver.findElement(By.id("${dq(value)}"))`;
-        if (isXpath) return `driver.findElement(By.xpath("${dq(value)}"))`;
-        if (t === "ID") return `driver.findElement(By.cssSelector("#${dq(cssEscapeId(value))}"))`;
-        return `driver.findElement(By.cssSelector("${dq(value)}"))`;
-      case "selenium-python":
-        if (isPureId) return `driver.find_element(By.ID, "${dq(value)}")`;
-        if (isXpath) return `driver.find_element(By.XPATH, "${dq(value)}")`;
-        if (t === "ID") return `driver.find_element(By.CSS_SELECTOR, "#${dq(cssEscapeId(value))}")`;
-        return `driver.find_element(By.CSS_SELECTOR, "${dq(value)}")`;
+      case "selenium-java": {
+        const by = {
+          xpath: `By.xpath("${dq(val)}")`,
+          css: `By.cssSelector("${dq(val)}")`,
+          id: idIsPlain ? `By.id("${dq(val)}")` : `By.cssSelector("#${dq(cssEscapeId(val))}")`,
+          name: `By.name("${dq(val)}")`,
+          "class name": `By.className("${dq(val)}")`,
+          "tag name": `By.tagName("${dq(val)}")`,
+          "link text": `By.linkText("${dq(val)}")`,
+          "partial link text": `By.partialLinkText("${dq(val)}")`,
+        }[strategy];
+        return `driver.findElement(${by || `By.cssSelector("${dq(val)}")`})`;
+      }
+      case "selenium-python": {
+        const by = {
+          xpath: `By.XPATH, "${dq(val)}"`,
+          css: `By.CSS_SELECTOR, "${dq(val)}"`,
+          id: idIsPlain ? `By.ID, "${dq(val)}"` : `By.CSS_SELECTOR, "#${dq(cssEscapeId(val))}"`,
+          name: `By.NAME, "${dq(val)}"`,
+          "class name": `By.CLASS_NAME, "${dq(val)}"`,
+          "tag name": `By.TAG_NAME, "${dq(val)}"`,
+          "link text": `By.LINK_TEXT, "${dq(val)}"`,
+          "partial link text": `By.PARTIAL_LINK_TEXT, "${dq(val)}"`,
+        }[strategy];
+        return `driver.find_element(${by || `By.CSS_SELECTOR, "${dq(val)}"`})`;
+      }
       case "playwright":
-        if (t === "ID") return `page.locator('#${sq(cssEscapeId(value))}')`;
-        if (isXpath) return `page.locator('xpath=${sq(value)}')`;
-        return `page.locator('${sq(value)}')`;
+        if (strategy === "playwright") return val;
+        if (strategy === "xpath") return `page.locator('xpath=${sq(val)}')`;
+        if (strategy === "link text") return `page.getByRole('link', { name: '${sq(val)}' })`;
+        if (strategy === "partial link text")
+          return `page.getByRole('link', { name: '${sq(val)}', exact: false })`;
+        return `page.locator('${sq(asCss())}')`;
       case "cypress":
-        if (t === "ID") return `cy.get('#${sq(cssEscapeId(value))}')`;
-        if (isXpath) return `cy.xpath('${sq(value)}') // requires cypress-xpath plugin`;
-        return `cy.get('${sq(value)}')`;
+        if (strategy === "xpath")
+          return `cy.xpath('${sq(val)}') // requires cypress-xpath plugin`;
+        if (isTextStrategy) return `cy.contains('a', '${sq(val)}')`;
+        return `cy.get('${sq(asCss())}')`;
       case "webdriverio":
-        if (t === "ID") return `$('#${sq(cssEscapeId(value))}')`;
         // WebdriverIO auto-detects XPath when the selector starts with / or (.
-        return `$('${sq(value)}')`;
+        if (strategy === "xpath") return `$('${sq(val)}')`;
+        if (isTextStrategy) return `$('${sq(asXpath())}')`;
+        return `$('${sq(asCss())}')`;
       default:
-        return value;
+        return val;
     }
   }
 
@@ -1927,30 +2115,41 @@ test('recorded flow', async ({ page }) => {
       const allLocators = [];
 
       // Collect all available locators with their types
-      if (locators.id) allLocators.push({ type: 'ID', value: locators.id });
-      if (locators.dataTestId) allLocators.push({ type: 'Data Test ID', value: locators.dataTestId });
-      if (locators.cssSelector) allLocators.push({ type: 'CSS Selector', value: locators.cssSelector });
-      if (locators.cssByAttrPair) allLocators.push({ type: 'CSS by Attr Pair', value: locators.cssByAttrPair });
-      if (locators.relativeXPath) allLocators.push({ type: 'Relative XPath', value: locators.relativeXPath });
-      if (locators.absoluteXPath) allLocators.push({ type: 'Absolute XPath', value: locators.absoluteXPath });
-      if (locators.xpathById) allLocators.push({ type: 'XPath by ID', value: locators.xpathById });
-      if (locators.xpathByName) allLocators.push({ type: 'XPath by Name', value: locators.xpathByName });
-      if (locators.xpathByDataTestId) allLocators.push({ type: 'XPath by Data Test ID', value: locators.xpathByDataTestId });
-      if (locators.xpathByAriaLabel) allLocators.push({ type: 'XPath by Aria Label', value: locators.xpathByAriaLabel });
-      if (locators.xpathByPlaceholder) allLocators.push({ type: 'XPath by Placeholder', value: locators.xpathByPlaceholder });
-      if (locators.xpathByText) allLocators.push({ type: 'XPath by Text', value: locators.xpathByText });
-      if (locators.xpathByLinkText) allLocators.push({ type: 'XPath by Link Text', value: locators.xpathByLinkText });
-      if (locators.xpathByPartialLinkText) allLocators.push({ type: 'XPath by Partial Link Text', value: locators.xpathByPartialLinkText });
-      if (locators.partialTextXPath) allLocators.push({ type: 'XPath by Partial Text', value: locators.partialTextXPath });
-      if (locators.xpathByClassName) allLocators.push({ type: 'XPath by Class Name', value: locators.xpathByClassName });
-      if (locators.xpathByTagName) allLocators.push({ type: 'XPath by Tag Name', value: locators.xpathByTagName });
-      if (locators.allXPaths) {
-        locators.allXPaths.forEach(xpath => allLocators.push({ type: 'XPath', value: xpath }));
+      if (Array.isArray(locators.locators) && locators.locators.length) {
+        for (const loc of locators.locators) {
+          allLocators.push({
+            type: loc.type,
+            value: loc.value,
+            strategy: loc.strategy,
+            verifyExpr: loc.verifyExpr,
+            verifyKind: loc.verifyKind,
+          });
+        }
+      } else {
+        if (locators.id) allLocators.push({ type: 'ID', value: locators.id });
+        if (locators.dataTestId) allLocators.push({ type: 'Data Test ID', value: locators.dataTestId });
+        if (locators.cssSelector) allLocators.push({ type: 'CSS Selector', value: locators.cssSelector });
+        if (locators.cssByAttrPair) allLocators.push({ type: 'CSS by Attr Pair', value: locators.cssByAttrPair });
+        if (locators.relativeXPath) allLocators.push({ type: 'Relative XPath', value: locators.relativeXPath });
+        if (locators.xpathById) allLocators.push({ type: 'XPath by ID', value: locators.xpathById });
+        if (locators.xpathByName) allLocators.push({ type: 'XPath by Name', value: locators.xpathByName });
+        if (locators.xpathByDataTestId) allLocators.push({ type: 'XPath by Data Test ID', value: locators.xpathByDataTestId });
+        if (locators.xpathByAriaLabel) allLocators.push({ type: 'XPath by Aria Label', value: locators.xpathByAriaLabel });
+        if (locators.xpathByPlaceholder) allLocators.push({ type: 'XPath by Placeholder', value: locators.xpathByPlaceholder });
+        if (locators.xpathByText) allLocators.push({ type: 'XPath by Text', value: locators.xpathByText });
+        if (locators.xpathByLinkText) allLocators.push({ type: 'XPath by Link Text', value: locators.xpathByLinkText });
+        if (locators.xpathByPartialLinkText) allLocators.push({ type: 'XPath by Partial Link Text', value: locators.xpathByPartialLinkText });
+        if (locators.partialTextXPath) allLocators.push({ type: 'XPath by Partial Text', value: locators.partialTextXPath });
+        if (locators.xpathByClassName) allLocators.push({ type: 'XPath by Class Name', value: locators.xpathByClassName });
+        if (locators.xpathByTagName) allLocators.push({ type: 'XPath by Tag Name', value: locators.xpathByTagName });
+        if (locators.allXPaths) {
+          locators.allXPaths.forEach(xpath => allLocators.push({ type: 'XPath', value: xpath }));
+        }
       }
 
       if (result.isAutoValidatorEnabled) {
         // Auto validate all locators
-        allLocators.forEach(({ type, value }) => {
+        allLocators.forEach(({ type, value, strategy, verifyExpr, verifyKind }) => {
           // Find and update the button state before validation
           const buttons = document.querySelectorAll('.validate-btn');
           buttons.forEach(btn => {
@@ -1971,7 +2170,10 @@ test('recorded flow', async ({ page }) => {
             chrome.tabs.sendMessage(tabs[0].id, {
               action: "validateLocator",
               locatorType: type,
-              locatorValue: value
+              locatorValue: value,
+              locatorStrategy: strategy || null,
+              locatorVerifyExpr: verifyExpr || null,
+              locatorVerifyKind: verifyKind || null,
             });
           });
         });

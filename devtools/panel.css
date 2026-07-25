@@ -1176,7 +1176,9 @@ body.dark-mode .credits-badge {
 
 .locators-table {
   display: grid;
-  grid-template-columns: minmax(120px, max-content) minmax(0, 1fr) auto;
+  /* The meta column is capped: "via" badges describe how a locator was built
+     ("under #main-nav") and would otherwise starve the value column. */
+  grid-template-columns: minmax(120px, 260px) minmax(0, 1fr) auto;
   gap: 4px;
 }
 
@@ -1220,13 +1222,13 @@ body.dark-mode .credits-badge {
 }
 
 /* The first row is the "primary" locator (best one on top) */
-.locators-table .locator-item:first-child {
+.locators-table .locator-item.is-primary {
   background: linear-gradient(180deg, var(--accent-soft) 0%, transparent 80%);
   border-color: var(--accent-line);
   padding-left: 17px;
 }
 
-.locators-table .locator-item:first-child::before {
+.locators-table .locator-item.is-primary::before {
   content: "";
   position: absolute;
   top: 12px;
@@ -1237,7 +1239,7 @@ body.dark-mode .credits-badge {
   background: var(--accent);
 }
 
-.locators-table .locator-item:first-child::after {
+.locators-table .locator-item.is-primary::after {
   content: "PRIMARY";
   position: absolute;
   top: -7px;
@@ -1253,7 +1255,7 @@ body.dark-mode .credits-badge {
   z-index: 2;
 }
 
-body.dark-mode .locators-table .locator-item:first-child::after {
+body.dark-mode .locators-table .locator-item.is-primary::after {
   color: var(--ink-inverse);
 }
 
@@ -1275,13 +1277,16 @@ body.dark-mode .locators-table .locator-item:first-child::after {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* CSS / XPATH / PLAYWRIGHT must always be readable — when the column is
+     tight it's the "via" badge that gives way, never the type. */
+  flex: 0 0 auto;
 }
 
-.locators-table .locator-item:first-child .locator-type {
+.locators-table .locator-item.is-primary .locator-type {
   color: var(--accent-deep);
 }
 
-body.dark-mode .locators-table .locator-item:first-child .locator-type {
+body.dark-mode .locators-table .locator-item.is-primary .locator-type {
   color: var(--accent);
 }
 
@@ -1289,6 +1294,8 @@ body.dark-mode .locators-table .locator-item:first-child .locator-type {
   display: inline-flex;
   gap: 4px;
   align-items: center;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .badge-pill {
@@ -1299,6 +1306,7 @@ body.dark-mode .locators-table .locator-item:first-child .locator-type {
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  white-space: nowrap;
   color: var(--ink-2);
   background: var(--surface-3);
   border: 1px solid var(--hairline);
@@ -1311,6 +1319,40 @@ body.dark-mode .locators-table .locator-item:first-child .locator-type {
 }
 
 body.dark-mode .badge-ai { color: var(--accent); }
+
+/* How this locator was derived — "text contains", "under #main-nav". The one
+   piece of the row allowed to give way when the column runs out of space. */
+.badge-via {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  max-width: 150px;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The locator resolves to more than one node. Not an error — it's the honest
+   starting point for a scoped or indexed locator — so it warns, not fails. */
+.badge-multi {
+  flex: 0 0 auto;
+  background: var(--warn-soft, rgba(217, 119, 6, 0.12));
+  color: var(--warn, #b45309);
+  border-color: var(--warn-line, rgba(217, 119, 6, 0.28));
+}
+
+body.dark-mode .badge-multi {
+  background: rgba(251, 191, 36, 0.14);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+/* Non-unique rows sit lower in the list; dim them a touch so the reliable
+   locators at the top read as the primary answer. */
+.locator-item:has(.badge-multi) .locator-code {
+  color: var(--ink-2);
+}
 
 /* Value column */
 .locator-main {
@@ -1338,7 +1380,7 @@ body.dark-mode .badge-ai { color: var(--accent); }
   padding: 2px 0;
 }
 
-.locators-table .locator-item:first-child .locator-code {
+.locators-table .locator-item.is-primary .locator-code {
   font-weight: 500;
 }
 
@@ -1354,7 +1396,7 @@ body.dark-mode .badge-ai { color: var(--accent); }
 
 .locator-item:hover .locator-actions,
 .locator-item:focus-within .locator-actions,
-.locators-table .locator-item:first-child .locator-actions,
+.locators-table .locator-item.is-primary .locator-actions,
 .locator-item:has(.validate-btn.validation-success) .locator-actions,
 .locator-item:has(.validate-btn.validation-failed) .locator-actions,
 .locator-item:has(.validate-btn.validating) .locator-actions {
@@ -3121,7 +3163,7 @@ body.dark-mode .notif-item-icon { color: var(--accent); }
     justify-content: flex-end;
   }
 
-  .locators-table .locator-item:first-child { padding-left: 14px; }
+  .locators-table .locator-item.is-primary { padding-left: 14px; }
 
   .section-header {
     flex-wrap: nowrap;
