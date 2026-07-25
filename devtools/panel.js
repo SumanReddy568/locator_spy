@@ -371,30 +371,54 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  // Add validation listener
-  onBackgroundMessage(function (message) {
-    if (message.action === "validationResult") {
-      const btns = document.querySelectorAll(".validate-btn");
-      btns.forEach((btn) => {
-        if (
-          btn.dataset.type === message.locatorType &&
-          btn.dataset.value === message.locatorValue
-        ) {
-          btn.classList.remove("validating");
+  // Validation verdicts.
+  //
+  // The content script runs in every frame of the tab — including about:blank
+  // ones — and `chrome.tabs.sendMessage` with no frameId broadcasts to all of
+  // them. So one click produces one reply per frame: the frame holding the
+  // element answers "found", every other frame answers "not found". Painting
+  // whichever reply lands last marks a locator that highlighted correctly as
+  // Failed, so a success from any frame outranks the failures: success paints
+  // immediately, a failure waits briefly and is cancelled if a success arrives.
+  const VALIDATION_FAILURE_GRACE_MS = 400;
+  const validationVerdicts = new Map();
 
-          if (message.success) {
-            btn.classList.remove("validation-failed");
-            btn.classList.add("validation-success");
-            btn.innerHTML = `
+  function validationKey(type, value) {
+    return `${type} ${value}`;
+  }
+
+  function resetValidationVerdicts() {
+    for (const state of validationVerdicts.values()) {
+      if (state.timer) clearTimeout(state.timer);
+    }
+    validationVerdicts.clear();
+  }
+
+  // Every click — and every auto-validate pass — starts a fresh round for that
+  // locator. Without this the remembered verdict would stick: a locator that
+  // was Valid a minute ago would keep reading Valid after the page changed
+  // under it and it stopped matching.
+  function beginValidationRound(type, value) {
+    const key = validationKey(type, value);
+    const state = validationVerdicts.get(key);
+    if (state && state.timer) clearTimeout(state.timer);
+    validationVerdicts.delete(key);
+  }
+
+  function paintValidationVerdict(type, value, ok, info) {
+    document.querySelectorAll(".validate-btn").forEach((btn) => {
+      if (btn.dataset.type !== type || btn.dataset.value !== value) return;
+      btn.classList.remove("validating");
+      btn.classList.toggle("validation-success", ok);
+      btn.classList.toggle("validation-failed", !ok);
+      btn.innerHTML = ok
+        ? `
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M20 6L9 17l-5-5"/>
               </svg>
               Valid
-            `;
-          } else {
-            btn.classList.remove("validation-success");
-            btn.classList.add("validation-failed");
-            btn.innerHTML = `
+            `
+        : `
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10"/>
                 <line x1="15" y1="9" x2="9" y2="15"/>
@@ -402,15 +426,45 @@ document.addEventListener("DOMContentLoaded", function () {
               </svg>
               Failed
             `;
-          }
-        }
-      });
+      // "Matches 3 elements. Highlighting #2." — worth keeping on hover.
+      if (info) btn.title = info;
+    });
+  }
+
+  function applyValidationResult(message) {
+    if (message.action !== "validationResult") return;
+
+    const key = validationKey(message.locatorType, message.locatorValue);
+    const state = validationVerdicts.get(key) || { succeeded: false, timer: null };
+
+    if (message.success) {
+      if (state.timer) clearTimeout(state.timer);
+      validationVerdicts.set(key, { succeeded: true, timer: null });
+      paintValidationVerdict(
+        message.locatorType, message.locatorValue, true, message.additionalInfo
+      );
+      return;
     }
-  });
+
+    // Another frame already resolved it, or we're already waiting to see if one
+    // will. Either way this "not found" says nothing.
+    if (state.succeeded || state.timer) return;
+
+    state.timer = setTimeout(() => {
+      const latest = validationVerdicts.get(key);
+      if (latest && latest.succeeded) return;
+      paintValidationVerdict(message.locatorType, message.locatorValue, false, null);
+    }, VALIDATION_FAILURE_GRACE_MS);
+    validationVerdicts.set(key, state);
+  }
+
+  // Add validation listener
+  onBackgroundMessage(applyValidationResult);
 
   // Update displayLocators function to include validation for all XPath locators
   function displayLocators(locators, isAiGenerated = false, trigger = null) {
     // Reset validation states
+    resetValidationVerdicts();
     document.querySelectorAll('.validate-btn').forEach(btn => {
       btn.classList.remove('validation-success', 'validation-failed', 'validating');
       btn.innerHTML = `
@@ -695,6 +749,8 @@ document.addEventListener("DOMContentLoaded", function () {
       btn.addEventListener("click", function () {
         const type = this.getAttribute("data-type");
         const value = this.getAttribute("data-value");
+
+        beginValidationRound(type, value);
 
         // Send validation request to content script. `strategy` and the
         // CSS/XPath equivalent let the page resolve framework locators
@@ -2164,6 +2220,8 @@ test('recorded flow', async ({ page }) => {
               `;
             }
           });
+
+          beginValidationRound(type, value);
 
           // Send validation request
           chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {

@@ -232,6 +232,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Display locators in the popup
   function displayLocators(locators) {
     // Reset validation states
+    resetValidationVerdicts();
     document.querySelectorAll('.validate-btn').forEach(btn => {
       btn.classList.remove('validation-success', 'validation-failed', 'validating');
       btn.innerHTML = `
@@ -430,6 +431,8 @@ document.addEventListener("DOMContentLoaded", function () {
         const verifyKind = this.getAttribute("data-verify-kind");
         const verifyExpr = this.getAttribute("data-verify-expr");
 
+        beginValidationRound(type, value);
+
         // Send validation request to content script
         chrome.tabs.query(
           { active: true, currentWindow: true },
@@ -454,30 +457,49 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // Add listener for validation results
-  chrome.runtime.onMessage.addListener(function (message) {
-    if (message.action === "validationResult") {
-      const btns = document.querySelectorAll(".validate-btn");
-      btns.forEach((btn) => {
-        if (
-          btn.dataset.type === message.locatorType &&
-          btn.dataset.value === message.locatorValue
-        ) {
-          btn.classList.remove("validating");
+  // Validation verdicts.
+  //
+  // The content script runs in every frame of the tab — including about:blank
+  // ones — and `chrome.tabs.sendMessage` with no frameId broadcasts to all of
+  // them, so one click yields one reply per frame: "found" from the frame
+  // holding the element, "not found" from every other. Painting whichever
+  // reply lands last marks a working locator as Failed, so a success from any
+  // frame wins: it paints immediately, while a failure waits briefly and is
+  // dropped if a success shows up.
+  const VALIDATION_FAILURE_GRACE_MS = 400;
+  const validationVerdicts = new Map();
 
-          if (message.success) {
-            btn.classList.remove("validation-failed");
-            btn.classList.add("validation-success");
-            btn.innerHTML = `
+  function resetValidationVerdicts() {
+    for (const state of validationVerdicts.values()) {
+      if (state.timer) clearTimeout(state.timer);
+    }
+    validationVerdicts.clear();
+  }
+
+  // Each click starts a fresh round, so the previous verdict for that locator
+  // must not linger — otherwise a locator that was Valid keeps reading Valid
+  // after the page changed under it.
+  function beginValidationRound(type, value) {
+    const key = `${type} ${value}`;
+    const state = validationVerdicts.get(key);
+    if (state && state.timer) clearTimeout(state.timer);
+    validationVerdicts.delete(key);
+  }
+
+  function paintValidationVerdict(type, value, ok) {
+    document.querySelectorAll(".validate-btn").forEach((btn) => {
+      if (btn.dataset.type !== type || btn.dataset.value !== value) return;
+      btn.classList.remove("validating");
+      btn.classList.toggle("validation-success", ok);
+      btn.classList.toggle("validation-failed", !ok);
+      btn.innerHTML = ok
+        ? `
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M20 6L9 17l-5-5"/>
               </svg>
               Valid
-            `;
-          } else {
-            btn.classList.remove("validation-success");
-            btn.classList.add("validation-failed");
-            btn.innerHTML = `
+            `
+        : `
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10"/>
                 <line x1="15" y1="9" x2="9" y2="15"/>
@@ -485,23 +507,42 @@ document.addEventListener("DOMContentLoaded", function () {
               </svg>
               Failed
             `;
-          }
 
-          // Reset after 3 seconds
-          setTimeout(() => {
-            if (!btn.classList.contains("validating")) {
-              btn.classList.remove("validation-success", "validation-failed");
-              btn.innerHTML = `
+      // Back to "Validate" after 3 seconds, unless a new run is in flight.
+      setTimeout(() => {
+        if (btn.classList.contains("validating")) return;
+        btn.classList.remove("validation-success", "validation-failed");
+        btn.innerHTML = `
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M20 6L9 17l-5-5"/>
                 </svg>
                 Validate
               `;
-            }
-          }, 3000);
-        }
-      });
+      }, 3000);
+    });
+  }
+
+  // Add listener for validation results
+  chrome.runtime.onMessage.addListener(function (message) {
+    if (message.action !== "validationResult") return;
+
+    const key = `${message.locatorType} ${message.locatorValue}`;
+    const state = validationVerdicts.get(key) || { succeeded: false, timer: null };
+
+    if (message.success) {
+      if (state.timer) clearTimeout(state.timer);
+      validationVerdicts.set(key, { succeeded: true, timer: null });
+      paintValidationVerdict(message.locatorType, message.locatorValue, true);
+      return;
     }
+
+    if (state.succeeded || state.timer) return;
+    state.timer = setTimeout(() => {
+      const latest = validationVerdicts.get(key);
+      if (latest && latest.succeeded) return;
+      paintValidationVerdict(message.locatorType, message.locatorValue, false);
+    }, VALIDATION_FAILURE_GRACE_MS);
+    validationVerdicts.set(key, state);
   });
 
   // Helper function to copy to clipboard
