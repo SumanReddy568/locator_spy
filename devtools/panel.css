@@ -1265,6 +1265,9 @@ body.dark-mode .locators-table .locator-item.is-primary::after {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  /* Nothing in this column may spill into the value column. AI results label
+     rows with their own JSON keys, which can be arbitrarily long. */
+  overflow: hidden;
 }
 
 .locator-type {
@@ -1277,8 +1280,9 @@ body.dark-mode .locators-table .locator-item.is-primary::after {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* CSS / XPATH / PLAYWRIGHT must always be readable — when the column is
-     tight it's the "via" badge that gives way, never the type. */
+  /* Never shrinks: CSS / XPATH / PLAYWRIGHT is the one thing in the row that
+     must always be readable. Labels are short by construction — the row
+     builders bound them — and .locator-meta clips as a safety net. */
   flex: 0 0 auto;
 }
 
@@ -1294,8 +1298,13 @@ body.dark-mode .locators-table .locator-item.is-primary .locator-type {
   display: inline-flex;
   gap: 4px;
   align-items: center;
-  min-width: 0;
-  flex: 1 1 auto;
+  /* Outsized shrink factor: when the column is tight, flexbox takes the space
+     from the badges rather than from the type label next to them. The
+     min-content floor stops that from squashing the fixed-size badges (AI,
+     "N matches") to nothing — only .badge-via, which sets min-width: 0 on
+     itself, is allowed to collapse. */
+  flex: 1 100 auto;
+  min-width: min-content;
 }
 
 .badge-pill {
@@ -1316,18 +1325,24 @@ body.dark-mode .locators-table .locator-item.is-primary .locator-type {
   background: var(--accent-soft);
   color: var(--accent-deep);
   border-color: var(--accent-line);
+  flex: 0 0 auto;
 }
 
 body.dark-mode .badge-ai { color: var(--accent); }
 
 /* How this locator was derived — "text contains", "under #main-nav". The one
-   piece of the row allowed to give way when the column runs out of space. */
+   piece of the row meant to give way when the column runs out of space, hence
+   the outsized shrink factor: flexbox takes the space out of this first. */
 .badge-via {
   text-transform: none;
   letter-spacing: 0.02em;
+  /* Zero flex-basis, so this badge contributes nothing to the column's
+     intrinsic width and never squeezes the type label or the fixed-size
+     badges; it just expands into whatever space is left over, up to 150px,
+     and ellipsizes. */
+  flex: 1 100 0;
   max-width: 150px;
   min-width: 0;
-  flex: 0 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

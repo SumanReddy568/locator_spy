@@ -527,6 +527,8 @@
           <li><strong>Non-unique locators are shown, not hidden:</strong> Anything matching several nodes now appears with a <em>N&nbsp;matches</em> badge plus a ready-made indexed variant, so repeated components (table rows, cards) are workable instead of empty.</li>
           <li><strong>Dynamic ids handled:</strong> Framework-generated ids (<code>mui-8891</code>, <code>:r3:</code>) produce <code>starts-with</code>&nbsp;/ <code>contains</code> forms on their stable prefix rather than a value that changes every run.</li>
           <li><strong>Search + Copy&nbsp;as improvements:</strong> The search box filters by intent as well as text (try <em>css</em>, <em>xpath</em>, <em>text contains</em>), and Copy&nbsp;as now emits the correct <code>By.name</code>&nbsp;/ <code>By.className</code>&nbsp;/ <code>By.linkText</code> call for each locator kind.</li>
+          <li><strong>Validation is trustworthy again:</strong> A locator that highlights on the page is no longer marked <em>Failed</em>. The content script answers from every frame in the tab, so a match found in any frame now outranks &ldquo;not found&rdquo; from the others. Re-validating a row also re-checks it instead of reusing the previous verdict, and the match count arrives as a tooltip.</li>
+          <li><strong>Cleaner locator rows:</strong> Long labels — including the keys AI results come back with — now truncate inside the type column with the full name on hover, instead of running over the locator value.</li>
         </ul>
       </div>
       <div class="release-item">

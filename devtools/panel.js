@@ -678,7 +678,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return `
       <div class="locator-item" data-strategy="${escapeHtml(loc.strategy)}">
         <div class="locator-meta">
-          <span class="locator-type">${escapeHtml(loc.type)}</span>
+          <span class="locator-type" title="${escapeHtml(loc.type)}">${escapeHtml(loc.type)}</span>
           <span class="locator-badges">${badges.join("")}</span>
         </div>
         <div class="locator-main" title="${escapeHtml(loc.value)}">
@@ -705,6 +705,19 @@ document.addEventListener("DOMContentLoaded", function () {
     `;
   }
 
+  // AI results label each row with the model's own JSON key, which can be
+  // arbitrarily long ("xpathByAriaLabelAndRoleCombination"). The type column is
+  // fixed-width, so bound the label here rather than letting it overrun the
+  // row; the full text stays available as the tooltip.
+  const MAX_TYPE_LABEL_CHARS = 22;
+
+  function shortenTypeLabel(type) {
+    const t = String(type == null ? "" : type);
+    return t.length > MAX_TYPE_LABEL_CHARS
+      ? t.slice(0, MAX_TYPE_LABEL_CHARS - 1) + "…"
+      : t;
+  }
+
   // Helper function to create locator item
   function createLocatorItem(type, value, isAiGenerated = false) {
     const aiBadge = isAiGenerated
@@ -714,7 +727,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return `
       <div class="locator-item">
         <div class="locator-meta">
-          <span class="locator-type">${escapeHtml(type)}</span>
+          <span class="locator-type" title="${escapeHtml(type)}">${escapeHtml(shortenTypeLabel(type))}</span>
           <span class="locator-badges">
             ${aiBadge}
           </span>
@@ -1814,14 +1827,17 @@ test('recorded flow', async ({ page }) => {
         const isHidden =
           item.style.display === "none" ||
           window.getComputedStyle(item).display === "none";
-        const type = locatorTypeElement.textContent.replace(":", "").trim();
+        // Read type and value off the copy button when there is one — it holds
+        // the exact strings plus the strategy, so multi-attribute values and
+        // long AI labels (shortened for display) survive the round trip
+        // through the DOM untouched.
+        const btn = item.querySelector(".copy-btn");
+        const type = btn
+          ? btn.getAttribute("data-type")
+          : locatorTypeElement.textContent.replace(":", "").trim();
 
         // Skip items that are hidden or only contain header text (like "All XPaths:")
         if (!isHidden && type !== "All XPaths") {
-          // Read the value off the copy button when there is one — it holds the
-          // exact string plus the strategy, so multi-attribute values survive
-          // the round trip through the DOM untouched.
-          const btn = item.querySelector(".copy-btn");
           const value = btn
             ? btn.getAttribute("data-value")
             : locatorValueElement.textContent.trim();
