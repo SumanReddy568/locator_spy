@@ -1,3 +1,6 @@
+## [1.5.1] - 2026-07-25
+- fix(panel): keep long locator labels inside the type column AI results label each row with the
+
 ## [1.5.0] - 2026-06-22
 - reply fixes
 

@@ -120,7 +120,7 @@
             </div>
             <div class="dropdown-divider"></div>
             <div class="version-info">
-              <span>Version 1.5.0</span>
+              <span>Version 1.5.1</span>
             </div>
           </div>
         </div>
@@ -520,7 +520,7 @@
     </div>
     <div class="release-notes-content">
       <div class="release-item latest">
-        <h4>Version 1.5.0 <span class="release-date">July 2026</span><span class="new-badge">New</span></h4>
+        <h4>Version 1.5.1 <span class="release-date">July 2026</span><span class="new-badge">New</span></h4>
         <ul>
           <li><strong>Every locator, not just one:</strong> The v2 engine now generates the whole family of locators for an element — CSS, XPath, Selenium <code>By.*</code> values and Playwright <code>getByTestId</code>&nbsp;/ <code>getByRole</code>&nbsp;/ <code>getByLabel</code>&nbsp;/ <code>getByText</code> accessors — from every identity it can find: test ids, id, name, role + accessible name, visible text, associated label, placeholder, classes, and position under a stable ancestor. Typical element: 25–60 options instead of a handful.</li>
           <li><strong>Absolute XPath removed:</strong> <code>/html/body/div[2]/button[1]</code> is gone everywhere. Its replacement is a short chain rooted at the nearest meaningful ancestor, e.g. <code>//section[@aria-label='Recent items']/div[2]/button</code>.</li>
