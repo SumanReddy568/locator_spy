@@ -1,4 +1,5 @@
 import { logLocatorLifecycle, trackLocatorGenerated } from './utils/analytics.js';
+import { WORKER_BASE } from './utils/endpoints.js';
 
 // Add export statement at the start
 export const initializeServiceWorker = () => {
@@ -85,7 +86,7 @@ export const initializeServiceWorker = () => {
         files: ['locator_helper.js']
       });
 
-      // Then inject generator + v2 engine (mirror the manifest's idle bundle)
+      // Then inject generator + v2/v3 engines (mirror the manifest's idle bundle)
       await chrome.scripting.executeScript({
         target,
         files: ['locator_generator.js']
@@ -94,6 +95,11 @@ export const initializeServiceWorker = () => {
       await chrome.scripting.executeScript({
         target,
         files: ['locator_engine_v2.js']
+      });
+
+      await chrome.scripting.executeScript({
+        target,
+        files: ['locator_engine_v3.js']
       });
 
       // Finally inject content script
@@ -254,6 +260,14 @@ export const initializeServiceWorker = () => {
 
       const tabId = sender.tab.id;
 
+      // v3 engine: call the worker's /generate-locator on behalf of the page.
+      // Lives here (not in the content script) because this context holds the
+      // user_id and isn't subject to the page's CSP / CORS.
+      if (message.action === 'generateLocatorV3') {
+        generateLocatorV3(message.payload).then(sendResponse);
+        return true; // async response
+      }
+
       if (message.action === 'getLocators' && message.locators) {
         // Validate and clean XPaths
         if (message.locators.xpath) {
@@ -334,6 +348,23 @@ export const initializeServiceWorker = () => {
       }
     }
   });
+
+  async function generateLocatorV3(payload) {
+    try {
+      const { user_id: userId } = await chrome.storage.local.get('user_id');
+      if (!userId) return { ok: false, error: 'not_logged_in' };
+      const res = await fetch(`${WORKER_BASE}/generate-locator`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...(payload || {}), userId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) return { ok: false, error: (data && data.error) || `http_${res.status}` };
+      return { ok: true, data };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  }
 
   chrome.runtime.onInstalled.addListener(() => {
     console.log("Selenium Locator Helper installed");

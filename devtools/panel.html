@@ -156,6 +156,28 @@
           </div>
         </div>
 
+        <!-- New-engines announcement. Shown until dismissed (engineNewsDismissed). -->
+        <div id="engineNewsNotif" class="notif-item engine-news" hidden>
+          <div class="notif-item-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path d="M12 3 L13.7 9.3 L20 11 L13.7 12.7 L12 19 L10.3 12.7 L4 11 L10.3 9.3 Z" fill="currentColor"/>
+            </svg>
+          </div>
+          <div class="notif-item-body">
+            <span class="notif-item-text">New: GodMode &amp; Astra engines</span>
+            <p class="engine-news-sub">
+              <b>GodMode</b> (now the default) builds every locator with our server's rule engine plus AI,
+              each shown with how many elements it matches on the page.
+              <b>Astra</b> shows the instant in-page results first, then adds AI picks.
+              Switch any time in Settings → Engine.
+            </p>
+            <div class="engine-news-actions">
+              <button id="engineNewsSettingsBtn" class="btn primary-btn notif-item-cta" type="button">Open engine settings</button>
+              <button id="engineNewsDismissBtn" class="btn notif-item-cta" type="button">Dismiss</button>
+            </div>
+          </div>
+        </div>
+
         <div id="aiCreditsBanner" class="notif-item ai-credits-banner" hidden>
           <div class="notif-item-icon ai-credits-banner-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -298,8 +320,10 @@
           <div class="form-group">
             <label for="engineSelect">Engine</label>
             <select id="engineSelect">
-              <option value="v2">v2 · all locators</option>
-              <option value="v1">v1 · legacy</option>
+              <option value="v4">v4 - GodMode</option>
+              <option value="v3">v3 - Astra</option>
+              <option value="v2">v2 - Nexus</option>
+              <option value="v1">v1 - Origin</option>
             </select>
           </div>
           <div class="form-group">
@@ -520,7 +544,20 @@
     </div>
     <div class="release-notes-content">
       <div class="release-item latest">
-        <h4>Version 1.5.1 <span class="release-date">July 2026</span><span class="new-badge">New</span></h4>
+        <h4>Version 1.5.2 <span class="release-date">October 2026</span><span class="new-badge">New</span></h4>
+        <ul>
+          <li><strong>v4 - GodMode engine (new default):</strong> Locators are generated on our server by a rule engine plus AI, shown with how many elements each one matches on the page. The list stays blank until the engine answers — no stale results from another engine.</li>
+          <li><strong>v3 - Astra engine:</strong> Instant in-page results first, then server rules and AI picks merged in — every addition is checked against the live page, and anything that doesn't identify the element on its own is dropped.</li>
+          <li><strong>Engines have names:</strong> v4 - GodMode, v3 - Astra, v2 - Nexus, v1 - Origin. Switch any time in Settings&nbsp;→&nbsp;Engine; picking one manually sticks.</li>
+          <li><strong>Starts on hover:</strong> Rest the pointer on an element and analysis begins — no click needed. While it runs, the highlight stays on that element and a status strip shows progress; results are cached, so clicking or re-hovering an analysed element is instant.</li>
+          <li><strong>Top locators only:</strong> The list is ranked and deduplicated and shows the best 12 — always including the best of each kind plus the top AI picks. The rest are one click away under <em>Show all</em>, and search still covers everything.</li>
+          <li><strong>AI badge:</strong> Every locator from GodMode or Astra carries a ✦&nbsp;AI badge; hover it to see why it was suggested.</li>
+          <li><strong>Playwright accessors hidden:</strong> <code>page.getBy…</code> rows are no longer listed. <em>Copy&nbsp;as&nbsp;→&nbsp;Playwright</em> still wraps any CSS or XPath locator in Playwright code.</li>
+          <li><strong>Fixes:</strong> Locator mode no longer logs a &ldquo;message channel closed&rdquo; error on every toggle (which could also trigger a false &ldquo;reload the page&rdquo; alert from the popup); closing Settings or Notifications returns focus to the button that opened them; <em>N&nbsp;matches</em> badges are no longer clipped.</li>
+        </ul>
+      </div>
+      <div class="release-item">
+        <h4>Version 1.5.1 <span class="release-date">July 2026</span></h4>
         <ul>
           <li><strong>Every locator, not just one:</strong> The v2 engine now generates the whole family of locators for an element — CSS, XPath, Selenium <code>By.*</code> values and Playwright <code>getByTestId</code>&nbsp;/ <code>getByRole</code>&nbsp;/ <code>getByLabel</code>&nbsp;/ <code>getByText</code> accessors — from every identity it can find: test ids, id, name, role + accessible name, visible text, associated label, placeholder, classes, and position under a stable ancestor. Typical element: 25–60 options instead of a handful.</li>
           <li><strong>Absolute XPath removed:</strong> <code>/html/body/div[2]/button[1]</code> is gone everywhere. Its replacement is a short chain rooted at the nearest meaningful ancestor, e.g. <code>//section[@aria-label='Recent items']/div[2]/button</code>.</li>

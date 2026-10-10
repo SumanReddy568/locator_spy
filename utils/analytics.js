@@ -338,9 +338,24 @@ export function trackPanelRefreshed(meta = {}) {
 //         generation_started | generation_completed | element_selected |
 //         mode_deactivated | ai_optimization_*
 // ---------------------------------------------------------------------------
+// Log level per engine, so /admin/logs can filter by engine. Stored as a slug
+// ("v4-godmode": the worker lowercases levels); the logs page displays it as
+// "v4 - GodMode". Names match ENGINE_NAMES in devtools/panel.js.
+const ENGINE_LOG_LEVELS = { v1: "v1-origin", v2: "v2-nexus", v3: "v3-astra", v4: "v4-godmode" };
+
+async function currentEngineTag() {
+  try {
+    const { locatorEngine } = await chrome.storage.local.get("locatorEngine");
+    return ENGINE_LOG_LEVELS[locatorEngine] || ENGINE_LOG_LEVELS.v4; // v4 is the default
+  } catch {
+    return null;
+  }
+}
+
 async function logPushLifecycle(entry) {
   try {
     const currentUserInfo = await getUserInfo();
+    const engine = await currentEngineTag();
     const systemInfo =
       typeof window !== "undefined"
         ? {
@@ -353,13 +368,14 @@ async function logPushLifecycle(entry) {
 
     const payload = {
       product: "locator_spy",
-      log_type: "lifecycle",
+      log_type: engine || "lifecycle",
       user_id: currentUserInfo.userId || "anonymous",
       user_email: currentUserInfo.email || null,
       user_hash: currentUserInfo.userHash || null,
       message: entry.event,
       extra_data: JSON.stringify({
         ...entry,
+        engine,
         metadata: {
           user_id: currentUserInfo.userId || "anonymous",
           user_email: currentUserInfo.email || null,

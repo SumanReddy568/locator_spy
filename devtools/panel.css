@@ -537,6 +537,15 @@ body.dark-mode #locatorModeBtn:hover {
   border-color: var(--accent-deep);
 }
 
+/* Locked while the v3 advanced analysis for the last click is running. */
+#locatorModeBtn:disabled,
+#locatorModeBtn:disabled:hover {
+  background: var(--surface-3);
+  color: var(--ink-3);
+  border-color: var(--hairline-strong);
+  cursor: progress;
+}
+
 .btn.active-mode {
   background: var(--accent-soft);
   border-color: var(--accent-line);
@@ -1330,6 +1339,13 @@ body.dark-mode .locators-table .locator-item.is-primary .locator-type {
 
 body.dark-mode .badge-ai { color: var(--accent); }
 
+.badge-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.badge-ai-icon { flex: none; }
+
 /* How this locator was derived — "text contains", "under #main-nav". The one
    piece of the row meant to give way when the column runs out of space, hence
    the outsized shrink factor: flexbox takes the space out of this first. */
@@ -1343,6 +1359,10 @@ body.dark-mode .badge-ai { color: var(--accent); }
   flex: 1 100 0;
   max-width: 150px;
   min-width: 0;
+  /* Without this the label still claims its longest word ("[aria-label=…")
+     as min-content, the capped column runs out, and .locator-meta's clip cuts
+     off the "N matches" pill instead ("2 MATCHE"). */
+  contain: inline-size;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1367,6 +1387,34 @@ body.dark-mode .badge-multi {
    locators at the top read as the primary answer. */
 .locator-item:has(.badge-multi) .locator-code {
   color: var(--ink-2);
+}
+
+/* Only the top-ranked locators show by default; the rest unfold via the
+   "Show all" button, and a search always covers every row. */
+#locatorResults:not(.show-all):not(.filtering) .locator-item.is-extra {
+  display: none;
+}
+#locatorResults.filtering .show-all-locators {
+  display: none;
+}
+.show-all-locators {
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin-top: 6px;
+  padding: 6px 14px;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.show-all-locators:hover {
+  border-style: solid;
+  color: var(--ink-1);
+  background: var(--surface-2);
 }
 
 /* Value column */
@@ -1485,6 +1533,45 @@ body.dark-mode .validate-btn:hover {
 @keyframes spin {
   from { transform: rotate(0); }
   to   { transform: rotate(360deg); }
+}
+
+/* v3 engine: status strip above the locator list while server + AI
+   locators are fetched and verified, then a short summary. */
+.v3-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 12px;
+  color: var(--ink-2);
+  animation: ai-note-in 0.3s ease both;
+}
+.v3-status--running {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+.v3-status--running .v3-status-text::after {
+  content: "";
+  animation: ai-step-ellipsis 1.2s steps(1) infinite;
+}
+.v3-status--done { color: var(--good); border-color: var(--good-soft); }
+.v3-status--error { color: var(--ink-3); }
+.v3-spinner {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 2px solid var(--accent-line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .v3-spinner, .v3-status--running .v3-status-text::after { animation: none; }
 }
 
 /* Validation row tints — applied via :has() if the validate button is in a state */
@@ -3118,6 +3205,13 @@ body.dark-mode .notif-item-icon { color: var(--accent); }
   flex: 1 1 auto;
 }
 .notif-item-text { font-size: 13px; font-weight: 500; color: var(--ink-1); }
+.engine-news-sub {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.engine-news-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .notif-item .ai-credits-banner-title {
   font-size: 13px;
   font-weight: 600;

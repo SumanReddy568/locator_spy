@@ -14,15 +14,17 @@ function sendLifecycleEvent(eventName, data = {}) {
 window.sendLifecycleEvent = sendLifecycleEvent;
 
 // Mirror the user-selected engine (chrome.storage.local.locatorEngine) into
-// window.LocatorSpyConfig so the v2 dispatcher routes calls correctly.
+// window.LocatorSpyConfig so the v2 dispatcher routes calls correctly. "v3"
+// runs the v2 generator, then merges the API's results in; "v4" (default)
+// shows only the API's results. Synchronous callers (recorder) get v2 for both.
 function applyEngineConfig(engine) {
-  const e = engine === "v1" ? "v1" : "v2";
+  const e = ["v1", "v2", "v3"].includes(engine) ? engine : "v4";
   window.LocatorSpyConfig = Object.assign({}, window.LocatorSpyConfig, { engine: e });
 }
 try {
   if (chrome.storage?.local) {
     chrome.storage.local.get("locatorEngine", (result) => {
-      applyEngineConfig(result.locatorEngine || "v2");
+      applyEngineConfig(result.locatorEngine || "v4");
     });
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === "local" && changes.locatorEngine) {
@@ -31,7 +33,7 @@ try {
     });
   }
 } catch (e) {
-  // Ignore — fall back to dispatcher default (v2).
+  // Ignore — fall back to dispatcher default (v2 generator, no enhancement).
 }
 
 if (window.seleniumLocatorHelperInjected) {
@@ -353,6 +355,91 @@ if (window.seleniumLocatorHelperInjected) {
       // locator matches several nodes, this is the one worth highlighting.
       let lastSelectedElement = null;
 
+      // ── v4: API-only engine (default) ───────────────────────────────────
+      // Same dwell / hover-lock / per-element cache rules as v3 below, but the
+      // panel shows only what /generate-locator returns — blank while waiting,
+      // and on failure just the reason (`v4Failed`), never v2's results.
+      let v4Busy = null; // element whose request is in flight
+      let v4ClickFor = null; // element a click is waiting on (it sends the result)
+      const v4Cache = new WeakMap(); // element -> { fp, result }
+      const v4Pending = new WeakMap(); // element -> Promise<result>
+
+      const v4Enabled = () =>
+        (window.LocatorSpyConfig || {}).engine === "v4" &&
+        typeof window.fetchLocatorsV4 === "function";
+
+      function v4Cached(el) {
+        const hit = v4Cache.get(el);
+        return hit && hit.fp === v3Fingerprint(el) ? hit.result : null;
+      }
+
+      // Resolves to the API result, or { error }. Errors aren't cached.
+      function v4Result(el) {
+        const cached = v4Cached(el);
+        if (cached) return Promise.resolve(cached);
+        if (v4Pending.has(el)) return v4Pending.get(el);
+        v4Busy = el;
+        const fp = v3Fingerprint(el);
+        const p = window.fetchLocatorsV4(el).then((r) => {
+          v4Busy = null;
+          v4Pending.delete(el);
+          if (r && !r.error) v4Cache.set(el, { fp, result: r });
+          return r && !r.error ? r : { error: (r && r.error) || "unknown" };
+        });
+        v4Pending.set(el, p);
+        return p;
+      }
+
+      // ── v3 advanced analysis ────────────────────────────────────────────
+      // Starts once the pointer rests on an element (V3_DWELL_MS), so moving
+      // across the page doesn't fire an API + AI call per element. While one
+      // runs, hovering other elements is ignored (the highlight stays on the
+      // element being analysed) until it finishes. Results are cached per
+      // element + outerHTML, so re-hovering or clicking it later is instant.
+      const V3_DWELL_MS = 400;
+      let v3Busy = null; // element whose analysis is in flight
+      let v3DwellTimer = null;
+      const v3Cache = new WeakMap(); // element -> { fp, result }
+
+      const v3Enabled = () =>
+        (window.LocatorSpyConfig || {}).engine === "v3" &&
+        typeof window.enhanceLocatorsV3 === "function";
+      // Our own highlight outline must not invalidate the cache.
+      const v3Fingerprint = (el) =>
+        (el.outerHTML || "").replace(/outline(-offset)?\s*:\s*[^;"]+;?/gi, "");
+
+      function v3Cached(el) {
+        const hit = v3Cache.get(el);
+        return hit && hit.fp === v3Fingerprint(el) ? hit.result : null;
+      }
+
+      // Run (or reuse) the analysis for `el`; `base` is its v2 result. The
+      // panel gets `v3Started`, then always a `locatorsEnhanced` (result or
+      // error) — but only while `el` is still the element on screen.
+      function runV3(el, base) {
+        if (!v3Enabled() || !el || !base) return;
+        sendMessageToBackground({ action: "v3Started" });
+        const cached = v3Cached(el);
+        if (cached) {
+          sendMessageToBackground({ action: "locatorsEnhanced", locators: cached, htmlContext: el.outerHTML });
+          return;
+        }
+        if (v3Busy === el) return; // already in flight; its result will be sent
+        v3Busy = el;
+        const fp = v3Fingerprint(el);
+        window.enhanceLocatorsV3(el, base).then((enhanced) => {
+          v3Busy = null;
+          const ok = enhanced && !enhanced.error;
+          if (ok) v3Cache.set(el, { fp, result: enhanced });
+          if (el !== hoveredElement && el !== lastSelectedElement) return;
+          sendMessageToBackground(
+            ok
+              ? { action: "locatorsEnhanced", locators: enhanced, htmlContext: el.outerHTML }
+              : { action: "locatorsEnhanced", locators: null, error: (enhanced && enhanced.error) || "unknown" }
+          );
+        });
+      }
+
       // Initialize utility instances
       const domDiffer = new DOMDiffer();
       const performanceTracker = new PerformanceTracker();
@@ -428,6 +515,8 @@ if (window.seleniumLocatorHelperInjected) {
 
         // Ignore if same element
         if (hoveredElement === event.target) return;
+        // Advanced analysis in flight: hold the current element until it ends.
+        if (v3Busy || v4Busy) return;
 
         event.stopPropagation();
         event.preventDefault();
@@ -435,13 +524,44 @@ if (window.seleniumLocatorHelperInjected) {
         hoveredElement = event.target;
         highlightElement(hoveredElement);
 
-        const locators = generateLocators(hoveredElement);
+        const el = hoveredElement;
+        clearTimeout(v3DwellTimer);
+
+        if (v4Enabled()) {
+          const done = v4Cached(el);
+          if (done) {
+            sendMessageToBackground({ action: "getLocators", locators: done, htmlContext: el.outerHTML, trigger: "hover" });
+            return;
+          }
+          sendMessageToBackground({ action: "v4Pending", tagName: el.tagName.toLowerCase() });
+          v3DwellTimer = setTimeout(() => {
+            if (!isLocatorModeActive || hoveredElement !== el) return;
+            v4Result(el).then((result) => {
+              if (hoveredElement !== el || v4ClickFor === el) return; // a click took over
+              sendMessageToBackground(
+                result.error
+                  ? { action: "v4Failed", error: result.error }
+                  : { action: "getLocators", locators: result, htmlContext: el.outerHTML, trigger: "hover" }
+              );
+            });
+          }, V3_DWELL_MS);
+          return;
+        }
+
+        const cached = v3Enabled() ? v3Cached(el) : null;
+        const locators = cached || generateLocators(el);
         sendMessageToBackground({
           action: "getLocators",
           locators: locators,
-          htmlContext: hoveredElement.outerHTML,
+          htmlContext: el.outerHTML,
           trigger: "hover",
         });
+
+        if (!cached && v3Enabled()) {
+          v3DwellTimer = setTimeout(() => {
+            if (isLocatorModeActive && hoveredElement === el) runV3(el, locators);
+          }, V3_DWELL_MS);
+        }
       }, 50); // 50ms debounce
 
       // Handle click events in locator mode
@@ -451,8 +571,11 @@ if (window.seleniumLocatorHelperInjected) {
         event.stopPropagation();
         event.preventDefault();
 
-        const clickedElement = event.target;
+        // While an analysis runs the highlight is pinned to its element, so a
+        // click selects that element — what's highlighted is what you get.
+        const clickedElement = v4Busy || v3Busy || event.target;
         lastSelectedElement = clickedElement;
+        clearTimeout(v3DwellTimer);
 
         const elementDetails = {
           tagName: clickedElement.tagName?.toLowerCase(),
@@ -466,7 +589,31 @@ if (window.seleniumLocatorHelperInjected) {
         };
         sendLifecycleEvent("element_sent_to_generation", { element: elementDetails });
 
-        const locators = generateLocators(clickedElement);
+        // v4: wait for the API result (instant if already fetched on hover),
+        // then hand it on exactly like a normal click result.
+        if (v4Enabled()) {
+          if (!v4Cached(clickedElement)) {
+            sendMessageToBackground({ action: "v4Pending", tagName: clickedElement.tagName.toLowerCase() });
+          }
+          v4ClickFor = clickedElement;
+          v4Result(clickedElement).then((result) => {
+            if (v4ClickFor === clickedElement) v4ClickFor = null;
+            if (lastSelectedElement !== clickedElement) return;
+            if (result.error) {
+              sendMessageToBackground({ action: "v4Failed", error: result.error });
+              return;
+            }
+            sendMessageToBackground({ action: "saveLocator", locators: result, url: window.location.href, timestamp: new Date().toISOString() });
+            sendMessageToBackground({ action: "getLocators", locators: result, metadata: result._metadata, htmlContext: clickedElement.outerHTML, trigger: "click" });
+            sendLifecycleEvent("element_selected", { tagName: result.tagName, generatedLocators: result });
+          });
+          finishSelection();
+          return;
+        }
+
+        // Already analysed on hover → show the full v3 result straight away.
+        const v3Result = v3Enabled() ? v3Cached(clickedElement) : null;
+        const locators = v3Result || generateLocators(clickedElement);
 
         // Save locator info and deactivate mode
         sendMessageToBackground({
@@ -490,8 +637,16 @@ if (window.seleniumLocatorHelperInjected) {
           generatedLocators: locators,
         });
 
-        // Deactivate locator mode but keep the highlight briefly so the user
-        // can still see the selection in the page.
+        // v3: not analysed yet (or still running) → start / re-announce it; the
+        // merged result replaces the v2 list when it lands.
+        if (!v3Result) runV3(clickedElement, locators);
+
+        finishSelection();
+      }
+
+      // Deactivate locator mode after a selection, keeping the highlight
+      // briefly so the user can still see the selection in the page.
+      function finishSelection() {
         isLocatorModeActive = false;
         document.removeEventListener("mouseover", debouncedMouseOver, true);
         document.body.style.cursor = "";
@@ -659,7 +814,11 @@ if (window.seleniumLocatorHelperInjected) {
               );
             }
 
-            return true; // Keep the message channel open for sendResponse
+            // Reply synchronously. This used to `return true` (promising an
+            // async reply) without ever calling sendResponse, so background's
+            // `await chrome.tabs.sendMessage(...)` rejected on every locator-mode
+            // toggle with "message channel closed before a response".
+            sendResponse({ status: "ok" });
           });
         } catch (error) {
           console.error("[LocatorSpy] Failed to setup message listener:", error);

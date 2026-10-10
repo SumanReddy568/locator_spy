@@ -37,6 +37,7 @@
         "locator_helper.js",
         "locator_generator.js",
         "locator_engine_v2.js",
+        "locator_engine_v3.js",
         "popup/icons/*"
       ],
       "matches": [
@@ -64,6 +65,7 @@
       "js": [
         "locator_generator.js",
         "locator_engine_v2.js",
+        "locator_engine_v3.js",
         "content.js"
       ],
       "run_at": "document_idle",

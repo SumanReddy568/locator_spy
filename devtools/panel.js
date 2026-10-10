@@ -259,8 +259,31 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // While v3's advanced analysis for the last click is running, picking the
+  // next element is locked: a new selection would discard that analysis. The
+  // timeout is a backstop (content.js reports back within ~30s, but the page
+  // can navigate away mid-request and never answer).
+  let locatorModeLockTimer = null;
+  function setLocatorModeLocked(locked) {
+    clearTimeout(locatorModeLockTimer);
+    locatorModeBtn.disabled = locked;
+    locatorModeBtn.title = locked
+      ? `${engineName()} is still working on the selected element`
+      : "";
+    if (locked) {
+      locatorModeLockTimer = setTimeout(() => {
+        setLocatorModeLocked(false);
+        if (awaitingV3) {
+          awaitingV3 = false;
+          setV3Status("error", `${engineName()} timed out — try again in a moment`);
+        }
+      }, 35000);
+    }
+  }
+
   // Toggle locator mode with animation
   locatorModeBtn.addEventListener("click", async function () {
+    if (locatorModeBtn.disabled) return;
     // Check if user is gated by feedback
     if (window.FeedbackService) {
       const needsFeedback = await FeedbackService.checkIfNeedsFeedback();
@@ -332,6 +355,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     if (message.action === "getLocators") {
+      // A new selection supersedes any v3 enhancement still in flight.
+      awaitingV3 = false;
+      setLocatorModeLocked(false);
       if (window.FeedbackService) {
         // Feedback gate: once the user has generated enough locators without
         // submitting feedback, stop producing more on hover. Turn locator
@@ -359,6 +385,60 @@ document.addEventListener("DOMContentLoaded", function () {
         FeedbackService.incrementLocatorCount();
       }
       displayLocators(message.locators, false, message.trigger);
+    }
+
+    // v4: the API is generating locators for the element on screen. Clear
+    // the previous element's list so it can't be mistaken for this one's.
+    if (message.action === "v4Pending") {
+      awaitingV3 = true;
+      locatorResults.innerHTML = ""; // blank until the engine answers; the strip says why
+      if (locatorSectionTitle && locatorSectionSubtitle) {
+        locatorSectionTitle.textContent = "Element Locators";
+        locatorSectionSubtitle.textContent = "GodMode · server rules + AI";
+      }
+      setV3Status("running", "GodMode — generating locators with server rules and AI");
+      setLocatorModeLocked(true);
+    }
+
+    // v4 couldn't get results. v4 shows engine results only, so the list
+    // stays empty with the reason — no fallback to another engine.
+    if (message.action === "v4Failed") {
+      awaitingV3 = false;
+      setLocatorModeLocked(false);
+      locatorResults.innerHTML = "";
+      setV3Status("error", engineError(message.error) || "GodMode is unavailable — try again in a moment");
+    }
+
+    // v3 analysis began for the element on screen (on hover dwell or click).
+    if (message.action === "v3Started") {
+      awaitingV3 = true;
+      setV3Status("running", "Astra — checking server rules and AI");
+      setLocatorModeLocked(true);
+    }
+
+    // v3 engine: the API's server + AI locators for the element already on
+    // screen. Only applied while the panel is still waiting for them — not
+    // after a newer selection or AI-optimized results. Doesn't count toward
+    // the feedback gate (same selection) and uses its own trigger so
+    // auto-optimize doesn't fire a second time.
+    if (message.action === "locatorsEnhanced") setLocatorModeLocked(false);
+    if (message.action === "locatorsEnhanced" && awaitingV3) {
+      awaitingV3 = false;
+      if (message.locators) {
+        displayLocators(message.locators, false, "v3");
+        const v3 = message.locators._v3 || {};
+        const added = (v3.aiAdded || 0) + (v3.serverAdded || 0);
+        setV3Status(
+          "done",
+          added
+            ? `Astra added ${added} verified locator${added === 1 ? "" : "s"}` +
+              (v3.aiAdded ? ` (${v3.aiAdded} from AI)` : "")
+            : explainNothingNew(v3)
+        );
+      } else {
+        awaitingV3 = false;
+        setV3Status("error", engineError(message.error) || "Astra's AI pass is unavailable — showing instant results");
+      }
     }
 
     if (message.action === "locatorModeDeactivated") {
@@ -462,7 +542,63 @@ document.addEventListener("DOMContentLoaded", function () {
   onBackgroundMessage(applyValidationResult);
 
   // Update displayLocators function to include validation for all XPath locators
+  // True between a click's engine results rendering and its v3 enhancement.
+  let awaitingV3 = false;
+
+  // Display names for the engines. Storage / config keep the v1–v4 ids, so
+  // renaming never touches anyone's saved setting.
+  const ENGINE_NAMES = { v1: "Origin", v2: "Nexus", v3: "Astra", v4: "GodMode" };
+  function engineName() {
+    const v = (document.getElementById("engineSelect") || {}).value;
+    return ENGINE_NAMES[v] || ENGINE_NAMES.v4;
+  }
+  function engineError(code) {
+    return {
+      not_logged_in: `Log in to use ${engineName()}`,
+      invalid_userId: `Log in again to use ${engineName()}`,
+      rate_limited: `${engineName()} is busy — try again in a moment`,
+    }[code];
+  }
+
+  // "Checked 15 suggestions — 9 already listed, 4 also match other elements,
+  // 2 don't match this element". Says why nothing was added instead of
+  // looking like the analysis didn't run.
+  function explainNothingNew(v3) {
+    const r = v3.rejected || {};
+    const parts = [
+      r.duplicate && `${r.duplicate} already listed`,
+      r.notUnique && `${r.notUnique} also match other elements`,
+      r.noMatch && `${r.noMatch} don't match this element`,
+      r.invalid && `${r.invalid} malformed`,
+    ].filter(Boolean);
+    return v3.checked
+      ? `Astra checked ${v3.checked} suggestions — ${parts.join(", ")}. Nothing new to add.`
+      : "Astra found nothing new — these are the best locators";
+  }
+
+  // Status strip above the locator list for the v3 enhancement. `running`
+  // shows a spinner; `done` / `error` replace it with a short note.
+  function setV3Status(state, text) {
+    let el = document.getElementById("v3Status");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "v3Status";
+      el.setAttribute("role", "status");
+      el.setAttribute("aria-live", "polite");
+      locatorResults.prepend(el);
+    }
+    el.className = `v3-status v3-status--${state}`;
+    el.innerHTML =
+      (state === "running" ? '<span class="v3-spinner" aria-hidden="true"></span>' : "") +
+      `<span class="v3-status-text">${escapeHtml(text)}</span>`;
+  }
+
   function displayLocators(locators, isAiGenerated = false, trigger = null) {
+    // AI-optimized results replace the list; a late v3 result must not
+    // overwrite them. (A new selection clears the wait in the getLocators
+    // handler, synchronously — this render can run after `v3Started`, since
+    // that handler awaits the feedback check first.)
+    if (isAiGenerated) awaitingV3 = false;
     // Reset validation states
     resetValidationVerdicts();
     document.querySelectorAll('.validate-btn').forEach(btn => {
@@ -489,10 +625,12 @@ document.addEventListener("DOMContentLoaded", function () {
     // ordered best-first and annotated with how many nodes it matches. Older
     // payloads (v1 engine, AI results) only carry the flat fields, so those
     // still render from the explicit list below.
-    const generated =
-      Array.isArray(locators.locators) && locators.locators.length
-        ? locators.locators
-        : null;
+    // Playwright accessors (page.getBy…) aren't shown; every engine still
+    // produces them, so drop them here, before counting and ranking.
+    const shown = Array.isArray(locators.locators)
+      ? locators.locators.filter((l) => l.strategy !== "playwright")
+      : [];
+    const generated = shown.length ? shown : null;
 
     // Count only the locators that will actually render (truthy string
     // fields). The result object always has the same shape with null fields,
@@ -540,7 +678,7 @@ document.addEventListener("DOMContentLoaded", function () {
       locatorSectionSubtitle.textContent = isAiGenerated
         ? `${countLabel} · AI refined for robustness`
         : generated
-        ? `${countLabel} · ${uniqueCount} unique · search to filter by CSS, XPath or Playwright`
+        ? `Top ${Math.min(TOP_LOCATORS, locatorCount)} of ${countLabel} · ${uniqueCount} unique · search filters all`
         : `${countLabel} · Generated directly from the DOM`;
     }
 
@@ -553,10 +691,17 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       }
     } else if (generated) {
-      // Every locator the engine produced, best-first. Non-unique ones are
-      // kept and labelled with their match count — they're still the starting
-      // point when a test wants to scope or index into a repeated component.
-      for (const loc of generated) html += createGeneratedLocatorItem(loc);
+      // Ranked + deduped; only the top picks show by default, the rest sit
+      // behind a "Show all" toggle (and are still searchable).
+      const { top, rest } = curateLocators(generated);
+      for (const loc of top) html += createGeneratedLocatorItem(loc);
+      for (const loc of rest) html += createGeneratedLocatorItem(loc, true);
+      if (rest.length) {
+        html += `
+          <button type="button" class="show-all-locators" aria-expanded="false">
+            Show all ${top.length + rest.length} locators (${rest.length} more)
+          </button>`;
+      }
     } else {
       // Standard rendering for local generator results (Strict Order)
       if (locators.id) html += createLocatorItem("ID", locators.id);
@@ -616,6 +761,32 @@ document.addEventListener("DOMContentLoaded", function () {
     html += "</div>";
     locatorResults.innerHTML = html;
 
+    // innerHTML just wiped the status strip; restore it if still waiting.
+    if (awaitingV3) setV3Status("running", "Astra — checking server rules and AI");
+
+    // v4 results come straight from the API — say so.
+    if (!isAiGenerated && locators._engine === "v4") {
+      const v4 = locators._v4 || {};
+      setV3Status(
+        v4.aiError ? "error" : "done",
+        `GodMode · ${v4.ruleCount || 0} rule-based + ${v4.aiCount || 0} AI locators` +
+          (v4.aiError ? " (AI unavailable this time)" : "")
+      );
+    }
+
+    const showAllBtn = locatorResults.querySelector(".show-all-locators");
+    if (showAllBtn) {
+      showAllBtn.addEventListener("click", () => {
+        const open = locatorResults.classList.toggle("show-all");
+        showAllBtn.setAttribute("aria-expanded", String(open));
+        const total = locatorResults.querySelectorAll(".locator-item").length;
+        const extra = locatorResults.querySelectorAll(".locator-item.is-extra").length;
+        showAllBtn.textContent = open
+          ? `Show top ${total - extra} only`
+          : `Show all ${total} locators (${extra} more)`;
+      });
+    }
+
     // The top row is the recommended locator. Marking it explicitly (rather
     // than styling :first-child) keeps that treatment correct no matter what
     // the list is built from.
@@ -651,14 +822,70 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  // Rank, dedupe and pick the top locators from the engine list (v2 alone, or
+  // v2 + server + AI under v3). Ranking: unique before non-unique, then the
+  // stability score, then the engine's own order. Dedupe drops (a) the same
+  // locator spelled differently ("x" vs 'x', whitespace, `page.` prefix) and,
+  // for the top list, (b) a second spelling of the same derivation — same
+  // strategy and same "via" (e.g. two `chain from #form` CSS variants).
+  // Top list: the best locator of every strategy present (so CSS, XPath,
+  // Playwright, By.id… all stay one glance away), up to TOP_AI verified AI
+  // picks, then the best of the rest up to TOP_LOCATORS.
+  const TOP_LOCATORS = 12;
+  const TOP_AI = 3;
+
+  function curateLocators(list) {
+    const norm = (l) =>
+      `${l.strategy}|${String(l.value).replace(/^page\./, "").replace(/"/g, "'").replace(/\s+/g, "")}`;
+    const seen = new Set();
+    const ranked = list
+      .map((l, i) => ({ l, i }))
+      .filter(({ l }) => !seen.has(norm(l)) && seen.add(norm(l)))
+      .sort((a, b) =>
+        Number(b.l.unique) - Number(a.l.unique) ||
+        (b.l.score || 0) - (a.l.score || 0) ||
+        a.i - b.i)
+      .map(({ l }) => l);
+
+    // Only unique locators compete for the top list, unless there are none.
+    const pool = ranked.some((l) => l.unique) ? ranked.filter((l) => l.unique) : ranked;
+    const picked = new Set();
+    const derivations = new Set();
+    const take = (l) => {
+      const d = `${l.strategy}|${l.via || l.source || ""}`;
+      if (picked.has(l) || derivations.has(d) || picked.size >= TOP_LOCATORS) return;
+      picked.add(l);
+      derivations.add(d);
+    };
+    const strategies = new Set();
+    for (const l of pool) if (!strategies.has(l.strategy)) { strategies.add(l.strategy); take(l); }
+    pool.filter((l) => l.advanced && l.source === "ai").slice(0, TOP_AI).forEach(take);
+    pool.forEach(take);
+
+    return {
+      top: ranked.filter((l) => picked.has(l)),
+      rest: ranked.filter((l) => !picked.has(l)),
+    };
+  }
+
   // One row for an engine-generated locator. Carries the strategy and a
   // CSS/XPath equivalent on the buttons so validate and copy don't have to
   // guess what kind of locator this is from its label.
-  function createGeneratedLocatorItem(loc) {
+  function createGeneratedLocatorItem(loc, isExtra = false) {
     const badges = [];
+    // Rows from v3's advanced analysis (server rules + AI, verified on the
+    // page) get the AI badge; hover shows why the locator was suggested.
+    if (loc.advanced) {
+      const why = loc.reason ? ` — ${loc.reason}` : "";
+      badges.push(
+        `<span class="badge-pill badge-ai" title="${escapeHtml(`From ${engineName()}${why}`)}">` +
+        `<svg class="badge-ai-icon" width="9" height="9" viewBox="0 0 24 24" aria-hidden="true">` +
+        `<path fill="currentColor" d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>AI</span>`
+      );
+    }
     if (loc.via) {
       badges.push(
-        `<span class="badge-pill badge-via" title="${escapeHtml(loc.via)}">${escapeHtml(loc.via)}</span>`
+        `<span class="badge-pill badge-via" title="${escapeHtml(loc.reason || loc.via)}">${escapeHtml(loc.via)}</span>`
       );
     }
     // `approx` locators (getByRole / getByLabel) resolve by accessible name,
@@ -676,7 +903,7 @@ document.addEventListener("DOMContentLoaded", function () {
       `data-fallback-kind="${escapeHtml(loc.verifyKind || "")}"`;
 
     return `
-      <div class="locator-item" data-strategy="${escapeHtml(loc.strategy)}">
+      <div class="locator-item${isExtra ? " is-extra" : ""}" data-strategy="${escapeHtml(loc.strategy)}">
         <div class="locator-meta">
           <span class="locator-type" title="${escapeHtml(loc.type)}">${escapeHtml(loc.type)}</span>
           <span class="locator-badges">${badges.join("")}</span>
@@ -1786,6 +2013,8 @@ test('recorded flow', async ({ page }) => {
   // Filter locators based on search input
   searchBoxInput.addEventListener("input", function () {
     const filterText = this.value.toLowerCase();
+    // Searching covers every locator, including the ones folded under "Show all".
+    locatorResults.classList.toggle("filtering", !!filterText);
     const locatorItems = document.querySelectorAll(
       "#locatorResults .locator-item"
     );
@@ -2146,17 +2375,24 @@ test('recorded flow', async ({ page }) => {
     });
   });
 
-  // Engine selector (v1 / v2). Persisted in chrome.storage.local; content.js
+  // Engine selector (v1 / v2 / v3 / v4). Persisted in chrome.storage.local; content.js
   // mirrors it into window.LocatorSpyConfig so the dispatcher routes correctly.
+  //
+  // v4 is the default. This panel used to persist its default ("v2", then
+  // "v3") on first load, so a stored v2/v3 is almost always an old default
+  // rather than a choice — move it to v4 once (flagged so a later manual pick
+  // sticks).
   const engineSelect = document.getElementById("engineSelect");
   if (engineSelect) {
-    chrome.storage.local.get("locatorEngine", (result) => {
-      const engine = result.locatorEngine || "v2";
+    chrome.storage.local.get(["locatorEngine", "engineV4Migrated"], (result) => {
+      let engine = result.locatorEngine || "v4";
+      if (!result.engineV4Migrated && (engine === "v2" || engine === "v3")) engine = "v4";
       engineSelect.value = engine;
-      chrome.storage.local.set({ locatorEngine: engine });
+      chrome.storage.local.set({ locatorEngine: engine, engineV4Migrated: true });
     });
     engineSelect.addEventListener("change", (event) => {
-      const engine = event.target.value === "v1" ? "v1" : "v2";
+      const v = event.target.value;
+      const engine = ["v1", "v2", "v3"].includes(v) ? v : "v4";
       chrome.storage.local.set({ locatorEngine: engine });
       trackEngineSelected(engine);
       logLocatorLifecycle("locator_engine_selected", { engine });
@@ -2301,8 +2537,23 @@ test('recorded flow', async ({ page }) => {
   const openSettingsBtn = document.getElementById("openSettingsBtn");
   const closeSettingsBtn = document.getElementById("closeSettingsBtn");
 
+  // Hiding a drawer (aria-hidden) while focus is still inside it — e.g. on its
+  // close button — is blocked by Chrome and strands keyboard/screen-reader
+  // users. Remember what opened it and hand focus back before hiding.
+  const drawerOpeners = new WeakMap();
+  function rememberOpener(drawer) {
+    drawerOpeners.set(drawer, document.activeElement);
+  }
+  function releaseFocus(drawer) {
+    if (!drawer.contains(document.activeElement)) return;
+    const opener = drawerOpeners.get(drawer);
+    if (opener && opener.isConnected && typeof opener.focus === "function") opener.focus();
+    else document.activeElement.blur();
+  }
+
   function openSettingsDrawer(scrollToAi) {
     if (!settingsDrawer) return;
+    rememberOpener(settingsDrawer);
     settingsDrawer.classList.add("open");
     settingsDrawer.setAttribute("aria-hidden", "false");
     if (settingsOverlay) settingsOverlay.hidden = false;
@@ -2315,6 +2566,7 @@ test('recorded flow', async ({ page }) => {
 
   function closeSettingsDrawer() {
     if (!settingsDrawer) return;
+    releaseFocus(settingsDrawer);
     settingsDrawer.classList.remove("open");
     settingsDrawer.setAttribute("aria-hidden", "true");
     if (settingsOverlay) settingsOverlay.hidden = true;
@@ -2355,6 +2607,7 @@ test('recorded flow', async ({ page }) => {
   const notifEmpty = document.getElementById("notifEmpty");
   const notifItems = [
     document.getElementById("updateAlertDev"),
+    document.getElementById("engineNewsNotif"),
     document.getElementById("aiCreditsBanner"),
   ].filter(Boolean);
 
@@ -2368,12 +2621,14 @@ test('recorded flow', async ({ page }) => {
   }
   function openNotificationsDrawer() {
     if (!notificationsDrawer) return;
+    rememberOpener(notificationsDrawer);
     notificationsDrawer.classList.add("open");
     notificationsDrawer.setAttribute("aria-hidden", "false");
     if (notificationsOverlay) notificationsOverlay.hidden = false;
   }
   function closeNotificationsDrawer() {
     if (!notificationsDrawer) return;
+    releaseFocus(notificationsDrawer);
     notificationsDrawer.classList.remove("open");
     notificationsDrawer.setAttribute("aria-hidden", "true");
     if (notificationsOverlay) notificationsOverlay.hidden = true;
@@ -2397,6 +2652,28 @@ test('recorded flow', async ({ page }) => {
     );
     refreshNotifState();
   }
+  // New-engines announcement: visible until dismissed (per browser profile).
+  const engineNewsNotif = document.getElementById("engineNewsNotif");
+  if (engineNewsNotif) {
+    chrome.storage.local.get("engineNewsDismissed", (r) => {
+      engineNewsNotif.hidden = !!r.engineNewsDismissed;
+    });
+    const dismissEngineNews = () => {
+      engineNewsNotif.hidden = true;
+      chrome.storage.local.set({ engineNewsDismissed: true });
+    };
+    const settingsBtn = document.getElementById("engineNewsSettingsBtn");
+    if (settingsBtn) settingsBtn.addEventListener("click", () => {
+      dismissEngineNews();
+      closeNotificationsDrawer();
+      openSettingsDrawer(false);
+      const sel = document.getElementById("engineSelect");
+      if (sel) sel.focus();
+    });
+    const dismissBtn = document.getElementById("engineNewsDismissBtn");
+    if (dismissBtn) dismissBtn.addEventListener("click", dismissEngineNews);
+  }
+
   const googleApiKeyInput = document.getElementById("googleApiKey");
   const aiModelSelect = document.getElementById("aiModelSelect");
 
@@ -2774,7 +3051,7 @@ test('recorded flow', async ({ page }) => {
 
   // Listen for locators message to get context
   onBackgroundMessage(function (message) {
-    if (message.action === "getLocators") {
+    if (message.action === "getLocators" || message.action === "locatorsEnhanced") {
       if (message.locators) {
         currentLocators = message.locators;
       }
