@@ -1,3 +1,6 @@
+## [1.5.2] - 2026-10-10
+- feat(engine): v4 - GodMode and v3 - Astra engines, hover analysis, ranked results - v4 - GodMode (new default): locators come only from the
+
 ## [1.5.1] - 2026-07-25
 - fix(panel): keep long locator labels inside the type column AI results label each row with the
 
