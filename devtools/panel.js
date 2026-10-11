@@ -902,6 +902,17 @@ document.addEventListener("DOMContentLoaded", function () {
       `data-fallback="${escapeHtml(loc.verifyExpr || "")}" ` +
       `data-fallback-kind="${escapeHtml(loc.verifyKind || "")}"`;
 
+    // Why the engine produced / ranked this locator, always visible under the
+    // value: the server's score breakdown, the AI's reason, or (in-page
+    // engine) how it was derived + how many nodes it matches here.
+    const matchText = loc.approx
+      ? "matched by accessible name"
+      : loc.unique ? "unique on this page" : `${loc.matches} matches on this page`;
+    const why = loc.advanced
+      ? [loc.source === "ai" ? "AI" : "Rule engine", loc.reason, matchText, loc.note && loc.note !== loc.reason ? loc.note : ""]
+      : [loc.via || loc.category, matchText, loc.score != null ? `score ${loc.score}` : ""];
+    const whyLine = why.filter(Boolean).join(" · ");
+
     return `
       <div class="locator-item${isExtra ? " is-extra" : ""}" data-strategy="${escapeHtml(loc.strategy)}">
         <div class="locator-meta">
@@ -912,6 +923,7 @@ document.addEventListener("DOMContentLoaded", function () {
           <span class="locator-value">
             <code class="locator-code">${escapeHtml(loc.value)}</code>
           </span>
+          ${whyLine ? `<div class="locator-why">${escapeHtml(whyLine)}</div>` : ""}
         </div>
         <div class="locator-actions">
           <button class="validate-btn" ${attrs} title="Highlight the matching element on the page">

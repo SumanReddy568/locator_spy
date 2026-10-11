@@ -1417,6 +1417,16 @@ body.dark-mode .badge-multi {
   background: var(--surface-2);
 }
 
+/* Engine reasoning under each locator value — always visible. */
+.locator-why {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-3);
+  white-space: normal;
+  word-break: break-word;
+}
+
 /* Value column */
 .locator-main {
   overflow: hidden;

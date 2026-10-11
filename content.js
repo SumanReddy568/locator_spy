@@ -1,4 +1,6 @@
 function sendLifecycleEvent(eventName, data = {}) {
+  // Recorder captures run the generator silently (see recGenerateLocatorsSafe).
+  if (window.__locatorSpyQuiet) return;
   try {
     if (chrome.runtime?.id) {
       chrome.runtime.sendMessage({
@@ -1098,7 +1100,12 @@ if (window.seleniumLocatorHelperInjected) {
       function recGenerateLocatorsSafe(el) {
         try {
           if (typeof window.generateLocators === "function") {
-            const locators = window.generateLocators(el);
+            // Recording captures locators for the generated test, not a
+            // generation the user asked for — so no lifecycle logs / analytics
+            // events (every recorded click used to write 3 log rows).
+            window.__locatorSpyQuiet = true;
+            let locators;
+            try { locators = window.generateLocators(el); } finally { window.__locatorSpyQuiet = false; }
             if (!locators || !Array.isArray(locators.locators)) return locators;
             // A recording holds one of these per step and lives in
             // chrome.storage, so keep only the handful of locators the code

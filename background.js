@@ -118,9 +118,51 @@ export const initializeServiceWorker = () => {
     }
   }
 
+  // ── Recorder safety ─────────────────────────────────────────────────────
+  // `recorderActive` lives in chrome.storage, and while it's true every
+  // content script records every click on every page. It used to survive the
+  // DevTools panel closing, so a forgotten recording kept capturing clicks
+  // (and writing generation logs) indefinitely. Two guards:
+  //  1. When the last Locator Spy panel disconnects, stop recording after a
+  //     short grace period (a panel reload / reconnect doesn't count).
+  //  2. A red "REC" badge on the toolbar icon whenever recording is on.
+  const panelPorts = new Set();
+  const RECORDER_STOP_GRACE_MS = 5000;
+  let recorderStopTimer = null;
+
+  function syncRecorderBadge(active) {
+    try {
+      chrome.action.setBadgeText({ text: active ? "REC" : "" });
+      if (active) chrome.action.setBadgeBackgroundColor({ color: "#dc2626" });
+      chrome.action.setTitle({ title: active ? "Locator Spy — recording clicks (stop it in the DevTools panel)" : "Locator Finder: AI Powered" });
+    } catch (e) { /* action API unavailable */ }
+  }
+  chrome.storage.local.get("recorderActive", (r) => syncRecorderBadge(!!(r && r.recorderActive)));
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.recorderActive) syncRecorderBadge(!!changes.recorderActive.newValue);
+  });
+
+  function onPanelGone(port) {
+    panelPorts.delete(port);
+    if (panelPorts.size) return;
+    clearTimeout(recorderStopTimer);
+    recorderStopTimer = setTimeout(() => {
+      if (panelPorts.size) return;
+      chrome.storage.local.get("recorderActive", (r) => {
+        if (r && r.recorderActive) {
+          chrome.storage.local.set({ recorderActive: false });
+          logLocatorLifecycle("recorder_auto_stopped", { reason: "devtools_closed" });
+        }
+      });
+    }, RECORDER_STOP_GRACE_MS);
+  }
+
   // Listen for connections from the devtools page
   chrome.runtime.onConnect.addListener(function (port) {
     if (port.name !== "panel-page") return;
+    panelPorts.add(port);
+    clearTimeout(recorderStopTimer);
+    port.onDisconnect.addListener(() => onPanelGone(port));
 
     // Send immediate ping to establish connection
     port.postMessage({ type: 'ping' });
