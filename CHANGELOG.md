@@ -1,3 +1,6 @@
+## [1.5.4] - 2026-10-11
+- feat(panel): show the AIs verdict as each locators reasoning Rule-engine locators from GodMode/Astra now lead with the
+
 ## [1.5.3] - 2026-10-11
 - fix(recorder): auto-stop when DevTools closes, quiet captures, REC badge; show engine reasoning - Recording (`recorderActive`) used to survive the DevTools panel closing and keep capturing every click on every page. The background script now stops it ~5s after the last Locator Spy panel disconnects (grace for reloads), and shows a red REC badge on the toolbar icon while
 
