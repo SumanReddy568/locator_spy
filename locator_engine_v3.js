@@ -231,7 +231,7 @@
     const d = res.data;
     const locators = []
       .concat(
-        (d.locators || []).map((it) => annotate(it, element, (x) => ({ reason: x.reason || x.note || null, note: x.note || null }))),
+        (d.locators || []).map((it) => annotate(it, element, (x) => ({ reason: x.reason || x.note || null, note: x.note || null, aiReason: x.aiReason || null }))),
         (d.aiLocators || []).map((it) => annotate(it, element, (x) => ({
           source: "ai", category: "AI", score: 70,
           reason: typeof x.reason === "string" ? x.reason : null,
@@ -304,6 +304,7 @@
       source: "server",
       advanced: true,
       reason: it.reason || it.note || null,
+      aiReason: it.aiReason || null,
     }), why);
 
     // v2's own ranking stays authoritative; extras go after it, and unique

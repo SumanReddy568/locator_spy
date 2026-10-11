@@ -908,10 +908,17 @@ document.addEventListener("DOMContentLoaded", function () {
     const matchText = loc.approx
       ? "matched by accessible name"
       : loc.unique ? "unique on this page" : `${loc.matches} matches on this page`;
-    const why = loc.advanced
-      ? [loc.source === "ai" ? "AI" : "Rule engine", loc.reason, matchText, loc.note && loc.note !== loc.reason ? loc.note : ""]
-      : [loc.via || loc.category, matchText, loc.score != null ? `score ${loc.score}` : ""];
+    // The AI's verdict leads when there is one (its own reason for AI picks,
+    // its review of the rule engine's locators otherwise); the mechanical
+    // score breakdown moves to the tooltip.
+    const aiWhy = loc.source === "ai" ? loc.reason : loc.aiReason;
+    const why = aiWhy
+      ? [aiWhy, matchText]
+      : loc.advanced
+        ? [loc.reason, matchText, loc.note && !(loc.reason || "").includes(loc.note) ? loc.note : ""]
+        : [loc.via || loc.category, matchText, loc.score != null ? `score ${loc.score}` : ""];
     const whyLine = why.filter(Boolean).join(" · ");
+    const whyTitle = aiWhy && loc.source !== "ai" && loc.reason ? `Rule engine: ${loc.reason}` : "";
 
     return `
       <div class="locator-item${isExtra ? " is-extra" : ""}" data-strategy="${escapeHtml(loc.strategy)}">
@@ -923,7 +930,7 @@ document.addEventListener("DOMContentLoaded", function () {
           <span class="locator-value">
             <code class="locator-code">${escapeHtml(loc.value)}</code>
           </span>
-          ${whyLine ? `<div class="locator-why">${escapeHtml(whyLine)}</div>` : ""}
+          ${whyLine ? `<div class="locator-why${aiWhy ? " is-ai" : ""}"${whyTitle ? ` title="${escapeHtml(whyTitle)}"` : ""}>${aiWhy ? '<span class="why-tag">AI</span>' : ""}${escapeHtml(whyLine)}</div>` : ""}
         </div>
         <div class="locator-actions">
           <button class="validate-btn" ${attrs} title="Highlight the matching element on the page">

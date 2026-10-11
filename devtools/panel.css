@@ -1427,6 +1427,20 @@ body.dark-mode .badge-multi {
   word-break: break-word;
 }
 
+.locator-why.is-ai { color: var(--ink-2); }
+.locator-why .why-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--accent-deep);
+  background: var(--accent-soft);
+  vertical-align: 1px;
+}
+
 /* Value column */
 .locator-main {
   overflow: hidden;
