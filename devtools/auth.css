@@ -592,3 +592,42 @@ body.dark-mode .auth-footer a:hover { color: var(--accent); border-bottom-color:
         transition-duration: 0.01ms !important;
     }
 }
+
+/* -------- "Continue with Google" -------------------------------------- */
+.auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0 4px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+.auth-divider::before,
+.auth-divider::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid var(--hairline);
+}
+.auth-form-wrapper .btn.google-btn {
+    gap: 10px;
+    height: 48px;
+    background: var(--surface);
+    color: var(--ink-1);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+.auth-form-wrapper .btn.google-btn:hover {
+    border-color: var(--ink-3);
+}
+.auth-form-wrapper .btn.google-btn:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}

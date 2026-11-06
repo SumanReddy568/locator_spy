@@ -29,7 +29,8 @@
     "scripting",
     "storage",
     "alarms",
-    "notifications"
+    "notifications",
+    "identity"
   ],
   "web_accessible_resources": [
     {

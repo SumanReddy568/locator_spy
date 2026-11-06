@@ -1,5 +1,5 @@
 import { logLocatorLifecycle, trackLocatorGenerated } from './utils/analytics.js';
-import { WORKER_BASE } from './utils/endpoints.js';
+import { WORKER_BASE, GOOGLE_OAUTH_CLIENT_ID } from './utils/endpoints.js';
 
 // Add export statement at the start
 export const initializeServiceWorker = () => {
@@ -298,6 +298,13 @@ export const initializeServiceWorker = () => {
         return;
       }
 
+      // "Continue with Google" from the DevTools login/signup pages, which
+      // can't call chrome.identity themselves. Replies { idToken } or { error }.
+      if (message.action === 'googleSignIn') {
+        googleSignIn().then(sendResponse, (e) => sendResponse({ error: e.message }));
+        return true; // async response
+      }
+
       if (!sender.tab) return;
 
       const tabId = sender.tab.id;
@@ -390,6 +397,30 @@ export const initializeServiceWorker = () => {
       }
     }
   });
+
+  // Google OpenID Connect implicit flow in the identity popup: returns an ID
+  // token for POST /login/google, which verifies it server-side. No client
+  // secret is involved. The nonce ties the token to this request.
+  async function googleSignIn() {
+    if (!GOOGLE_OAUTH_CLIENT_ID) throw new Error('Google sign-in is not configured');
+    const nonce = crypto.randomUUID();
+    const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    url.search = new URLSearchParams({
+      client_id: GOOGLE_OAUTH_CLIENT_ID,
+      response_type: 'id_token',
+      redirect_uri: chrome.identity.getRedirectURL(),
+      scope: 'openid email profile',
+      nonce,
+      prompt: 'select_account',
+    }).toString();
+    const redirect = await chrome.identity.launchWebAuthFlow({ url: url.href, interactive: true });
+    const params = new URLSearchParams(new URL(redirect).hash.slice(1));
+    const idToken = params.get('id_token');
+    if (!idToken) throw new Error(params.get('error') || 'Google did not return a token');
+    const claims = JSON.parse(atob(idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (claims.nonce !== nonce) throw new Error('Google sign-in failed (nonce mismatch)');
+    return { idToken };
+  }
 
   async function generateLocatorV3(payload) {
     try {

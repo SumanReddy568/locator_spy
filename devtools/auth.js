@@ -1,5 +1,5 @@
 import { logger, trackLogin, trackSignup, logAuthLifecycle } from '../utils/analytics.js';
-import { WORKER_BASE } from '../utils/endpoints.js';
+import { WORKER_BASE, GOOGLE_OAUTH_CLIENT_ID } from '../utils/endpoints.js';
 
 const AUTH_CONFIG = {
     API_BASE_URL: WORKER_BASE,
@@ -327,6 +327,79 @@ async function login(email, password) {
     }
 }
 
+// Google sign-in: the background script runs Google's popup and returns an ID
+// token; the worker verifies it and returns a normal session token.
+// If a password account already uses the Google email, the worker answers 409
+// link_required: we keep the Google token, ask for that account's password in
+// the page's email/password fields, and the next click sends both to link them.
+let pendingGoogleToken = null;
+
+async function loginWithGoogle() {
+    logAuthLifecycle('google_login_started', { linking: !!pendingGoogleToken });
+    let idToken = pendingGoogleToken;
+    if (!idToken) {
+        const res = await chrome.runtime.sendMessage({ action: 'googleSignIn' });
+        if (!res || res.error) throw new Error(res?.error || 'Google sign-in failed. Please try again.');
+        idToken = res.idToken;
+    }
+
+    const body = { source: AUTH_CONFIG.SOURCE, idToken };
+    const emailEl = document.getElementById('email');
+    const passwordEl = document.getElementById('password');
+    if (pendingGoogleToken && emailEl?.value.trim() && passwordEl?.value) {
+        body.hash = await generateHash(emailEl.value.trim(), passwordEl.value);
+    }
+
+    const response = await fetch(`${AUTH_CONFIG.API_BASE_URL}/login/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 409 && data.error === 'link_required') {
+        pendingGoogleToken = idToken;
+        if (emailEl) emailEl.value = data.email || '';
+        passwordEl?.focus();
+        logAuthLifecycle('google_login_link_required', {});
+        throw new Error(`A Locator Spy account already uses ${data.email}. Enter its password above, then click Continue with Google again to link it.`);
+    }
+    // Wrong password while linking: keep the Google token so they can retry.
+    if (data.error !== 'Incorrect password for this account') pendingGoogleToken = null;
+    if (!response.ok) {
+        logAuthLifecycle('google_login_failed', { status: response.status, error: data.error });
+        throw new Error(data.error || `Google sign-in failed (Status: ${response.status}).`);
+    }
+    const meta = { status: 'success', email: data.email, userId: data.userId, source: 'google', linked: !!data.linked };
+    if (data.created) trackSignup(meta); else trackLogin(meta);
+    logAuthLifecycle('google_login_succeeded', { email: data.email, userId: data.userId, created: !!data.created });
+    // user_hash is only an analytics label; Google accounts have no password hash.
+    return { success: true, token: data.token, email: data.email, userId: data.userId, hash: `google:${data.userId}` };
+}
+
+// Shared by the login and signup pages.
+function initGoogleButton() {
+    const btn = document.getElementById('google-btn');
+    if (!btn) return;
+    if (!GOOGLE_OAUTH_CLIENT_ID) {
+        btn.closest('.auth-alt')?.remove();
+        return;
+    }
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+            const result = await loginWithGoogle();
+            storeAuthData(result.token, result.email, result.hash, result.userId);
+            await syncUserSettings({ fillOnly: false });
+            showSuccess('Signed in with Google! Redirecting...');
+            setTimeout(() => { window.location.href = 'panel.html'; }, 1000);
+        } catch (error) {
+            logger.error('Google login error', { error: error.message });
+            showError(error.message);
+            btn.disabled = false;
+        }
+    });
+}
+
 // Logout API call
 async function logout() {
     logger.info('logout called');
@@ -582,6 +655,7 @@ async function validateSession() {
 
 // Initialize Signup Page
 function initSignup() {
+    initGoogleButton();
     logger.info('initSignup called');
     const signupForm = document.getElementById('signup-form');
     const togglePasswordBtn = document.getElementById('toggle-password');
@@ -704,6 +778,7 @@ function initSignup() {
 // Initialize Login Page
 function initLogin() {
     logger.info('initLogin called');
+    initGoogleButton();
     const loginForm = document.getElementById('login-form');
     const togglePasswordBtn = document.getElementById('toggle-password');
     const passwordInput = document.getElementById('password');
