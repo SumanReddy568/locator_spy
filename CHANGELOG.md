@@ -1,3 +1,6 @@
+## [1.5.5] - 2026-11-06
+- feat(auth): Continue with Google on the login and signup pages - background.js runs
+
 ## [1.5.4] - 2026-10-11
 - feat(panel): show the AIs verdict as each locators reasoning Rule-engine locators from GodMode/Astra now lead with the
 
