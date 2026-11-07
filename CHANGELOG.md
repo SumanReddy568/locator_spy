@@ -1,3 +1,6 @@
+## [1.5.6] - 2026-11-07
+- fix(manifest): drop unused notifications permission Chrome Web Store rejected 1.5.5 (Purple Potassium): notifications is requested but chrome.notifications is never called. The
+
 ## [1.5.5] - 2026-11-06
 - feat(auth): Continue with Google on the login and signup pages - background.js runs
 
