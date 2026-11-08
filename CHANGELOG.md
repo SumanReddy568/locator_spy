@@ -1,3 +1,6 @@
+## [1.5.7] - 2026-11-08
+- feat: recorder Run, engine showcase, tips, health chip, and reliability fixes Generation & caching - Hover generates only after a 2s full rest (any mousemove restarts it); click is immediate; the highlight no longer locks while a request runs. - In-page cache fingerprint ignores hover/interaction state (aria-expanded, tabindex, active/open classes), mirroring the
+
 ## [1.5.6] - 2026-11-07
 - fix(manifest): drop unused notifications permission Chrome Web Store rejected 1.5.5 (Purple Potassium): notifications is requested but chrome.notifications is never called. The
 
