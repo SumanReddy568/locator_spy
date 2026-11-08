@@ -1687,14 +1687,15 @@ body.dark-mode .validate-btn:hover {
 }
 
 /* -------- AI thinking (staged optimize UX) -----------------------------*/
+/* Compact so it fits a bottom-docked DevTools panel without scrolling. */
 .ai-thinking {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 32px 24px;
-  min-height: 240px;
+  gap: 10px;
+  padding: 12px 16px;
   justify-content: center;
 }
+#locatorResults:has(> .ai-thinking) { overflow: hidden; }
 
 .ai-thinking-head {
   display: flex;
@@ -1725,7 +1726,7 @@ body.dark-mode .validate-btn:hover {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 6px;
 }
 
 .ai-step {
@@ -3316,3 +3317,112 @@ body.dark-mode .notif-item-icon { color: var(--accent); }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* "Rate us" one-liner under the header. */
+.rate-prompt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--hairline);
+}
+.rate-prompt[hidden] { display: none; }
+.rate-prompt a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.rate-prompt a:hover { text-decoration: underline; }
+.rate-prompt-x {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+/* Engine chip (next to Locator Mode) + engine showcase modal. */
+.engine-chip { font-size: 12px; white-space: nowrap; }
+.engine-chip b { color: var(--accent); font-weight: 700; margin: 0 4px; }
+.engine-showcase .modal-content { width: 760px; max-width: 94%; }
+.engine-showcase-sub { margin: 0 0 12px; font-size: 12px; color: var(--ink-2); }
+.engine-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.engine-card {
+  display: flex; flex-direction: column; gap: 6px;
+  border: 1px solid var(--hairline); border-radius: 10px; padding: 10px;
+}
+.engine-card.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-line); background: var(--accent-soft); }
+.engine-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.engine-card-name { font-weight: 700; font-size: 14px; }
+.engine-card-tag { font-size: 10px; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.04em; }
+.engine-card p { margin: 0; font-size: 12px; line-height: 1.4; color: var(--ink-2); flex: 1; }
+.engine-card-meta { font-size: 11px; color: var(--accent-deep); }
+.engine-card-use { font-size: 12px; }
+.engine-card.current .engine-card-use { pointer-events: none; opacity: 0.6; }
+
+/* Recorder entry button: outcome-first label, red record dot, NEW until first use. */
+.rec-entry-btn { gap: 7px; }
+.rec-entry-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #dc2626; flex-shrink: 0; position: relative;
+}
+.rec-entry-pill {
+  font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-deep); border: 1px solid var(--accent-line);
+}
+.rec-entry-new {
+  display: none; font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+  padding: 1px 5px; border-radius: 4px; background: #dc2626; color: #fff;
+}
+.rec-entry-btn.is-new .rec-entry-new { display: inline-block; }
+.rec-entry-btn.is-new .rec-entry-dot::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%;
+  border: 2px solid #dc2626; opacity: 0; animation: rec-entry-ping 1.6s ease-out infinite;
+}
+@keyframes rec-entry-ping {
+  0% { transform: scale(0.6); opacity: 0.7; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rec-entry-btn.is-new .rec-entry-dot::after { animation: none; }
+}
+
+/* Recorder empty state: a 3-step how-to instead of "No steps yet". */
+.rec-howto { margin: 0; padding: 0 0 0 18px; text-align: left; font-size: 12px; line-height: 1.6; color: var(--ink-2); }
+.rec-howto b { color: var(--ink-1); }
+
+/* Recorder replay: Run button + per-step result. */
+.rec-btn.run { border-color: #16a34a; color: #15803d; font-weight: 600; }
+.rec-btn.run:hover:not(:disabled) { background: #f0fdf4; }
+.rec-steps-list li.run-running { background: var(--accent-soft); }
+.rec-steps-list li.run-pass .step-index { background: #16a34a; color: #fff; }
+.rec-steps-list li.run-fail { background: #fef2f2; }
+.rec-steps-list li.run-fail .step-index { background: #dc2626; color: #fff; }
+.rec-steps-list li.run-skip .step-index { background: #d97706; color: #fff; }
+.step-run-error { display: block; font-size: 11px; color: #b91c1c; margin-top: 2px; }
+.rec-steps-list li.run-skip .step-run-error { color: #b45309; }
+
+/* Service health chip in the header (GET /health on the worker). */
+.service-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--hairline); border-radius: 999px; background: none;
+  padding: 1px 8px; font-size: 11px; color: var(--ink-2); cursor: pointer; white-space: nowrap;
+}
+.service-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3, #9ca3af); }
+.service-status.is-ok .service-dot { background: #16a34a; }
+.service-status.is-degraded .service-dot { background: #d97706; }
+.service-status.is-down .service-dot { background: #dc2626; }
+.service-status.is-down { color: #b91c1c; border-color: #fecaca; }
+
+/* Tip of the day: one slim line between the toolbar and the results. */
+.tip-bar {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 0 0 6px; padding: 4px 10px;
+  border: 1px solid var(--accent-line); border-radius: 8px; background: var(--accent-soft);
+  font-size: 12px; color: var(--ink-1);
+}
+.tip-bar[hidden] { display: none; }
+.tip-bar-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-deep); white-space: nowrap; }
+.tip-bar-text { flex: 1; min-width: 0; }
+.tip-bar-x { border: 0; background: none; color: var(--ink-2); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }

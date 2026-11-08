@@ -320,12 +320,19 @@ document.addEventListener("DOMContentLoaded", function () {
       `;
     }
 
-    // Send message to background script
-    postToBackground({
+    // Send message to background script. If the port is down (worker was
+    // restarting), reconnect now and resend instead of silently dropping the
+    // toggle — that left the button Active with nothing listening in the page.
+    const toggle = {
       action: "activateLocatorMode",
       isActive: isLocatorModeActive,
       tabId: chrome.devtools.inspectedWindow.tabId,
-    });
+    };
+    if (!postToBackground(toggle)) {
+      clearTimeout(bgReconnectTimer);
+      connectToBackground(); // re-asserts activation when isLocatorModeActive
+      if (!isLocatorModeActive) postToBackground(toggle);
+    }
   });
 
 
@@ -1106,6 +1113,21 @@ document.addEventListener("DOMContentLoaded", function () {
   const recStartBtn = document.getElementById("recStartBtn");
   const recStopBtn = document.getElementById("recStopBtn");
   const recClearBtn = document.getElementById("recClearBtn");
+  const recRunBtn = document.getElementById("recRunBtn");
+  // Replay state (the background runs the steps; see runRecording in
+  // background.js). Per-step status/errors survive the storage-driven
+  // re-renders; `recRunResult` is the last run's outcome for the status pill.
+  let recRunning = false;
+  let recRunStatus = {};
+  let recRunErrors = {};
+  let recRunResult = "";
+  let recRunWatchdog = null;
+  function recRunFinish(result) {
+    clearTimeout(recRunWatchdog);
+    recRunning = false;
+    recRunResult = result;
+    readRecorderState(renderRecorderView);
+  }
   const recCopyCodeBtn = document.getElementById("recCopyCodeBtn");
   const recFrameworkSelect = document.getElementById("recFrameworkSelect");
   const recLanguageSelect = document.getElementById("recLanguageSelect");
@@ -1569,9 +1591,18 @@ test('recorded flow', async ({ page }) => {
       recStatus.classList.toggle("active", isActive);
       recStatus.classList.toggle("idle", !isActive);
     }
-    if (recStatusLabel) recStatusLabel.textContent = isActive ? "Recording" : "Idle";
-    if (recStartBtn) recStartBtn.disabled = isActive;
+    if (recStatusLabel) {
+      const done = Object.values(recRunStatus).filter((s) => s !== "running").length;
+      recStatusLabel.textContent = isActive ? "Recording"
+        : recRunning ? `Running ${Math.min(done + 1, interactions.length)}/${interactions.length}`
+        : recRunResult || "Idle";
+    }
+    if (recStartBtn) recStartBtn.disabled = isActive || recRunning;
     if (recStopBtn) recStopBtn.disabled = !isActive;
+    if (recRunBtn) {
+      recRunBtn.disabled = !recRunning && (isActive || !interactions.length);
+      recRunBtn.textContent = recRunning ? "■ Stop run" : "▶ Run";
+    }
 
     if (recStepCount) recStepCount.textContent = String(interactions.length);
     if (recStepsList && recStepsEmpty) {
@@ -1606,7 +1637,10 @@ test('recorded flow', async ({ page }) => {
               ? `<span class="step-ai-note">${escapeHtml(String(aiStep.description))}</span>` : "";
             const aiAssert = aiStep && aiStep.assertion
               ? `<span class="step-ai-assert">${escapeHtml(String(aiStep.assertion))}</span>` : "";
-            return `<li>
+            const run = recRunStatus[idx];
+            const runErr = recRunErrors[idx]
+              ? `<span class="step-run-error">${escapeHtml(String(recRunErrors[idx]))}</span>` : "";
+            return `<li${run ? ` class="run-${run}"` : ""}>
               <span class="step-index">${idx + 1}</span>
               <span class="step-action">${escapeHtml(it.action)}</span>
               <div class="step-body">
@@ -1614,6 +1648,7 @@ test('recorded flow', async ({ page }) => {
                 ${locStr ? `<span class="step-locator">${escapeHtml(locStr)}</span>` : ""}
                 ${aiNote}
                 ${aiAssert}
+                ${runErr}
               </div>
             </li>`;
           })
@@ -1656,6 +1691,9 @@ test('recorded flow', async ({ page }) => {
   }
 
   if (recStartBtn) recStartBtn.addEventListener("click", () => {
+    recRunStatus = {};
+    recRunErrors = {};
+    recRunResult = "";
     chrome.storage.local.set({ recorderActive: true });
     recSessionStartTs = Date.now();
     const p = recCurrentPickers();
@@ -1677,7 +1715,64 @@ test('recorded flow', async ({ page }) => {
     });
     recSessionStartTs = 0;
   });
+  if (recRunBtn) recRunBtn.addEventListener("click", () => {
+    const tabId = chrome.devtools.inspectedWindow.tabId;
+    if (recRunning) {
+      // Reset the UI right away; the background stops after the current step.
+      postToBackground({ action: "stopRecordingRun", tabId });
+      recRunFinish("Run stopped");
+      return;
+    }
+    chrome.storage.local.get("recorderInteractions", (r) => {
+      const steps = (r && r.recorderInteractions) || [];
+      if (!steps.length) return;
+      // Locator mode intercepts clicks in the page; replayed clicks must land.
+      if (isLocatorModeActive) locatorModeBtn.click();
+      recRunning = true;
+      recRunStatus = {};
+      recRunErrors = {};
+      recRunResult = "";
+      readRecorderState(renderRecorderView);
+      if (!postToBackground({ action: "runRecording", tabId, steps })) {
+        recRunFinish("Run failed · reopen DevTools");
+        return;
+      }
+      // The background acknowledges at once (recRunStarted). Silence means it's
+      // running older code that doesn't know about runs (an unpacked extension's
+      // service worker only updates on reload), so don't hang in "running".
+      clearTimeout(recRunWatchdog);
+      recRunWatchdog = setTimeout(() => {
+        if (recRunning && !Object.keys(recRunStatus).length) {
+          recRunFinish("Run didn't start · reload the extension");
+          if (recStatus) recStatus.title = "Reload Locator Spy in chrome://extensions, then reopen DevTools.";
+        }
+      }, 5000);
+      logLocatorLifecycle("recorder_run_started", { stepCount: steps.length });
+    });
+  });
+
+  onBackgroundMessage((m) => {
+    if (m.action === "recRunStarted") {
+      clearTimeout(recRunWatchdog);
+    } else if (m.action === "recRunProgress") {
+      if (!recRunning) return; // stopped from the panel; ignore stragglers
+      recRunStatus[m.index] = m.status;
+      if (m.error) recRunErrors[m.index] = m.error;
+      readRecorderState(renderRecorderView);
+    } else if (m.action === "recRunDone") {
+      if (!recRunning) return; // already reset by Stop
+      if (!m.ok && m.failedAt == null && m.error && recStatus) recStatus.title = m.error;
+      recRunFinish(m.ok ? `Passed · ${m.count} steps`
+        : m.cancelled ? "Run stopped"
+        : m.failedAt != null ? `Failed · step ${m.failedAt + 1}` : `Run failed: ${m.error || "unknown error"}`);
+      logLocatorLifecycle("recorder_run_finished", { ok: !!m.ok, cancelled: !!m.cancelled, failedAt: m.failedAt ?? null });
+    }
+  });
+
   if (recClearBtn) recClearBtn.addEventListener("click", () => {
+    recRunStatus = {};
+    recRunErrors = {};
+    recRunResult = "";
     chrome.storage.local.get("recorderInteractions", (r) => {
       const priorStepCount = ((r && r.recorderInteractions) || []).length;
       chrome.storage.local.set({ recorderInteractions: [] });
@@ -2627,6 +2722,7 @@ test('recorded flow', async ({ page }) => {
   const notifItems = [
     document.getElementById("updateAlertDev"),
     document.getElementById("engineNewsNotif"),
+    document.getElementById("runNewsNotif"),
     document.getElementById("aiCreditsBanner"),
   ].filter(Boolean);
 
@@ -2691,6 +2787,26 @@ test('recorded flow', async ({ page }) => {
     });
     const dismissBtn = document.getElementById("engineNewsDismissBtn");
     if (dismissBtn) dismissBtn.addEventListener("click", dismissEngineNews);
+  }
+  // Recorder replay announcement: visible until dismissed or acted on.
+  const runNewsNotif = document.getElementById("runNewsNotif");
+  if (runNewsNotif) {
+    chrome.storage.local.get("runNewsDismissed", (r) => {
+      runNewsNotif.hidden = !!r.runNewsDismissed;
+    });
+    const dismissRunNews = () => {
+      runNewsNotif.hidden = true;
+      chrome.storage.local.set({ runNewsDismissed: true });
+    };
+    const openBtn = document.getElementById("runNewsOpenBtn");
+    if (openBtn) openBtn.addEventListener("click", () => {
+      dismissRunNews();
+      closeNotificationsDrawer();
+      setView("recorder");
+      logLocatorLifecycle("run_news_opened");
+    });
+    const dismissBtn = document.getElementById("runNewsDismissBtn");
+    if (dismissBtn) dismissBtn.addEventListener("click", dismissRunNews);
   }
 
   const googleApiKeyInput = document.getElementById("googleApiKey");
@@ -3501,3 +3617,193 @@ document.addEventListener("DOMContentLoaded", function () {
     // But the modal will close and the next click will work
   });
 });
+
+// ── Rate prompt ─────────────────────────────────────────────────────────────
+// Tiny "rate us" line under the header. Only after RATE_PROMPT_AFTER_OPENS panel
+// opens (so first-time users aren't nagged), and never again once the user
+// clicks through or dismisses it.
+(function initRatePrompt() {
+  const RATE_PROMPT_AFTER_OPENS = 5;
+  const el = document.getElementById("ratePrompt");
+  if (!el || !chrome?.storage?.local) return;
+  const done = () => {
+    el.hidden = true;
+    chrome.storage.local.set({ rate_prompt_done: true });
+  };
+  chrome.storage.local.get(["rate_prompt_done", "rate_prompt_opens"], (r) => {
+    if (r.rate_prompt_done) return;
+    const opens = (r.rate_prompt_opens || 0) + 1;
+    chrome.storage.local.set({ rate_prompt_opens: opens });
+    if (opens >= RATE_PROMPT_AFTER_OPENS) el.hidden = false;
+  });
+  document.getElementById("rateLink")?.addEventListener("click", done);
+  document.getElementById("rateDismiss")?.addEventListener("click", done);
+})();
+
+// ── Share ───────────────────────────────────────────────────────────────────
+// Every [data-share] link copies the Web Store listing URL and briefly says so
+// in its [data-share-label]. DevTools panels often can't use the async
+// Clipboard API ("document is not focused"), so fall back to execCommand.
+(function initShare() {
+  const SHARE_URL = "https://chromewebstore.google.com/detail/gpgjidcedjiphbgagldchpcliacmanjf?utm_source=item-share-cb";
+  async function copy(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
+    }
+  }
+  document.querySelectorAll("[data-share]").forEach((link) => {
+    const label = link.querySelector("[data-share-label]");
+    const original = label ? label.textContent : "";
+    link.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // keep the dropdown open long enough to read the confirmation
+      const ok = await copy(SHARE_URL);
+      if (label) {
+        label.textContent = ok ? "Link copied!" : "Copy failed";
+        setTimeout(() => { label.textContent = original; }, 2000);
+      }
+    });
+  });
+})();
+
+// ── Engine showcase ─────────────────────────────────────────────────────────
+// The engine choice lived only in Settings, so most users never knew there
+// was one. The Engine chip next to Locator Mode always shows the current
+// engine and opens a side-by-side comparison; that comparison also opens once
+// on its own (engineShowcaseSeen). Picking a card goes through #engineSelect's
+// existing change handler, so saving and tracking stay in one place.
+(function initEngineShowcase() {
+  const NAMES = { v4: "GodMode", v3: "Astra", v2: "Nexus", v1: "Origin" };
+  const modal = document.getElementById("engineShowcase");
+  const chip = document.getElementById("engineChip");
+  const select = document.getElementById("engineSelect");
+  if (!modal || !chip || !select || !chrome?.storage?.local) return;
+
+  const show = (engine) => {
+    const e = NAMES[engine] ? engine : "v4";
+    chip.querySelector("[data-engine-name]").textContent = NAMES[e];
+    chip.title = `Locator engine: ${NAMES[e]}. Click to compare engines`;
+    modal.querySelectorAll("[data-engine]").forEach((c) => {
+      const isCurrent = c.dataset.engine === e;
+      c.classList.toggle("current", isCurrent);
+      c.querySelector("[data-engine-use]").textContent = isCurrent ? "Current engine" : `Use ${NAMES[c.dataset.engine]}`;
+    });
+  };
+  const refresh = () => chrome.storage.local.get("locatorEngine", (r) => show(r.locatorEngine || "v4"));
+  const open = () => { refresh(); modal.classList.add("show"); };
+  const close = () => {
+    modal.classList.remove("show");
+    // The showcase replaces the old "new engines" drawer note.
+    chrome.storage.local.set({ engineShowcaseSeen: true, engineNewsDismissed: true });
+  };
+
+  chip.addEventListener("click", open);
+  document.getElementById("engineShowcaseClose").addEventListener("click", close);
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && modal.classList.contains("show")) close(); });
+  modal.querySelectorAll("[data-engine-use]").forEach((btn) => btn.addEventListener("click", () => {
+    select.value = btn.dataset.engineUse;
+    select.dispatchEvent(new Event("change")); // existing handler saves + tracks
+    close();
+  }));
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.locatorEngine) show(changes.locatorEngine.newValue || "v4");
+  });
+
+  refresh();
+  chrome.storage.local.get("engineShowcaseSeen", (r) => { if (!r.engineShowcaseSeen) open(); });
+})();
+
+// ── Recorder entry ──────────────────────────────────────────────────────────
+// "Record a test" shows NEW and a pulsing dot until the recorder is opened
+// once, so new users notice it and existing ones aren't nagged after.
+(function initRecorderEntry() {
+  const btn = document.getElementById("openRecorderBtn");
+  if (!btn || !chrome?.storage?.local) return;
+  chrome.storage.local.get("recorderDiscovered", (r) => {
+    if (!r.recorderDiscovered) btn.classList.add("is-new");
+  });
+  btn.addEventListener("click", () => {
+    btn.classList.remove("is-new");
+    chrome.storage.local.set({ recorderDiscovered: true });
+  });
+})();
+
+// ── Service health ──────────────────────────────────────────────────────────
+// Header chip showing whether the worker behind GodMode / AI / login is up
+// (GET /health). Checked on open, every minute while the panel is visible,
+// and on click. "Offline" = the worker didn't answer at all.
+(function initServiceStatus() {
+  const chip = document.getElementById("serviceStatus");
+  if (!chip) return;
+  const label = chip.querySelector(".service-label");
+  const NAMES = { api: "API", accounts: "Accounts", data: "Data" };
+  const set = (state, text, title) => {
+    chip.classList.remove("is-checking", "is-ok", "is-degraded", "is-down");
+    chip.classList.add(`is-${state}`);
+    label.textContent = text;
+    chip.title = `${title} · click to re-check`;
+  };
+  // /health needs the signed-in session (it isn't public); signed out → hidden.
+  const getToken = () => new Promise((res) => chrome.storage.local.get("auth_token", (r) => res(r && r.auth_token)));
+  async function check() {
+    const token = await getToken();
+    chip.hidden = !token;
+    if (!token) return;
+    try {
+      const res = await fetch(`${WORKER_BASE}/health`, {
+        cache: "no-store", credentials: "omit", signal: AbortSignal.timeout(8000),
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401) { chip.hidden = true; return; } // session expired: login flow takes over
+      const body = await res.json();
+      if (body.status === "ok") return set("ok", "Online", "All locator.spy services are operational");
+      const down = Object.entries(body.services || {}).filter(([, s]) => s !== "ok").map(([k]) => NAMES[k] || k);
+      set("degraded", "Degraded", `Partial outage: ${down.join(", ") || "some services"} unavailable. Some features may fail`);
+    } catch {
+      set("down", "Offline", "Can't reach the locator.spy service. GodMode, AI and login won't work until it's back");
+    }
+  }
+  chip.addEventListener("click", check);
+  check();
+  setInterval(() => { if (document.visibilityState === "visible") check(); }, 60_000);
+})();
+
+// ── Tip of the day ──────────────────────────────────────────────────────────
+// One locator tip a day from the worker (GET /tip: AI-written once a day,
+// shared by everyone). Rendered as text only. × hides it until tomorrow.
+(function initTipOfTheDay() {
+  const bar = document.getElementById("tipBar");
+  const text = document.getElementById("tipText");
+  if (!bar || !text || !chrome?.storage?.local) return;
+  const today = new Date().toISOString().slice(0, 10);
+  chrome.storage.local.get(["tipHiddenDay", "auth_token"], async (r) => {
+    if (r.tipHiddenDay === today) return;
+    try {
+      const res = await fetch(`${WORKER_BASE}/tip`, {
+        credentials: "omit", signal: AbortSignal.timeout(8000),
+        headers: r.auth_token ? { Authorization: `Bearer ${r.auth_token}` } : {},
+      });
+      if (!res.ok) return;
+      const { tip } = await res.json();
+      if (typeof tip !== "string" || !tip.trim()) return;
+      text.textContent = tip;
+      bar.hidden = false;
+    } catch { /* no tip today; the bar just stays hidden */ }
+  });
+  document.getElementById("tipDismiss")?.addEventListener("click", () => {
+    bar.hidden = true;
+    chrome.storage.local.set({ tipHiddenDay: today });
+  });
+})();

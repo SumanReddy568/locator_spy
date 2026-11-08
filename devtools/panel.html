@@ -30,6 +30,11 @@
       </div>
       <div class="header-stats" id="headerStats" aria-live="polite" title="Community usage"></div>
       <div class="header-controls">
+        <!-- Worker health (GET /health), refreshed every minute; click to re-check. -->
+        <button id="serviceStatus" class="service-status is-checking" type="button" title="Checking service status…">
+          <span class="service-dot" aria-hidden="true"></span>
+          <span class="service-label">Checking…</span>
+        </button>
         <button id="logoutBtn" class="icon-btn" title="Logout" style="display: none;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -80,6 +85,16 @@
               </svg>
               Request a Feature
             </a>
+            <a href="#" id="shareExtLink" class="dropdown-item" data-share>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="18" cy="5" r="3"></circle>
+                <circle cx="6" cy="12" r="3"></circle>
+                <circle cx="18" cy="19" r="3"></circle>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+              </svg>
+              <span data-share-label>Share locator.spy</span>
+            </a>
             <div class="dropdown-divider"></div>
             <div class="dropdown-section-label">Resources</div>
             <a href="https://chromewebstore.google.com/detail/performance-metrics/knoccpkihlinjbbegobnaldlkpmhamki"
@@ -125,6 +140,15 @@
           </div>
         </div>
       </div>
+    </div>
+    <!-- One-line "rate us" nudge; shown after a few panel opens, hidden for
+         good once rated or dismissed (rate-prompt block in panel.js). -->
+    <div id="ratePrompt" class="rate-prompt" hidden>
+      <span>Enjoying locator.spy?</span>
+      <a id="rateLink" href="https://chromewebstore.google.com/detail/locator-finder-ai-powered/gpgjidcedjiphbgagldchpcliacmanjf/reviews"
+        target="_blank" rel="noopener">★ Rate it on the Chrome Web Store</a>
+      <a href="#" data-share><span data-share-label>Share</span></a>
+      <button id="rateDismiss" class="rate-prompt-x" title="Dismiss" aria-label="Dismiss">×</button>
     </div>
     
     <!-- Notifications drawer. The old inline update / AI-credit banners now
@@ -178,6 +202,24 @@
           </div>
         </div>
 
+        <!-- Recorder replay announcement. Shown until dismissed (runNewsDismissed). -->
+        <div id="runNewsNotif" class="notif-item engine-news" hidden>
+          <div class="notif-item-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+          </div>
+          <div class="notif-item-body">
+            <span class="notif-item-text">New: replay your recordings</span>
+            <p class="engine-news-sub">
+              Record a flow, press <b>Stop</b>, then <b>▶ Run</b>: locator.spy opens the start page and
+              replays every click, field and scroll in the tab, marking each step passed or failed.
+            </p>
+            <div class="engine-news-actions">
+              <button id="runNewsOpenBtn" class="btn primary-btn notif-item-cta" type="button">Open recorder</button>
+              <button id="runNewsDismissBtn" class="btn notif-item-cta" type="button">Dismiss</button>
+            </div>
+          </div>
+        </div>
+
         <div id="aiCreditsBanner" class="notif-item ai-credits-banner" hidden>
           <div class="notif-item-icon ai-credits-banner-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -218,6 +260,46 @@
     </div>
 
     <!-- Feedback Modal -->
+    <!-- Engine showcase: opens once automatically (engineShowcaseSeen), and
+         any time from the Engine chip next to Locator Mode. -->
+    <div id="engineShowcase" class="modal engine-showcase" role="dialog" aria-labelledby="engineShowcaseTitle">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="engineShowcaseTitle">Pick your locator engine</h3>
+          <button id="engineShowcaseClose" class="close-btn" aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="engine-showcase-sub">locator.spy has four engines. Switch any time from the <b>Engine</b> button next to Locator Mode.</p>
+          <div class="engine-cards">
+          <div class="engine-card" data-engine="v4">
+            <div class="engine-card-head"><span class="engine-card-name">GodMode</span><span class="engine-card-tag">v4 · default</span></div>
+            <p>Our server's rule engine plus AI. Every locator is scored for stability and checked against the live page, with its match count.</p>
+            <div class="engine-card-meta">AI · needs login</div>
+            <button class="btn engine-card-use" data-engine-use="v4" type="button">Use GodMode</button>
+          </div>
+          <div class="engine-card" data-engine="v3">
+            <div class="engine-card-head"><span class="engine-card-name">Astra</span><span class="engine-card-tag">v3</span></div>
+            <p>Instant in-page locators first, then server rules and AI picks merged in, each verified on the page.</p>
+            <div class="engine-card-meta">Instant + AI · needs login</div>
+            <button class="btn engine-card-use" data-engine-use="v3" type="button">Use Astra</button>
+          </div>
+          <div class="engine-card" data-engine="v2">
+            <div class="engine-card-head"><span class="engine-card-name">Nexus</span><span class="engine-card-tag">v2</span></div>
+            <p>Anchor-first in-page engine: test ids, role + name, ARIA labels and stable classes, every strategy at once.</p>
+            <div class="engine-card-meta">Instant · offline · no login</div>
+            <button class="btn engine-card-use" data-engine-use="v2" type="button">Use Nexus</button>
+          </div>
+          <div class="engine-card" data-engine="v1">
+            <div class="engine-card-head"><span class="engine-card-name">Origin</span><span class="engine-card-tag">v1</span></div>
+            <p>The original classic generator, kept for compatibility.</p>
+            <div class="engine-card-meta">Instant · offline · no login</div>
+            <button class="btn engine-card-use" data-engine-use="v1" type="button">Use Origin</button>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="feedbackModal" class="modal feedback-modal">
       <div class="modal-content">
         <div class="modal-header">
@@ -242,6 +324,9 @@
         </svg>
         Locator Mode
       </button>
+      <button id="engineChip" class="btn engine-chip" type="button" title="Locator engine: click to compare engines">
+        Engine: <b data-engine-name>GodMode</b> ▾
+      </button>
       <button id="refreshBtn" class="btn">
         <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M23 4v6h-6"></path>
@@ -250,12 +335,13 @@
         </svg>
         Refresh
       </button>
-      <button id="openRecorderBtn" class="btn" title="Open the Intelligent Recorder — capture clicks and generate AI-powered automation code">
-        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="9"></circle>
-          <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
-        </svg>
-        Intelligent Recorder
+      <!-- Named for the outcome (a test), not the feature; NEW + pulse until
+           first opened (recorderDiscovered, see initRecorderEntry in panel.js). -->
+      <button id="openRecorderBtn" class="btn rec-entry-btn" title="Intelligent Recorder: click through a flow in your app and get a ready-to-run test for Selenium, Playwright, Cypress or WebdriverIO">
+        <span class="rec-entry-dot" aria-hidden="true"></span>
+        Record a test
+        <span class="rec-entry-pill">AI → code</span>
+        <span class="rec-entry-new">NEW</span>
       </button>
       <div class="spacer"></div>
       <div class="search-box">
@@ -403,6 +489,15 @@
       </div>
     </aside>
 
+    <!-- Locator tip of the day (worker GET /tip, written daily by AI). The ×
+         hides it until tomorrow (tipHiddenDay); see initTipOfTheDay. -->
+    <div id="tipBar" class="tip-bar" hidden>
+      <span class="tip-bar-icon" aria-hidden="true">💡</span>
+      <span class="tip-bar-label">Tip of the day</span>
+      <span id="tipText" class="tip-bar-text"></span>
+      <button id="tipDismiss" class="tip-bar-x" type="button" title="Hide until tomorrow" aria-label="Hide tip until tomorrow">×</button>
+    </div>
+
     <div class="results">
       <div class="section locator-view" id="locatorView">
         <div class="section-header">
@@ -477,6 +572,7 @@
           <button id="recStartBtn" class="rec-btn primary">Start</button>
           <button id="recStopBtn" class="rec-btn" disabled>Stop</button>
           <button id="recClearBtn" class="rec-btn ghost">Clear</button>
+          <button id="recRunBtn" class="rec-btn run" disabled title="Replay the recorded steps in this tab">▶ Run</button>
           <label class="rec-framework-wrap">
             <span class="rec-framework-label">Framework</span>
             <select id="recFrameworkSelect" class="rec-framework-select">
@@ -511,7 +607,11 @@
             <div class="rec-pane-title">Steps · <span id="recStepCount" class="rec-count">0</span></div>
             <ol id="recStepsList" class="rec-steps-list"></ol>
             <div id="recStepsEmpty" class="rec-empty">
-              <p>No steps yet — start recording and click around in your app.</p>
+              <ol class="rec-howto">
+                <li>Press <b>Start</b></li>
+                <li>Click, type and scroll through your flow in the page</li>
+                <li>Press <b>Generate with AI</b> to get a ready-to-run test for Selenium, Playwright, Cypress or WebdriverIO</li>
+              </ol>
             </div>
           </div>
           <div class="rec-code-pane">

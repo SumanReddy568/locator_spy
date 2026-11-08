@@ -5,6 +5,7 @@ import { WORKER_BASE, GOOGLE_OAUTH_CLIENT_ID } from './utils/endpoints.js';
 export const initializeServiceWorker = () => {
   // Store connections from devtools panels
   const connections = {};
+  const pendingForPanel = {}; // tabId -> messages waiting for the panel to reconnect
   let pendingResponses = new Map();
 
   // Keep-alive mechanism
@@ -187,6 +188,8 @@ export const initializeServiceWorker = () => {
         if (message.name === 'init') {
           const tabId = message.tabId;
           connections[tabId] = port;
+          for (const m of pendingForPanel[tabId] || []) port.postMessage(m);
+          delete pendingForPanel[tabId];
 
           port.onDisconnect.addListener(() => {
             delete connections[tabId];
@@ -196,6 +199,16 @@ export const initializeServiceWorker = () => {
           if (typeof sendResponse === 'function') {
             sendResponse({ status: 'connected' });
           }
+          return;
+        }
+
+        // Recorder replay (see runRecording).
+        if (message.action === 'runRecording' && Array.isArray(message.steps)) {
+          runRecording(message.tabId, message.steps, port);
+          return;
+        }
+        if (message.action === 'stopRecordingRun') {
+          if (recRuns[message.tabId]) recRuns[message.tabId].cancelled = true;
           return;
         }
 
@@ -330,10 +343,15 @@ export const initializeServiceWorker = () => {
         }
       }
 
-      // Forward messages to DevTools panel
+      // Forward messages to DevTools panel. While the panel's port is down
+      // (it reconnects ~500ms after the worker restarts) keep the latest few
+      // and deliver them on its next `init`, instead of losing that result.
       if (tabId in connections) {
-
         connections[tabId].postMessage(message);
+      } else if (message.action) {
+        const q = (pendingForPanel[tabId] ||= []);
+        q.push(message);
+        if (q.length > 5) q.shift();
       }
 
       // Handle locator saving
@@ -422,13 +440,105 @@ export const initializeServiceWorker = () => {
     return { idToken };
   }
 
+  // ── Recorder replay ───────────────────────────────────────────────────────
+  // Runs recorded steps in the inspected tab, one at a time. Lives here, not
+  // in the page, because a step can navigate: between steps we wait for the
+  // tab to finish loading, so flows that cross pages (log in → dashboard)
+  // replay too. Progress goes to the panel as recRunProgress / recRunDone.
+  const recRuns = {}; // tabId -> { cancelled }
+  const REPLAY_STEP_GAP_MS = 500;
+  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+
+  async function tabReady(tabId, maxMs = 15000) {
+    const until = Date.now() + maxMs;
+    for (;;) {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab.status === "complete" || Date.now() > until) return tab;
+      await sleep(200);
+    }
+  }
+
+  // Navigate and resolve once Chrome reports the new page loaded. Listening for
+  // the event (not polling status) matters: right after tabs.update the old
+  // page can still say "complete", and the first step would go to it.
+  function navigateAndWait(tabId, url, maxMs = 20000) {
+    return new Promise((resolve) => {
+      const done = () => {
+        chrome.tabs.onUpdated.removeListener(onUpdated);
+        clearTimeout(timer);
+        resolve();
+      };
+      const onUpdated = (id, info) => { if (id === tabId && info.status === "complete") done(); };
+      const timer = setTimeout(done, maxMs);
+      chrome.tabs.onUpdated.addListener(onUpdated);
+      chrome.tabs.update(tabId, { url }).catch(done);
+    });
+  }
+
+  async function sendStep(tabId, step) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const res = await chrome.tabs.sendMessage(tabId, { action: "runRecordedStep", step }, { frameId: 0 });
+        // A content script from before the extension was updated answers
+        // with something else (or nothing useful): it can't replay.
+        if (res && typeof res.ok === "boolean") return res;
+        if (res) return { ok: false, error: "this page has an old copy of the extension: refresh the page and run again" };
+      } catch (err) {
+        // No listener yet (new page still loading its content script): the
+        // step never ran, so retry, injecting the scripts if needed. A click
+        // whose page went away mid-step navigated, which is a success; for
+        // anything else the step may not have run, so retry it.
+        const noListener = /Receiving end does not exist/i.test(err.message || "");
+        if (!noListener && step.action === "click") return { ok: true };
+        if (attempt === 1) await injectScripts(tabId);
+        await sleep(500);
+      }
+    }
+    return { ok: false, error: "the page didn't respond (is it still loading?)" };
+  }
+
+  async function runRecording(tabId, steps, port) {
+    const run = (recRuns[tabId] = { cancelled: false });
+    const post = (m) => {
+      try { (connections[tabId] || port).postMessage(m); } catch (e) { /* panel closed */ }
+    };
+    post({ action: "recRunStarted" }); // the panel's start watchdog waits for this
+    try {
+      // A run starts like a test: fresh load of the page the recording began on.
+      const start = steps.find((st) => st.url);
+      if (start) await navigateAndWait(tabId, start.url);
+      for (let i = 0; i < steps.length; i++) {
+        if (run.cancelled) return post({ action: "recRunDone", ok: false, cancelled: true, index: i });
+        post({ action: "recRunProgress", index: i, status: "running" });
+        await tabReady(tabId);
+        const res = await sendStep(tabId, steps[i]);
+        post({ action: "recRunProgress", index: i, status: !res.ok ? "fail" : res.skipped ? "skip" : "pass", error: res.error || null });
+        if (!res.ok) return post({ action: "recRunDone", ok: false, failedAt: i, error: res.error });
+        await sleep(REPLAY_STEP_GAP_MS);
+      }
+      post({ action: "recRunDone", ok: true, count: steps.length });
+    } catch (err) {
+      post({ action: "recRunDone", ok: false, error: err.message });
+    } finally {
+      if (recRuns[tabId] === run) delete recRuns[tabId];
+    }
+  }
+
   async function generateLocatorV3(payload) {
     try {
-      const { user_id: userId } = await chrome.storage.local.get('user_id');
+      const { user_id: userId, auth_token: token } = await chrome.storage.local.get(['user_id', 'auth_token']);
       if (!userId) return { ok: false, error: 'not_logged_in' };
+      // The session token is the real credential (userId is just an id, and
+      // Origin is spoofable outside a browser); the worker validates it and
+      // can then require it (GENERATE_LOCATOR_REQUIRE_BEARER). `omit` keeps
+      // cookies for this host (e.g. an admin dashboard session) off the request.
       const res = await fetch(`${WORKER_BASE}/generate-locator`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'omit',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
         body: JSON.stringify({ ...(payload || {}), userId }),
       });
       const data = await res.json().catch(() => null);
